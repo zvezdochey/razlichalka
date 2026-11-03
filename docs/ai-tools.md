@@ -1,6 +1,6 @@
 # Плагины и скилы для ИИ: кому что ставить
 
-Найди свой раздел (бэк или фронт), потом свой ИИ (Claude или Codex), и пройди по галочкам.
+Найди свой раздел (бэк, фронт или капитан), потом свой ИИ (Claude или Codex), и пройди по галочкам.
 
 Ставим только официальное (Anthropic, OpenAI, проверенные разработчики). Непроверенные плагины не ставим:
 это код, который ИИ выполняет на твоём ноуте.
@@ -54,6 +54,26 @@
 - [ ] `$skill-installer install https://github.com/anthropics/skills/tree/main/skills/frontend-design` — красивый UI
 - [ ] `$skill-installer install https://github.com/anthropics/skills/tree/main/skills/webapp-testing` — проверка сайта
 - [ ] `$skill-installer screenshot` — скриншоты для проверки вида
+- [ ] `$skill-installer security-best-practices` — проверка кода на уязвимости
+
+---
+
+## 3. Капитан
+
+Капитан сливает всё в `main`, проверяет чужой код и делает презентацию.
+
+### Claude Code
+
+- [ ] `/plugin install code-review@claude-plugins-official` — проверка Pull Request перед тем, как жать Merge
+- [ ] `/plugin install commit-commands@claude-plugins-official` — коммиты и Pull Request одной командой
+- [ ] `npx skills add anthropics/skills@pptx` — слайды для защиты
+- [ ] `/plugin install security-guidance@claude-plugins-official` — предупреждает про дырявый код
+
+### Codex
+
+- [ ] Проверка Pull Request уже встроена — команда `/review`, ставить ничего не надо
+- [ ] `$skill-installer gh-address-comments` — разбирает замечания в Pull Request
+- [ ] `$skill-installer install https://github.com/anthropics/skills/tree/main/skills/pptx` — слайды для защиты
 - [ ] `$skill-installer security-best-practices` — проверка кода на уязвимости
 
 ---
