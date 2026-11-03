@@ -32,10 +32,20 @@
 | **Context7** | свежая документация к библиотекам, чтобы ИИ не выдумывал по старой памяти |
 | **Playwright** | ИИ сам открывает сайт в браузере, кликает и проверяет |
 
+И ещё один скил всем — для ночной отладки:
+
+- [ ] **systematic-debugging** — ИИ ищет настоящую причину бага, а не латает симптом.
+  Автор — obra (набор superpowers, лицензия MIT).
+  - Claude: `npx skills add obra/superpowers@systematic-debugging`
+  - Codex: `$skill-installer install https://github.com/obra/superpowers/tree/main/skills/systematic-debugging`
+
 ---
 
 ## Семён — капитан, Claude Code
 
+- [ ] `npx skills add obra/superpowers@brainstorming` — превращает сырую идею в план через вопросы.
+  Нужен 6-го после постановки задачи. **Только капитану:** скил включается перед любой новой работой
+  и задаёт кучу вопросов — у тех, кто пишет код, он будет тормозить каждую мелочь.
 - [ ] `/plugin install code-review@claude-plugins-official` — проверка Pull Request перед тем, как жать Merge
 - [ ] `/plugin install commit-commands@claude-plugins-official` — коммиты и Pull Request одной командой
 - [ ] `npx skills add anthropics/skills@pptx` — слайды для защиты
