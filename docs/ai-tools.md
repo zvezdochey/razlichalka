@@ -1,16 +1,23 @@
-# Плагины и скилы для ИИ
+# Плагины и скилы для ИИ: кому что ставить
 
-У кого-то Claude Code, у кого-то Codex — тут команды для обоих.
+Найди свой раздел (бэк или фронт), потом свой ИИ (Claude или Codex), и пройди по галочкам.
+
 Ставим только официальное (Anthropic, OpenAI, проверенные разработчики). Непроверенные плагины не ставим:
 это код, который ИИ выполняет на твоём ноуте.
 
-Нужен Node.js (для `npx`).
-
 ---
 
-## 1. Ставится само (ничего делать не надо)
+## 0. Сначала всем
 
-Как только откроешь проект, ИИ сам подхватит:
+- [ ] Установлен **Node.js 20+** — проверь: `node -v`. Без него не заработают Context7 и Playwright.
+- [ ] Открыл проект в своём ИИ и **разрешил настройки проекта**:
+  - Claude спросит, можно ли включить серверы из `.mcp.json` → **да**.
+  - Codex спросит, доверяешь ли проекту → **да**.
+- [ ] Проверил, что подключились **Context7** и **Playwright**:
+  - Claude: команда `/mcp`
+  - Codex: `codex mcp list`
+
+Это ставится само для всех, руками ничего не надо:
 
 | Что | Зачем |
 |---|---|
@@ -18,42 +25,36 @@
 | **Context7** | свежая документация к библиотекам, чтобы ИИ не выдумывал по старой памяти |
 | **Playwright** | ИИ сам открывает сайт в браузере, кликает и проверяет |
 
-Claude при первом запуске спросит, можно ли включить MCP-серверы из `.mcp.json` — разреши.
-Codex спросит, доверяешь ли проекту — ответь «да», иначе настройки из `.codex/config.toml` не включатся.
+---
 
-Проверить: в Claude — команда `/mcp`, в Codex — `codex mcp list`.
+## 1. Бэк
+
+### Claude Code
+
+- [ ] `/plugin install pyright-lsp@claude-plugins-official` — ИИ сразу видит ошибки в Python
+- [ ] `/plugin install security-guidance@claude-plugins-official` — предупреждает про дырявый код
+
+### Codex
+
+- [ ] `$skill-installer security-best-practices` — проверка кода на уязвимости
 
 ---
 
-## 2. Ставим руками — по ролям
+## 2. Фронт
 
-### Все
+### Claude Code
 
-| Что | Claude Code | Codex |
-|---|---|---|
-| Защита от дырявого кода | `/plugin install security-guidance@claude-plugins-official` | `$skill-installer security-best-practices` |
+- [ ] `/plugin install frontend-design@claude-plugins-official` — красивый UI, а не шаблонный
+- [ ] `npx skills add anthropics/skills@webapp-testing` — запускает сайт, делает скриншоты, смотрит ошибки
+- [ ] `/plugin install typescript-lsp@claude-plugins-official` — ИИ сразу видит ошибки TypeScript
+- [ ] `/plugin install security-guidance@claude-plugins-official` — предупреждает про дырявый код
 
-### Фронт
+### Codex
 
-| Что | Claude Code | Codex |
-|---|---|---|
-| Красивый UI | `/plugin install frontend-design@claude-plugins-official` | `$skill-installer install https://github.com/anthropics/skills/tree/main/skills/frontend-design` |
-| Проверка сайта, скриншоты | `npx skills add anthropics/skills@webapp-testing` | `$skill-installer install https://github.com/anthropics/skills/tree/main/skills/webapp-testing` |
-| Ошибки TypeScript сразу | `/plugin install typescript-lsp@claude-plugins-official` | — |
-| Скриншоты для проверки вида | — | `$skill-installer screenshot` |
-
-### Бэк
-
-| Что | Claude Code | Codex |
-|---|---|---|
-| Ошибки Python сразу | `/plugin install pyright-lsp@claude-plugins-official` | — |
-
-### Капитан
-
-| Что | Claude Code | Codex |
-|---|---|---|
-| Коммиты и PR одной командой | `/plugin install commit-commands@claude-plugins-official` | — |
-| Проверка PR перед Merge | `/plugin install code-review@claude-plugins-official` | `$skill-installer gh-address-comments` |
+- [ ] `$skill-installer install https://github.com/anthropics/skills/tree/main/skills/frontend-design` — красивый UI
+- [ ] `$skill-installer install https://github.com/anthropics/skills/tree/main/skills/webapp-testing` — проверка сайта
+- [ ] `$skill-installer screenshot` — скриншоты для проверки вида
+- [ ] `$skill-installer security-best-practices` — проверка кода на уязвимости
 
 ---
 
