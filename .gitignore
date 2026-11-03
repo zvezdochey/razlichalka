@@ -1,0 +1,24 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# Секреты
+.env
+.env.*
+!.env.example
+
+# Данные (большие и чужие — не коммитим)
+data/raw/
+*.parquet
+*.xlsx
+
+# Система и редакторы
+.DS_Store
+.idea/
+.vscode/
