@@ -1,22 +1,20 @@
 # Плагины и скилы для ИИ: кому что ставить
 
-Найди свой раздел, потом свой ИИ (Claude или Codex), и пройди по галочкам:
+Найди своё имя и пройди по галочкам. Раздел 0 — для всех.
 
-| Кто | Раздел |
-|---|---|
-| Стёпа | 1. Бэк |
-| Саня | 2. Фронт |
-| Семён | 3. Капитан |
-| Илья | 1. Бэк **и** 2. Фронт — ставит оба, чтобы помогать любой стороне |
-
-Раздел 0 — для всех.
+| Кто | Роль | ИИ |
+|---|---|---|
+| Семён | капитан | Claude Code |
+| Саня | фронт | Claude Code |
+| Стёпа | бэк | Codex |
+| Илья | бэк + фронт | Codex |
 
 Ставим только официальное (Anthropic, OpenAI, проверенные разработчики). Непроверенные плагины не ставим:
 это код, который ИИ выполняет на твоём ноуте.
 
 ---
 
-## 0. Сначала всем
+## 0. Всем
 
 - [ ] Установлен **Node.js 20+** — проверь: `node -v`. Без него не заработают Context7 и Playwright.
 - [ ] Открыл проект в своём ИИ и **разрешил настройки проекта**:
@@ -26,7 +24,7 @@
   - Claude: команда `/mcp`
   - Codex: `codex mcp list`
 
-Это ставится само для всех, руками ничего не надо:
+Это ставится само, руками ничего не надо:
 
 | Что | Зачем |
 |---|---|
@@ -36,54 +34,34 @@
 
 ---
 
-## 1. Бэк
-
-### Claude Code
-
-- [ ] `/plugin install pyright-lsp@claude-plugins-official` — ИИ сразу видит ошибки в Python
-- [ ] `/plugin install security-guidance@claude-plugins-official` — предупреждает про дырявый код
-
-### Codex
-
-- [ ] `$skill-installer security-best-practices` — проверка кода на уязвимости
-
----
-
-## 2. Фронт
-
-### Claude Code
-
-- [ ] `/plugin install frontend-design@claude-plugins-official` — красивый UI, а не шаблонный
-- [ ] `npx skills add anthropics/skills@webapp-testing` — запускает сайт, делает скриншоты, смотрит ошибки
-- [ ] `/plugin install typescript-lsp@claude-plugins-official` — ИИ сразу видит ошибки TypeScript
-- [ ] `/plugin install security-guidance@claude-plugins-official` — предупреждает про дырявый код
-
-### Codex
-
-- [ ] `$skill-installer install https://github.com/anthropics/skills/tree/main/skills/frontend-design` — красивый UI
-- [ ] `$skill-installer install https://github.com/anthropics/skills/tree/main/skills/webapp-testing` — проверка сайта
-- [ ] `$skill-installer screenshot` — скриншоты для проверки вида
-- [ ] `$skill-installer security-best-practices` — проверка кода на уязвимости
-
----
-
-## 3. Капитан
-
-Капитан сливает всё в `main`, проверяет чужой код и делает презентацию.
-
-### Claude Code
+## Семён — капитан, Claude Code
 
 - [ ] `/plugin install code-review@claude-plugins-official` — проверка Pull Request перед тем, как жать Merge
 - [ ] `/plugin install commit-commands@claude-plugins-official` — коммиты и Pull Request одной командой
 - [ ] `npx skills add anthropics/skills@pptx` — слайды для защиты
 - [ ] `/plugin install security-guidance@claude-plugins-official` — предупреждает про дырявый код
 
-### Codex
+## Саня — фронт, Claude Code
 
-- [ ] Проверка Pull Request уже встроена — команда `/review`, ставить ничего не надо
-- [ ] `$skill-installer gh-address-comments` — разбирает замечания в Pull Request
-- [ ] `$skill-installer install https://github.com/anthropics/skills/tree/main/skills/pptx` — слайды для защиты
+- [ ] `/plugin install frontend-design@claude-plugins-official` — красивый UI, а не шаблонный
+- [ ] `npx skills add anthropics/skills@webapp-testing` — запускает сайт, делает скриншоты, смотрит ошибки
+- [ ] `/plugin install typescript-lsp@claude-plugins-official` — ИИ сразу видит ошибки TypeScript
+- [ ] `/plugin install security-guidance@claude-plugins-official` — предупреждает про дырявый код
+
+## Стёпа — бэк, Codex
+
 - [ ] `$skill-installer security-best-practices` — проверка кода на уязвимости
+
+## Илья — бэк + фронт, Codex
+
+Ставит всё, чтобы помогать любой стороне:
+
+- [ ] `$skill-installer security-best-practices` — проверка кода на уязвимости
+- [ ] `$skill-installer install https://github.com/anthropics/skills/tree/main/skills/frontend-design` — красивый UI
+- [ ] `$skill-installer install https://github.com/anthropics/skills/tree/main/skills/webapp-testing` — проверка сайта
+- [ ] `$skill-installer screenshot` — скриншоты для проверки вида
+
+Проверка Pull Request в Codex уже встроена — команда `/review`. Пригодится, когда проверяешь вместе с капитаном.
 
 ---
 
