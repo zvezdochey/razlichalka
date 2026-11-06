@@ -318,8 +318,8 @@
 ```json
 {
   "applications": 2002,
-  "applications_changed": 2002,
-  "applications_changed_share": 1.0,
+  "applications_changed": 502,
+  "applications_changed_share": 0.251,
   "decision_changed": 385,
   "decision_changes": {
     "same": 1617,
@@ -327,23 +327,21 @@
     "reject_to_approve": 112,
     "decision_other": 0
   },
-  "attributes": { "VALUE_CHANGED": 11571, "ATTRIBUTE_NEW": 4108, "ATTRIBUTE_LOST": 3122 },
+  "attributes": { "VALUE_CHANGED": 7567, "ATTRIBUTE_NEW": 4108, "ATTRIBUTE_LOST": 3122 },
   "change_sources": { "logic": 218, "data": 167, "both": 0, "none": 0 },
-  "checks_fail": 2
+  "checks_fail": 33
 }
 ```
 
 `change_sources` — откуда взялась смена решения (словарь «Откуда смена»), **только по заявкам, где решение изменилось**: сумма всегда равна `decision_changed`. Все четыре ключа есть всегда.
 
-**`change_sources` в примере посчитан с другим конфигом, чем остальные числа:** `ignore_paths = ["appData.request_id", "appData.createDateTime"]`. С пустым `ignore_paths` эти два поля различаются у всех заявок, лежат в `appData` (это вход), и тогда все 385 смен решения получат `data` — так считать нельзя. Технические поля надо исключать всегда, когда смотрите `change_sources`.
+Все числа примера — реальные, с настоящего датасета, `ignore_paths = ["appData.request_id", "appData.createDateTime"]` и пятью проверками организаторов. Технические поля надо исключать всегда: иначе они различаются у всех 2002 заявок и все 385 смен решения получат `data`.
 
-Числа по настоящему датасету (с этими двумя полями в `ignore_paths`): **из 385 смен решения 167 — из-за входных данных**. У всех 167 внешний источник `score_okb` вернул другое значение (в `ext_data[].body.params.data`, следом в `characteristics.score_okb` и в предикторе модели), скор упал, СПР выбрала порог `MFO_ZAIMER_2026_LOW`/`_MID` вместо `MFO_ZAIMER_2026` — и `APPROVE → REJECT`. Остальные 218 — из-за логики (вход тот же).
+Из 385 смен решения **167 — из-за входных данных**: у всех внешний источник `score_okb` вернул другое значение (в `ext_data[].body.params.data`, следом в `characteristics.score_okb` и в предикторе модели), скор упал, СПР выбрала порог `MFO_ZAIMER_2026_LOW`/`_MID` вместо `MFO_ZAIMER_2026` — и `APPROVE → REJECT`. Остальные 218 — из-за логики (вход тот же). `ATTRIBUTE_NEW`/`ATTRIBUTE_LOST` объясняются составом атрибутов: у разных веток ответа разный набор полей; дублей ключей нет.
 
 `checks_fail` — число строк проверок с `FAIL` (для карточки «Проверки с FAIL»). Поле появляется после этапа `checks`: пока этап не прошёл, его нет. Если проверок в конфигурации нет — `0`.
 
 `applications_only_before` / `applications_only_after` — заявки, которые есть только в одном срезе (сломанный JSON, нет ответа). В витрину, факты и список заявок они не попадают: по просьбе организаторов анализируем только заявки с парой before/after, остальные видны лишь этими счётчиками.
-
-Остальные числа примера — **все, кроме `change_sources`**, — посчитаны конвейером (`pipeline/`) на настоящем датасете с пустым `ignore_paths`: ключи массивов по правилам E2, сравнение по `VALUE`. Служебные поля (id запроса, даты) отличаются у каждой заявки, поэтому `applications_changed` = все 2002 и пока ничего не показывает. `applications_changed` и `attributes` — **не эталон**: они изменятся, когда в конфиге появится `ignore_paths`. Решения (`decision_*`) от конфига не зависят.
 
 Решения (`decision_changes`) уже совпадают с тем, что видно в данных: `APPROVE → REJECT` 273, `REJECT → APPROVE` 112, остальные 1617 заявок с тем же решением.
 

@@ -8,9 +8,12 @@ services:
     environment:
       DATASETS_DIR: /data
       DATA_DIR: /var/razlichalka
+      CHECKS_DIR: /checks
     volumes:
       # датасет не лежит в Git — подключаем только на чтение
       - ${DATASETS_PATH:-./ПАКЕТ/ЗАДАНИЕ/data}:/data:ro
+      # проверки организаторов (check_*.py) — тоже только на чтение
+      - ${CHECKS_PATH:-./ПАКЕТ/ЗАДАНИЕ/checks}:/checks:ro
       # результаты запусков переживают перезапуск
       - razlichalka_var:/var/razlichalka
     restart: unless-stopped
