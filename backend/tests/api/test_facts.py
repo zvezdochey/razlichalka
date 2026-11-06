@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -9,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app import pipeline_stub, settings
 from app.main import create_app
+from app.services import facts as facts_service
 from app.services.facts import make_apps_ref
 from pipeline.csvio import read_csv, write_csv
 
@@ -114,6 +116,10 @@ def test_explicit_app_ids_and_concurrent_ref_writes(client, run):
     {"dims": "PATH,KEY,CLASS,PREFIX"},
     {"dims": "PATH", "filter": "UNKNOWN:1"},
     {"dims": "PATH", "filter": "PATH"},
+    {"dims": "PATH", "filter": "PATH:a;"},
+    {"dims": "PATH", "filter": "DIFF_FLAG:2"},
+    {"dims": "PATH", "filter": "DIFF_FLAG:1,2"},
+    {"dims": "PATH", "filter": "DIFF_FLAG:"},
     {"dims": "PATH", "measure": "invalid"},
     {"dims": "PATH", "limit": 5001},
 ])
@@ -181,3 +187,42 @@ def test_csv_exports_formula_like_cells_as_text(client, run):
     rows = csv.DictReader(io.StringIO(response.content.decode("utf-8-sig")), delimiter=";")
     assert next(rows)["pd_model_before"] == "' =1+1"
     assert client.get(f"{url}/apps").json()["apps"][0]["pd_model_before"] == " =1+1"
+
+
+def test_empty_filter_matches_unfiltered_facts(client, run):
+    assert get_facts(client, run, dims="PATH", filter="") == get_facts(client, run, dims="PATH")
+
+
+def test_ref_storage_keeps_recent_groups_and_explicit_ids(client, run, monkeypatch):
+    monkeypatch.setattr(facts_service, "_MAX_GROUP_REFS", 2)
+    run_dir = settings.DATA_DIR / "runs" / run
+    durable = make_apps_ref(run_dir, ["MINI-002"])
+
+    def ref_for(change_type):
+        data = get_facts(client, run, dims="CHANGE_TYPE", filter=f"CHANGE_TYPE:{change_type}")
+        return data["rows"][0]["app_ids_ref"]
+
+    same = ref_for("SAME")
+    changed = ref_for("VALUE_CHANGED")
+    assert ref_for("SAME") == same
+    new = ref_for("ATTRIBUTE_NEW")
+
+    url = f"/api/runs/{run}/facts"
+    assert client.get(f"{url}/{changed}/apps").status_code == 404
+    for ref in (same, new, durable):
+        assert client.get(f"{url}/{ref}/apps").status_code == 200
+    assert client.get(f"{url}/{durable}/apps").json()["apps"] == ["MINI-002"]
+    assert not (run_dir / "facts_refs.json").exists()
+
+
+def test_legacy_json_refs_still_work(client, run):
+    run_dir = settings.DATA_DIR / "runs" / run
+    ref = "f_000000000001"
+    (run_dir / "facts_refs.json").write_text(
+        json.dumps({ref: {"app_ids": ["MINI-001"]}}), encoding="utf-8",
+    )
+
+    get_facts(client, run, dims="CHANGE_TYPE")
+    response = client.get(f"/api/runs/{run}/facts/{ref}/apps")
+    assert response.status_code == 200
+    assert response.json()["apps"] == ["MINI-001"]

@@ -1,12 +1,13 @@
 """Чтение неизменяемых результатов готового запуска."""
+from csv import DictWriter
 from functools import lru_cache
+from io import StringIO
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import pandas as pd
 
 from app.errors import ApiError
-from pipeline.csvio import read_csv, write_csv
+from pipeline.csvio import read_csv
 
 APP_FIELDS = [
     "app_id", "decision_before", "decision_after", "decision_change", "attributes_changed",
@@ -122,11 +123,12 @@ def export_apps(
     rows = _filter_apps(
         run_dir, decision_change=decision_change, has_attr_change=has_attr_change, search=search, sort=sort,
     )
-    with TemporaryDirectory(dir=run_dir) as scratch:
-        path = Path(scratch) / "apps.csv"
-        records = ({name: _excel_value(value) for name, value in row.items()} for row in rows.to_dict("records"))
-        write_csv(path, APP_FIELDS, records)
-        return path.read_bytes()
+    records = ({name: _excel_value(value) for name, value in row.items()} for row in rows.to_dict("records"))
+    output = StringIO(newline="")
+    writer = DictWriter(output, fieldnames=APP_FIELDS, delimiter=";")
+    writer.writeheader()
+    writer.writerows(records)
+    return output.getvalue().encode("utf-8-sig")
 
 
 def attributes(
