@@ -2,8 +2,6 @@
 import copy
 import json
 import logging
-import os
-import tempfile
 import threading
 import time
 import uuid
@@ -11,9 +9,10 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app import pipeline_stub, settings
+from app import pipeline_stub, settings, store
 from app.errors import ApiError
 from app.services import datasets, stages
+from pipeline.errors import Cancelled as PipelineCancelled
 
 log = logging.getLogger("razlichalka")
 
@@ -43,7 +42,11 @@ _executor = ThreadPoolExecutor(max_workers=2)
 
 
 class Cancelled(Exception):
-    """Внутренний сигнал «пользователь нажал Стоп» (чтобы не зависеть от pipeline.errors)."""
+    """Внутренний сигнал «пользователь нажал Стоп». Этапы pipeline бросают свой Cancelled — ловим оба."""
+
+
+CANCELLED = (Cancelled, PipelineCancelled)
+CANCELLED_ERROR = {"code": "cancelled", "message": "Остановлено пользователем"}
 
 
 def _now() -> str:
@@ -51,17 +54,8 @@ def _now() -> str:
 
 
 def _write(run_dir: Path, run: dict) -> None:
-    """Атомарная запись run.json: во временный файл, потом os.replace."""
-    run_dir.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=run_dir, suffix=".tmp")
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(run, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, run_dir / "run.json")
-    except BaseException:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-        raise
+    """Атомарная запись run.json (см. store.write_json)."""
+    store.write_json(run_dir / "run.json", run)
 
 
 def _save(run: dict) -> None:
@@ -147,6 +141,7 @@ def _error_dict(exc: BaseException) -> dict:
 
 
 def _fail(run: dict, stage: dict | None, error: dict) -> None:
+    error = dict(error)  # своя копия: CANCELLED_ERROR общий для всех запусков
     with _lock:
         now = _now()
         if stage is not None:
@@ -178,8 +173,8 @@ def execute(run: dict) -> None:
                 func(Ctx(run, stage, index))
                 if _cancel[rid].is_set():
                     raise Cancelled()
-            except Cancelled:
-                _fail(run, stage, {"code": "cancelled", "message": "Остановлено пользователем"})
+            except CANCELLED:
+                _fail(run, stage, CANCELLED_ERROR)
                 return
             except Exception as exc:  # любой сбой этапа не должен ронять фоновый поток
                 _fail(run, stage, _error_dict(exc))
@@ -191,8 +186,8 @@ def execute(run: dict) -> None:
             run["status"], run["current_stage"], run["finished_at"] = "ready", None, _now()
             run["progress"]["done"] = run["progress"]["total"]
             _save(run)
-    except Cancelled:
-        _fail(run, None, {"code": "cancelled", "message": "Остановлено пользователем"})
+    except CANCELLED:
+        _fail(run, None, CANCELLED_ERROR)
     except Exception as exc:
         _fail(run, None, _error_dict(exc))
     finally:
@@ -240,7 +235,7 @@ def cancel(run_id: str, user: str) -> dict:
     with _lock:
         _cancel[run_id].set()
         if run["status"] == "pending":  # ещё не стартовал — останавливаем сразу
-            _fail(run, None, {"code": "cancelled", "message": "Остановлено пользователем"})
+            _fail(run, None, CANCELLED_ERROR)
             _done[run_id].set()
             return run
     if run["status"] == "running":

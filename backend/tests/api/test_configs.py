@@ -100,6 +100,8 @@ def test_unknown_dataset(client):
     {"name": "   "},
     {"buckets": {"p": [0.6, 0.3]}},
     {"buckets": {"p": [0.3, 0.3]}},
+    {"buckets": {"a[].b": [1], "a.b": [2]}},          # один и тот же путь дважды
+    {"buckets": {"p": [0.00000000001, 0.00000000002]}},  # подписи границ совпадают
     {"array_modes": {"p": "random"}},
 ])
 def test_bad_body_is_bad_code(client, patch):

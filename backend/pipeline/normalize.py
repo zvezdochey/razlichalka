@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 
 from .array_rules import DEFAULT_ARRAY_RULES, merge_array_rules
+from .buckets import make_adjuster
 from .csvio import write_csv
 from .dataset import list_source_files
 from .errors import BadFile, Cancelled
@@ -29,15 +30,9 @@ def normalize_dataset(dataset_dir: Path, source: str, out_csv: Path, parse_cfg: 
     adjust = None
     if parse_cfg.get("buckets"):
         try:
-            from .buckets import make_adjuster
-        except ModuleNotFoundError as e:
-            # E4 ещё не слита: бакетизации нет (ADJUSTED_VALUE = VALUE). Любую другую ошибку не прячем.
-            if e.name != f"{__package__}.buckets":
-                raise
-            if log:
-                log("warn", "Бакеты заданы, но модуля buckets нет — ADJUSTED_VALUE равен VALUE")
-        else:
             adjust = make_adjuster(parse_cfg["buckets"])
+        except ValueError as e:  # кривые границы — понятная ошибка этапа, а не internal
+            raise BadFile(f"конфигурация: {e}") from None
 
     def say(level: str, message: str) -> None:
         if log:

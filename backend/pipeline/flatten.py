@@ -131,6 +131,9 @@ def flatten_response(
             emit(path, array_keys, node)
 
     def walk_array(items: list, arr_path: str, plain_path: str, array_keys: list[str]) -> None:
+        # Массив игнорируют целиком (путь с «[]», например ext_data[]) — ни листьев, ни правила.
+        if _is_ignored(arr_path, ignore_paths):
+            return
         # Пустой массив — один лист «[]», правило не нужно.
         if not items:
             emit(plain_path, array_keys, "[]")
@@ -175,7 +178,7 @@ def flatten_response(
                 else:
                     for name, child in element.items():
                         walk(child, f"{arr_path}.{name}", keys)
-            elif not _is_ignored(arr_path, ignore_paths):
+            else:
                 emit(arr_path, keys, element)
 
     walk(doc, "", [])

@@ -80,7 +80,8 @@ def test_cancel_stops_run(tmp_path, monkeypatch):
     wait(client, rid, {"running"}, timeout=10)
     client.post(f"/api/runs/{rid}/cancel", headers=ANN)
     data = wait(client, rid, {"error"}, timeout=10)
-    assert data["error"]["code"] == "cancelled"
+    # тот же текст, что в docs/api.md п. 5.4, хотя Cancelled бросил сам pipeline
+    assert data["error"] == {"code": "cancelled", "message": "Остановлено пользователем"}
 
 
 @pytest.mark.skipif(not (REAL / "manifest.json").exists(), reason="нет настоящего датасета")

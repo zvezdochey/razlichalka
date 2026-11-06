@@ -8,6 +8,7 @@
 """
 
 import json
+import os
 from pathlib import Path
 
 from pipeline.csvio import read_csv, write_csv
@@ -97,7 +98,11 @@ def build_summary(comparison_csv: Path, segments_csv: Path, out_summary_json: Pa
         "decision_changes": changes,
         "attributes": {t: int(by_type.get(t, 0)) for t in CHANGE_TYPES},
     }
-    Path(out_summary_json).write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    # как и CSV: сначала во временный файл, потом подмена — обрыв не оставит половину JSON
+    out_summary_json = Path(out_summary_json)
+    tmp = out_summary_json.with_name(out_summary_json.name + ".tmp")
+    tmp.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, out_summary_json)
     if log:
         log("info", f"Итоги: заявок {total}, с различиями {changed}, "
                     f"решение изменилось у {summary['decision_changed']}")

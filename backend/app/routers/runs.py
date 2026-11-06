@@ -2,10 +2,9 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from app import store
 from app.deps import current_user
 from app.errors import ApiError
-from app.routers.configs import KIND as CONFIGS_KIND
+from app.routers.configs import own_config
 from app.services import runs
 
 router = APIRouter()
@@ -31,10 +30,7 @@ def _stage(run: dict, name: str) -> dict:
 
 @router.post("/runs", status_code=202)
 def start_run(body: RunIn, user: str = Depends(current_user)):
-    config = store.load(CONFIGS_KIND, body.config_id)
-    if config is None or config.get("owner") != user:
-        raise ApiError("not_found", "Конфигурация не найдена")
-    run = runs.create(config, user)
+    run = runs.create(own_config(body.config_id, user), user)
     return {"id": run["id"], "status": "pending", "config_id": run["config_id"]}
 
 
