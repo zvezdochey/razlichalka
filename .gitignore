@@ -22,3 +22,13 @@ data/raw/
 .DS_Store
 .idea/
 .vscode/
+
+# Playwright (локальные скриншоты/снапшоты проверок)
+.playwright-mcp/
+
+# Локальные настройки ИИ-агентов (скилы/плагины конкретного человека)
+.agents/
+skills-lock.json
+.claude/*
+!.claude/agents/
+!.claude/agents/*
