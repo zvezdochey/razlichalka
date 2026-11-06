@@ -20,10 +20,24 @@ import { App } from './App'
 const container = document.getElementById('root')
 if (!container) throw new Error('Не найден элемент #root — проверьте index.html')
 
-createRoot(container).render(
-  <StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
-  </StrictMode>,
-)
+/** Моки поднимаем до первого рендера, иначе первые запросы уйдут в пустой бэк. */
+async function startMocksIfNeeded(): Promise<void> {
+  if (!import.meta.env.DEV) return
+  const { MOCKS_ENABLED, startMocks } = await import('./mocks/start')
+  if (MOCKS_ENABLED) await startMocks()
+}
+
+startMocksIfNeeded()
+  .catch(() => {
+    // Воркер не поднялся (например приватный режим браузера запретил service worker).
+    // Это не повод не показать приложение: запросы просто уйдут на настоящий бэк.
+  })
+  .finally(() => {
+    createRoot(container).render(
+      <StrictMode>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </StrictMode>,
+    )
+  })
