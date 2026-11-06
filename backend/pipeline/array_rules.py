@@ -27,9 +27,15 @@ DEFAULT_ARRAY_RULES: dict[str, dict] = {
 
 
 def merge_array_rules(defaults: dict, array_modes: dict) -> dict:
-    """Копия правил, где режим переопределён по путям из `array_modes`. Ключи (`key`) не трогаем."""
+    """Копия правил, где режим переопределён по путям из `array_modes`. Ключи (`key`) не трогаем.
+
+    Путь массива можно писать и без последних `[]`: `decisionResult.scoring[].value` — это
+    правило `decisionResult.scoring[].value[]` (так путь записан в примере конфига в docs/api.md).
+    """
     merged = {path: dict(rule) for path, rule in defaults.items()}
     for path, mode in (array_modes or {}).items():
+        if path not in merged and path + "[]" in merged:
+            path += "[]"
         if path in merged:
             merged[path]["mode"] = mode
         else:
