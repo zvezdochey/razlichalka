@@ -22,6 +22,7 @@ def client(tmp_path, monkeypatch):
     }), encoding="utf-8")
     monkeypatch.setattr(settings, "DATASETS_DIR", ds)
     monkeypatch.setattr(settings, "DATA_DIR", tmp_path / "data")
+    monkeypatch.setattr(settings, "USE_STUB_PIPELINE", True)
     monkeypatch.setattr(pipeline_stub, "STAGE_SECONDS", 0.3)
     return TestClient(create_app())
 
