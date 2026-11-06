@@ -1,0 +1,239 @@
+/* Общая база: типографика, таблицы, кнопки, бейджи, ось сравнения.
+   Всё, что нужно больше одного раза, живёт здесь, а не в компонентах. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+h1 {
+  font-size: var(--fs-page);
+}
+
+h2 {
+  font-size: var(--fs-panel);
+}
+
+p {
+  margin: 0 0 var(--s-3);
+}
+
+code,
+kbd,
+.mono {
+  font-family: var(--font-mono);
+}
+
+a {
+  color: var(--info);
+}
+
+/* --- Кольцо фокуса: видно на всём, с чем можно взаимодействовать --- */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* --- Утилиты --- */
+
+/* Числа одинаковой ширины, выравнивание вправо */
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Надзаголовок секции: обычным предложением, не капсом (PLAN п. 1) */
+.overline {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  margin-bottom: var(--s-1);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.faint {
+  color: var(--faint);
+}
+
+/* Плоская панель: без скругления и теней */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0;
+  padding: var(--s-4);
+}
+
+/* Волосяная линия-ось сравнения: между значениями BEFORE и AFTER */
+.axis {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.axis::before {
+  content: '';
+  align-self: stretch;
+  width: 1px;
+  min-height: 1em;
+  background: var(--border-strong);
+}
+
+/* --- Кнопки --- */
+.btn {
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 6px var(--s-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Основное действие — единственное место, где уместен брендовый красный */
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: #b32e1b;
+}
+
+/* --- Поля ввода --- */
+.input,
+.select {
+  font: inherit;
+  padding: 6px var(--s-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* --- Чип / бейдж --- */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 1px var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-control);
+  background: var(--surface-sunken);
+  color: var(--muted);
+  font-size: var(--fs-caption);
+  white-space: nowrap;
+}
+
+/* Цвет = оценка только для вердиктов автопроверок */
+.chip--pass {
+  background: var(--pass-bg);
+  border-color: var(--pass-bg);
+  color: var(--pass);
+}
+
+.chip--fail {
+  background: var(--fail-bg);
+  border-color: var(--fail-bg);
+  color: var(--fail);
+}
+
+.chip--low {
+  background: var(--low-bg);
+  border-color: var(--low-bg);
+  color: var(--low);
+}
+
+.chip--info {
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
+  color: var(--info);
+}
+
+/* --- Таблицы --- */
+.table-scroll {
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--fs-table);
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border-strong);
+  padding: 0 var(--s-3);
+  height: var(--row-h);
+  text-align: left;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.table td {
+  height: var(--row-h);
+  padding: 0 var(--s-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.table tbody tr:hover {
+  background: var(--surface-sunken);
+}
+
+/* --- Движение: только на действие человека или изменение системы --- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
