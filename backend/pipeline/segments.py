@@ -6,7 +6,11 @@
     берём продукт на первой позиции выдачи (оффер с минимальным `rank` в `available_offers`);
     если выдачи нет — продукт с наименьшим `product_id` из `product_trials`.
 Правило применяется к каждому срезу отдельно и одинаково для обоих.
-`PARTNER_TYPE` и `ROUTING_METHOD` — одна колонка на два среза: берём из BEFORE, а если там пусто — из AFTER.
+`PARTNER_TYPE` и `ROUTING_METHOD` — одна колонка на два среза, а у продуктов внутри заявки они разные,
+поэтому берём их у продукта из того среза, где у заявки есть выдача: есть в BEFORE (или в обоих) — из BEFORE,
+есть только в AFTER — из AFTER (так у REJECT->APPROVE это одобренный продукт); выдачи нет нигде — у продукта
+с наименьшим `product_id` (из BEFORE, а если там пусто — из AFTER).
+`PRODUCTS` — продукты из обоих срезов вместе.
 
 Нет поля -> пустая ячейка (не `None` и не ошибка).
 
@@ -120,6 +124,9 @@ def _read(file: Path) -> dict:
 
 def _row(app_id: str, before: dict, after: dict) -> dict:
     changed = before["decision"] != after["decision"]
+    # партнёр и маршрутизация — из среза, где есть выдача (в BEFORE приоритет)
+    partner_src = after if (not before["top_offer"] and after["top_offer"]) else before
+    partner_alt = before if partner_src is after else after
     return {
         "APP_ID": app_id,
         "DECISION_BEFORE": before["decision"],
@@ -128,8 +135,8 @@ def _row(app_id: str, before: dict, after: dict) -> dict:
         "PRODUCTS": "|".join(sorted(set(before["products"]) | set(after["products"]), key=_min_key)),
         "TOP_OFFER_BEFORE": before["top_offer"],
         "TOP_OFFER_AFTER": after["top_offer"],
-        "PARTNER_TYPE": before["partner_type"] or after["partner_type"],
-        "ROUTING_METHOD": before["routing_method"] or after["routing_method"],
+        "PARTNER_TYPE": partner_src["partner_type"] or partner_alt["partner_type"],
+        "ROUTING_METHOD": partner_src["routing_method"] or partner_alt["routing_method"],
         "PD_MODEL_BEFORE": before["pd_model"],
         "PD_MODEL_AFTER": after["pd_model"],
         "CUTOFF_BEFORE": before["cutoff"],

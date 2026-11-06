@@ -89,6 +89,22 @@ def test_top_offer_and_same_product_fields(tmp_path):
     assert r["PRODUCTS"] == "10|20"
 
 
+def test_partner_from_slice_with_offers(tmp_path):
+    # REJECT->APPROVE: в BEFORE выдачи нет, в AFTER первым стоит не продукт с наименьшим id
+    before = doc("X", "REJECT", [trial(1, partner="CURRENT", routing="referal"), trial(2, partner="NEW", routing="api")])
+    after = doc("X", "APPROVE", [trial(1, partner="CURRENT", routing="referal"), trial(2, partner="NEW", routing="api")],
+                offers=[offer(2, 1)])
+    _, df = run(tmp_path, {"X": (before, after)})
+    assert (df.loc["X", "PARTNER_TYPE"], df.loc["X", "ROUTING_METHOD"]) == ("NEW", "api")
+
+
+def test_partner_from_before_when_both_have_offers(tmp_path):
+    b = doc("X", "APPROVE", [trial(1, partner="P1", routing="r1"), trial(2, partner="P2", routing="r2")], offers=[offer(1, 1)])
+    a = doc("X", "APPROVE", [trial(1, partner="P1", routing="r1"), trial(2, partner="P2", routing="r2")], offers=[offer(2, 1)])
+    _, df = run(tmp_path, {"X": (b, a)})
+    assert (df.loc["X", "PARTNER_TYPE"], df.loc["X", "ROUTING_METHOD"]) == ("P1", "r1")
+
+
 def test_no_offers_takes_min_product_id(tmp_path):
     before = doc("X", "REJECT", [trial(30, "M30"), trial(5, "M5", "C5", reason="HARDCHECK")])
     after = doc("X", "REJECT", [trial(30, "M30"), trial(5, "M5b", "C5", reason="CUTOFF")])
