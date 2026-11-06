@@ -72,6 +72,11 @@ def test_fixture_matches_pipeline_contract(tmp_path):
     ({"decision_change": "approve_to_reject"}, ["MINI-001", "MINI-005"]),
     ({"decision_change": "approve_to_reject,reject_to_approve"}, ["MINI-001", "MINI-002", "MINI-005"]),
     ({"has_attr_change": "1"}, ["MINI-001", "MINI-002", "MINI-004", "MINI-005"]),
+    ({"change_source": "logic"}, ["MINI-002", "MINI-005"]),
+    ({"change_source": "logic,data"}, ["MINI-001", "MINI-002", "MINI-004", "MINI-005"]),
+    ({"change_source": "data", "decision_change": "approve_to_reject"}, ["MINI-001"]),
+    ({"change_source": "unknown"}, []),
+    ({"search": "logic"}, []),
     ({"search": "mini-002"}, ["MINI-002"]),
     ({"search": "mOdEl_V2"}, ["MINI-001", "MINI-003"]),
     ({"search": "bRoKeR"}, ["MINI-002", "MINI-004"]),
@@ -102,8 +107,9 @@ def test_apps_sort_and_paginate(client, ready_run):
     assert set(first["apps"][0]) == {
         "app_id", "decision_before", "decision_after", "decision_change", "attributes_changed",
         "pd_model_before", "pd_model_after", "cutoff_before", "cutoff_after",
-        "reject_reason_before", "reject_reason_after",
+        "reject_reason_before", "reject_reason_after", "change_source",
     }
+    assert [row["change_source"] for row in first["apps"]] == ["data", "logic"]
     assert client.get(url, params={"search": "MINI-006"}).json()["apps"][0]["pd_model_after"] is None
 
 

@@ -122,7 +122,7 @@
 {
   "procedures": [
     { "id": "p_1", "kind": "check", "name": "Approval Rate продукта <10%", "source": "inline", "builtin": false, "updated_at": "2026-11-06T12:00:00Z" },
-    { "id": "builtin_missing_attrs", "kind": "check", "name": "Отсутствующие атрибуты", "source": "file", "path": "checks/check_attribute_new_loss.py", "builtin": true, "updated_at": null }
+    { "id": "builtin_attribute_new_loss", "kind": "check", "name": "Изменился состав атрибутов", "source": "file", "path": "checks/check_attribute_new_loss.py", "builtin": true, "updated_at": null }
   ]
 }
 ```
@@ -134,7 +134,7 @@
 `POST /api/procedures`
 
 ```json
-{ "kind": "check", "name": "Approval Rate продукта <10%", "source": "inline", "code": "def run(ctx):\n    ...\n" }
+{ "kind": "check", "name": "Approval Rate продукта <10%", "source": "inline", "code": "def run(mart, params):\n    return []\n\nCHECK = {\"id\": \"my\", \"label\": \"Моя\", \"params\": {}, \"entrypoint\": run}\n" }
 ```
 
 Или с файлом: `{ "kind": "normalize", "name": "...", "source": "file", "path": "procedures/my_norm.py" }`.
@@ -146,7 +146,7 @@
 `POST /api/procedures/validate`
 
 ```json
-{ "kind": "check", "source": "inline", "code": "def run(ctx):\n    ...\n" }
+{ "kind": "check", "source": "inline", "code": "def run(mart, params):\n    return []\n\nCHECK = {\"id\": \"my\", \"label\": \"Моя\", \"params\": {}, \"entrypoint\": run}\n" }
 ```
 
 ```json
@@ -155,9 +155,10 @@
 
 Нужна, чтобы фронт показал ошибки до запуска.
 
-### 3.4. Изменить и удалить
+### 3.4. Получить, изменить и удалить
 
-- `PUT /api/procedures/{id}` — то же тело, что при создании.
+- `GET /api/procedures/{id}` — объект процедуры **и поле `code`**: текст файла (для `source: "file"`) или код из тела (`inline`). Файлы отдаются только из `procedures/` и `checks/`; через `..` и абсолютные пути не выйти (`bad_code`). По этому коду фронт показывает «код этапа» из журнала.
+- `PUT /api/procedures/{id}` — то же тело, что при создании. Встроенную изменить нельзя (`409 conflict`).
 - `DELETE /api/procedures/{id}` — `204`. Встроенные (`builtin: true`) не удаляются, ответ `409` с кодом `conflict`.
 
 ### 3.5. Журнал исполнения процедуры
@@ -192,7 +193,7 @@
   "dataset": "RUN-20260827-0001",
   "normalize": "builtin_normalize",
   "aggregate": "builtin_aggregate",
-  "checks": ["builtin_missing_attrs", "p_1"],
+  "checks": ["builtin_attribute_new_loss", "p_1"],
   "ignore_paths": ["appData.request_id", "appData.createDateTime"],
   "array_modes": { "decisionResult.scoring[].value": "index" },
   "array_rules": { "decisionResult.product_trials[]": { "mode": "key", "key": ["product_id"] } },
@@ -327,7 +328,8 @@
     "decision_other": 0
   },
   "attributes": { "VALUE_CHANGED": 11571, "ATTRIBUTE_NEW": 4108, "ATTRIBUTE_LOST": 3122 },
-  "change_sources": { "logic": 218, "data": 167, "both": 0, "none": 0 }
+  "change_sources": { "logic": 218, "data": 167, "both": 0, "none": 0 },
+  "checks_fail": 2
 }
 ```
 
@@ -336,6 +338,8 @@
 **`change_sources` в примере посчитан с другим конфигом, чем остальные числа:** `ignore_paths = ["appData.request_id", "appData.createDateTime"]`. С пустым `ignore_paths` эти два поля различаются у всех заявок, лежат в `appData` (это вход), и тогда все 385 смен решения получат `data` — так считать нельзя. Технические поля надо исключать всегда, когда смотрите `change_sources`.
 
 Числа по настоящему датасету (с этими двумя полями в `ignore_paths`): **из 385 смен решения 167 — из-за входных данных**. У всех 167 внешний источник `score_okb` вернул другое значение (в `ext_data[].body.params.data`, следом в `characteristics.score_okb` и в предикторе модели), скор упал, СПР выбрала порог `MFO_ZAIMER_2026_LOW`/`_MID` вместо `MFO_ZAIMER_2026` — и `APPROVE → REJECT`. Остальные 218 — из-за логики (вход тот же).
+
+`checks_fail` — число строк проверок с `FAIL` (для карточки «Проверки с FAIL»). Поле появляется после этапа `checks`: пока этап не прошёл, его нет. Если проверок в конфигурации нет — `0`.
 
 `applications_only_before` / `applications_only_after` — заявки, которые есть только в одном срезе (сломанный JSON, нет ответа). В витрину, факты и список заявок они не попадают: по просьбе организаторов анализируем только заявки с парой before/after, остальные видны лишь этими счётчиками.
 
@@ -391,7 +395,7 @@
 Параметры:
 - `decision_change` — один или несколько значений через запятую (словарь «Решение изменилось»).
 - `has_attr_change` — `1`: только заявки с хотя бы одним различием атрибута.
-- `change_source` — одно или несколько значений через запятую (словарь «Откуда смена»): `change_source=logic`, `change_source=logic,data`. **Пока не реализовано** (задача Семёна, `app/services/results.py` и роутер): сейчас параметр игнорируется.
+- `change_source` — одно или несколько значений через запятую (словарь «Откуда смена»): `change_source=logic`, `change_source=logic,data`.
 - `search` — подстрока в `APP_ID` и текстовых полях разреза, без учёта регистра.
 - `sort` — поле из строки ответа, минус = по убыванию. Неизвестное поле → `400 bad_file`.
 - `page` с 1 (по умолчанию 1), `size` от 1 до 500 (по умолчанию 50). `total` учитывает фильтры и не зависит от страницы.
@@ -435,7 +439,7 @@
 }
 ```
 
-Значения заявок (`decision`, модели, пороги, `reject_reason`) — из датасета. `attributes_changed` — по нашему подсчёту (см. 7.1). `change_source` — есть у каждой заявки, и у заявок без смены решения (`logic` / `data` / `none`). **В ответе ручки пока не отдаётся** (задача Семёна): колонка уже есть в `apps.csv` запуска, а `summary.change_sources` уже работает.
+Значения заявок (`decision`, модели, пороги, `reject_reason`) — из датасета. `attributes_changed` — по нашему подсчёту (см. 7.1). `change_source` — есть у каждой заявки, и у заявок без смены решения (`logic` / `data` / `none`).
 
 ---
 
@@ -564,8 +568,8 @@
   "total": 11,
   "rows": [
     {
-      "check_id": "builtin_missing_attrs",
-      "check_name": "Отсутствующие атрибуты",
+      "check_id": "builtin_attribute_new_loss",
+      "check_name": "Изменился состав атрибутов",
       "source": "AFTER",
       "argument": null,
       "numbers": "0 / 500",
@@ -580,6 +584,9 @@
 
 - `result` — `PASS` или `FAIL`.
 - `apps_ref` — список заявок (ручка 7.3). `null`, если заявок нет.
+- `check_id` — id процедуры (`builtin_…` или `p_…`), `check_name` — название проверки.
+- `numbers` — `"CNT / TOTAL"`; `metric` — число или `null`.
+- Проверка, которая упала с ошибкой или не уложилась в таймаут, **не валит запуск**: в таблице она строкой `FAIL` с текстом ошибки в `argument`, `faint: true`; подробности — в журнале этапа `checks` (`level: "error"`).
 - `faint` — `true`, если срабатываний мало и уверенности нет. Фронт показывает такую строку бледной, как в ТЗ.
 
 ### 10.2. Запуск проверок с новым кодом

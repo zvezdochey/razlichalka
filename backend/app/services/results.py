@@ -1,4 +1,5 @@
 """Чтение неизменяемых результатов готового запуска."""
+import json
 from csv import DictWriter
 from functools import lru_cache
 from io import StringIO
@@ -12,8 +13,10 @@ from pipeline.csvio import read_csv
 APP_FIELDS = [
     "app_id", "decision_before", "decision_after", "decision_change", "attributes_changed",
     "pd_model_before", "pd_model_after", "cutoff_before", "cutoff_after",
-    "reject_reason_before", "reject_reason_after",
+    "reject_reason_before", "reject_reason_after", "change_source",
 ]
+# Поиск идёт по значениям из датасета, «Откуда смена» в него не входит.
+APP_SEARCH_FIELDS = APP_FIELDS[5:-1]
 SEGMENT_SEARCH_FIELDS = [
     "PRODUCTS", "TOP_OFFER_BEFORE", "TOP_OFFER_AFTER", "PARTNER_TYPE", "ROUTING_METHOD",
 ]
@@ -75,6 +78,7 @@ def _page(rows: pd.DataFrame, key: str, page: int, size: int) -> dict:
 
 def _filter_apps(
     run_dir: Path, *, decision_change: str, has_attr_change: bool, search: str, sort: str,
+    change_source: str = "",
 ) -> pd.DataFrame:
     field = sort.removeprefix("-")
     if sort and field not in APP_FIELDS:
@@ -84,12 +88,15 @@ def _filter_apps(
     if decision_change:
         changes = [change.strip() for change in decision_change.split(",")]
         rows = rows[rows["decision_change"].isin(changes)]
+    if change_source:
+        sources = [source.strip() for source in change_source.split(",")]
+        rows = rows[rows["change_source"].isin(sources)]
     if has_attr_change:
         rows = rows[rows["attributes_changed"] > 0]
     if search:
         term = search.casefold()
         matches = _contains(rows["app_id"], term)
-        for name in APP_FIELDS[5:]:
+        for name in APP_SEARCH_FIELDS:
             matches |= _contains(rows[name], term)
         segments = _segments(run_dir)
         for name in SEGMENT_SEARCH_FIELDS:
@@ -102,10 +109,11 @@ def _filter_apps(
 
 def apps(
     run_dir: Path, *, decision_change: str, has_attr_change: bool, search: str,
-    sort: str, page: int, size: int,
+    sort: str, page: int, size: int, change_source: str = "",
 ) -> dict:
     rows = _filter_apps(
         run_dir, decision_change=decision_change, has_attr_change=has_attr_change, search=search, sort=sort,
+        change_source=change_source,
     )
     return _page(rows, "apps", page, size)
 
@@ -119,9 +127,11 @@ def _excel_value(value):
 
 def export_apps(
     run_dir: Path, *, decision_change: str, has_attr_change: bool, search: str, sort: str,
+    change_source: str = "",
 ) -> bytes:
     rows = _filter_apps(
         run_dir, decision_change=decision_change, has_attr_change=has_attr_change, search=search, sort=sort,
+        change_source=change_source,
     )
     records = ({name: _excel_value(value) for name, value in row.items()} for row in rows.to_dict("records"))
     output = StringIO(newline="")
@@ -145,3 +155,48 @@ def attributes(
         rows = rows[_contains(rows["path"], search.casefold())]
     rows = rows.sort_values(["diff_flag", "path"], ascending=[False, True])
     return {"app_id": app_id, **_page(rows, "attributes", page, size)}
+
+
+def _apps_ref(run_dir: Path, app_ids: list[str]) -> str | None:
+    """Ссылка на список заявок для ручки 7.3. make_apps_ref приходит с I1; пока её нет — ссылки нет."""
+    if not app_ids:
+        return None
+    try:
+        from app.services.facts import make_apps_ref
+    except ImportError:
+        return None
+    return make_apps_ref(run_dir, app_ids)
+
+
+def _number(text: str):
+    try:
+        return float(text)
+    except ValueError:
+        return text
+
+
+def checks(run_dir: Path, *, result: str, page: int, size: int) -> dict:
+    """Таблица проверок (docs/api.md п. 10.1) из checks.csv."""
+    if result and result not in ("PASS", "FAIL"):
+        raise ApiError("bad_file", "result — PASS или FAIL")
+    rows = read_csv(result_file(run_dir, "checks.csv")).fillna("")
+    index_file = run_dir / "checks_index.json"
+    ids = json.loads(index_file.read_text(encoding="utf-8")) if index_file.is_file() else {}
+    if result:
+        rows = rows[rows["RESULT"] == result]
+    start = (page - 1) * size
+    out = []
+    for r in rows.iloc[start:start + size].to_dict("records"):
+        app_ids = [a for a in str(r["APP_IDS"]).split("|") if a]
+        out.append({
+            "check_id": ids.get(r["LABEL"]),
+            "check_name": r["LABEL"],
+            "source": r["SOURCE"] or None,
+            "argument": r["ARGUMENT"] or None,
+            "numbers": f"{r['CNT']} / {r['TOTAL']}" if r["CNT"] != "" else None,
+            "metric": _number(r["METRIC"]) if r["METRIC"] != "" else None,
+            "result": r["RESULT"],
+            "apps_ref": _apps_ref(run_dir, app_ids),
+            "faint": r["CONFIDENCE"] == "LOW",
+        })
+    return {"page": page, "size": size, "total": len(rows), "rows": out}

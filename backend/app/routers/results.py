@@ -29,11 +29,11 @@ def get_summary(run_dir: RunDir):
 @router.get("/apps")
 def get_apps(
     run_dir: RunDir, decision_change: str = "", has_attr_change: bool = False,
-    search: str = "", sort: str = "", page: Page = 1, size: Size = 50,
+    search: str = "", sort: str = "", page: Page = 1, size: Size = 50, change_source: str = "",
 ):
     return results.apps(
         run_dir, decision_change=decision_change, has_attr_change=has_attr_change,
-        search=search, sort=sort, page=page, size=size,
+        search=search, sort=sort, page=page, size=size, change_source=change_source,
     )
 
 
@@ -43,6 +43,11 @@ def get_attributes(
     page: Page = 1, size: Size = 100,
 ):
     return results.attributes(run_dir, app_id, only_diff=only_diff, search=search, page=page, size=size)
+
+
+@router.get("/checks")
+def get_checks(run_dir: RunDir, result: str = "", page: Page = 1, size: Size = 50):
+    return results.checks(run_dir, result=result, page=page, size=size)
 
 
 @router.get("/facts")
@@ -61,10 +66,11 @@ def get_fact_apps(run_dir: RunDir, ref: str, page: Page = 1, size: Size = 50):
 @router.get("/export.csv")
 def export_apps(
     run_dir: RunDir, run_id: str, decision_change: str = "", has_attr_change: bool = False,
-    search: str = "", sort: str = "",
+    search: str = "", sort: str = "", change_source: str = "",
 ):
     content = results.export_apps(
         run_dir, decision_change=decision_change, has_attr_change=has_attr_change, search=search, sort=sort,
+        change_source=change_source,
     )
     filename = f"apps-{quote(run_id, safe='')}.csv"
     return Response(

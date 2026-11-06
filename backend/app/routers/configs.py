@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from app import store
 from app.deps import current_user
 from app.errors import ApiError
-from app.services import datasets
+from app.services import datasets, procedures
 from pipeline.buckets import make_adjuster
 
 router = APIRouter()
@@ -29,13 +29,17 @@ class ConfigIn(BaseModel):
     buckets: Dict[str, List[float]] = {}
 
 
-def _validate(body: ConfigIn) -> dict:
+def _validate(body: ConfigIn, user: str) -> dict:
     """Проверяет тело и возвращает поля конфигурации с подставленными умолчаниями."""
     if not body.name.strip():
         raise ApiError("bad_code", "Название конфигурации не может быть пустым")
     ds = datasets.get_dataset(body.dataset)
     if ds is None:
         raise ApiError("not_found", f"Датасет «{body.dataset}» не найден")
+    for proc_id in body.checks:
+        # нет такой процедуры (или она чужая) — not_found; не проверка — bad_code
+        if procedures.find(proc_id, user)["kind"] != "check":
+            raise ApiError("bad_code", f"Процедура «{proc_id}» не проверка (kind=check)")
     for path, mode in body.array_modes.items():
         if mode not in ARRAY_MODES:
             raise ApiError("bad_code", f"array_modes[{path}]: режим «{mode}» не подходит, нужен key, value или index")
@@ -83,7 +87,7 @@ def list_configs(user: str = Depends(current_user)):
 
 @router.post("/configs", status_code=201)
 def create_config(body: ConfigIn, user: str = Depends(current_user)):
-    obj = {"id": "cfg_" + uuid.uuid4().hex[:8], "owner": user, **_validate(body), "updated_at": _now()}
+    obj = {"id": "cfg_" + uuid.uuid4().hex[:8], "owner": user, **_validate(body, user), "updated_at": _now()}
     store.save(KIND, obj["id"], obj)
     return _public(obj)
 
@@ -96,7 +100,7 @@ def get_config(config_id: str, user: str = Depends(current_user)):
 @router.put("/configs/{config_id}")
 def update_config(config_id: str, body: ConfigIn, user: str = Depends(current_user)):
     old = own_config(config_id, user)
-    obj = {"id": old["id"], "owner": user, **_validate(body), "updated_at": _now()}
+    obj = {"id": old["id"], "owner": user, **_validate(body, user), "updated_at": _now()}
     store.save(KIND, obj["id"], obj)
     return _public(obj)
 

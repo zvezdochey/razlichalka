@@ -152,8 +152,27 @@
     </section>
 
     <section class="card">
-      <h2>Проверки</h2>
+      <h2 id="checks">Проверки</h2>
+      {% if checks %}
+      <table aria-labelledby="checks">
+        <thead>
+          <tr><th scope="col">Проверка</th><th scope="col">Предмет</th><th scope="col" class="numeric">Заявок</th><th scope="col">Результат</th></tr>
+        </thead>
+        <tbody>
+          {% for c in checks %}
+          <tr{% if c.faint %} class="muted"{% endif %}>
+            <th scope="row">{{ c.check_name }}</th>
+            <td>{{ c.argument or "—" }}</td>
+            <td class="numeric">{{ c.numbers or "—" }}</td>
+            <td>{{ c.result }}{% if c.faint %} (мало данных){% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if checks_total > checks|length %}<p class="muted">Показаны первые {{ checks|length }} из {{ checks_total }} строк.</p>{% endif %}
+      {% else %}
       <p class="muted">Проверки не подключены</p>
+      {% endif %}
     </section>
 
     <footer><a href="{{ app_url }}">Открыть в приложении</a></footer>
