@@ -177,3 +177,12 @@ def test_stages_log_is_last_50(client, monkeypatch):
     assert len(first) == 50 and first[-1]["message"] == "строка 69"
     full = client.get(f"/api/runs/{started['id']}/stages/normalize/log", headers=ANN).json()
     assert len(full["entries"]) == 70
+
+
+def test_cancel_queued_run_is_instant(client, monkeypatch):
+    monkeypatch.setattr(pipeline_stub, "STAGE_SECONDS", 3)
+    ids = [new_run(client)[1]["id"] for _ in range(3)]  # два потока заняты, третий в очереди
+    r = client.post(f"/api/runs/{ids[2]}/cancel", headers=ANN)
+    assert r.json()["status"] == "error" and r.json()["error"]["code"] == "cancelled"
+    for i in ids[:2]:
+        client.post(f"/api/runs/{i}/cancel", headers=ANN)

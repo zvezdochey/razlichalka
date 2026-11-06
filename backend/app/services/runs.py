@@ -144,6 +144,8 @@ def execute(run: dict) -> None:
     rid = run["id"]
     try:
         with _lock:
+            if run["status"] != "pending":  # отменили, пока стояли в очереди
+                return
             run["status"] = "running"
             _save(run)
         for index, (name, _title, func) in enumerate(PIPELINE):
@@ -219,8 +221,13 @@ def get_own(run_id: str, user: str) -> dict:
 
 def cancel(run_id: str, user: str) -> dict:
     run = get_own(run_id, user)
-    if run["status"] in ("pending", "running"):
+    with _lock:
         _cancel[run_id].set()
+        if run["status"] == "pending":  # ещё не стартовал — останавливаем сразу
+            _fail(run, None, {"code": "cancelled", "message": "Остановлено пользователем"})
+            _done[run_id].set()
+            return run
+    if run["status"] == "running":
         _done[run_id].wait(timeout=3)  # даём фону дойти до ближайшей проверки флага
     return run
 
