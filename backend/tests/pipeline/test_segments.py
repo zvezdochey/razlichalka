@@ -5,9 +5,11 @@ from pathlib import Path
 
 import pytest
 
+from pipeline.compare import compare_csv
 from pipeline.csvio import read_csv
 from pipeline.errors import BadFile, Cancelled
-from pipeline.segments import COLUMNS, build_segments
+from pipeline.normalize import normalize_dataset
+from pipeline.segments import COLUMNS, build_segments, input_prefixes, is_input_path
 from tests.real_dataset import REAL
 
 MINI = Path(__file__).parent.parent / "fixtures" / "dataset_mini"
@@ -241,3 +243,89 @@ def test_real_dataset(tmp_path):
     row = df.set_index("APP_ID")
     assert (row.loc["I32554354", "DECISION_BEFORE"], row.loc["I32554354", "DECISION_AFTER"]) == ("REJECT", "APPROVE")
     assert (row.loc["I32554362", "DECISION_BEFORE"], row.loc["I32554362", "DECISION_AFTER"]) == ("APPROVE", "REJECT")
+
+
+# --- E10: CHANGE_SOURCE — логика или входные данные -------------------------------------------------
+
+def with_ext(d, okb):
+    """Добавляет сырой ответ внешнего источника score_okb (ext_data[], ключ — body.action)."""
+    d["ext_data"] = [{"body": {"action": "score_okb", "params": {"data": okb, "ok": True}}, "status": 200}]
+    return d
+
+
+def segments_with_comparison(tmp_path, pairs, parse_cfg=None, **kw):
+    """Весь путь до разрезов: normalize → compare → segments с витриной (как этап aggregate)."""
+    (tmp_path / "ds").mkdir()
+    ds = make_dataset(tmp_path / "ds", pairs)
+    nb, na, cmp_ = tmp_path / "nb.csv", tmp_path / "na.csv", tmp_path / "cmp.csv"
+    normalize_dataset(ds, "BEFORE", nb, parse_cfg or {})
+    normalize_dataset(ds, "AFTER", na, parse_cfg or {})
+    compare_csv(nb, na, cmp_)
+    out = tmp_path / "segments.csv"
+    build_segments(ds, out, comparison_csv=cmp_, **kw)
+    return read_csv(out).set_index("APP_ID")
+
+
+def test_change_source(tmp_path):
+    ok = [trial(1)]
+    pairs = {
+        # поменялся только ответ внешнего источника — и решение: вход другой
+        "DATA": (with_ext(doc("DATA", "APPROVE", ok, [offer(1, 1)]), 760),
+                 with_ext(doc("DATA", "REJECT", [trial(1, reason="CUTOFF")]), 620)),
+        # вход тот же, поменялся только порог — и решение: логика
+        "LOGIC": (with_ext(doc("LOGIC", "APPROVE", ok, [offer(1, 1)]), 700),
+                  with_ext(doc("LOGIC", "REJECT", [trial(1, cutoff="C2", reason="CUTOFF")]), 700)),
+        # решение то же, но вход другой: колонка заполнена и у заявок без смены решения
+        "SAME_DATA": (with_ext(doc("SAME_DATA", "APPROVE", ok, [offer(1, 1)]), 700),
+                      with_ext(doc("SAME_DATA", "APPROVE", ok, [offer(1, 1)]), 710)),
+        # ничего не поменялось
+        "NONE": (with_ext(doc("NONE", "APPROVE", ok, [offer(1, 1)]), 700),
+                 with_ext(doc("NONE", "APPROVE", ok, [offer(1, 1)]), 700)),
+    }
+    df = segments_with_comparison(tmp_path, pairs)
+    assert df.loc["DATA", "CHANGE_SOURCE"] == "data"
+    assert df.loc["LOGIC", "CHANGE_SOURCE"] == "logic"
+    assert df.loc["SAME_DATA", "CHANGE_SOURCE"] == "data"
+    assert df.loc["NONE", "CHANGE_SOURCE"] == "none"
+
+
+def test_change_source_empty_without_comparison(tmp_path):
+    _, df = run(tmp_path, {"A": (doc("A", "APPROVE", [trial(1)]), doc("A", "REJECT", [trial(1)]))})
+    assert df.loc["A", "CHANGE_SOURCE"] == ""
+
+
+def test_input_prefixes_from_procedure(tmp_path):
+    """Префиксы входа — из файла процедуры: поменяли файл — поменялся ответ, код не трогали."""
+    assert input_prefixes() == ["appData", "ext_data"]
+    folder = tmp_path / "procs"
+    folder.mkdir()
+    src = (Path(__file__).parents[2] / "procedures" / "builtin_segments.py").read_text(encoding="utf-8")
+    (folder / "builtin_segments.py").write_text(
+        src.replace('INPUT_PREFIXES = ["appData", "ext_data"]', 'INPUT_PREFIXES = ["ext_data[]"]'), encoding="utf-8")
+    assert input_prefixes(folder) == ["ext_data"]
+    (folder / "builtin_segments.py").write_text(src.replace("INPUT_PREFIXES =", "OTHER_NAME ="), encoding="utf-8")
+    with pytest.raises(BadFile, match="INPUT_PREFIXES"):
+        input_prefixes(folder)
+
+
+@pytest.mark.parametrize("path,expected", [
+    ("ext_data[].body.params.data", True),
+    ("ext_data", True),
+    ("appData.amount", True),
+    ("ext_database.x", False),               # другой префикс, хоть и начинается так же
+    ("characteristics.score_okb", False),    # этап 1 СПР — логика
+    ("decisionResult.scoring[].features.score_okb", False),
+])
+def test_is_input_path(path, expected):
+    assert is_input_path(path, ["appData", "ext_data"]) is expected
+
+
+def test_decision_change_without_diffs_is_logged(tmp_path):
+    """Решение сменилось, а различий в витрине нет (путь решения исключили) — предупреждение в журнал."""
+    msgs = []
+    df = segments_with_comparison(
+        tmp_path, {"A": (doc("A", "APPROVE", [trial(1)]), doc("A", "REJECT", [trial(1)]))},
+        parse_cfg={"ignore_paths": ["decisionResult.decision"]}, log=lambda lvl, m: msgs.append((lvl, m)))
+    assert df.loc["A", "CHANGE_SOURCE"] == "none"
+    assert any(lvl == "warn" and "различий в витрине нет" in m for lvl, m in msgs)
+
