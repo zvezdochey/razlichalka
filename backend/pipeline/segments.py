@@ -305,20 +305,26 @@ def build_segments(dataset_dir: Path, out_csv: Path, *, field_map: dict | None =
                 raise Cancelled()
             before = _extract(_read(file), plan)
             after = _extract(_read(after_by_id[file.stem]), plan)
+            # заявки нет среди различий витрины (или нет в витрине совсем) — значит различий нет: none
             source = "" if sources is None else sources.get(file.stem, "none")
             row = _row(file.stem, before, after, source)
             if source == "none" and row["DECISION_CHANGED"] == "1":
-                # решение сменилось, а различий в витрине нет — так быть не должно (решение само в витрине)
-                say("warn", f"Заявка {file.stem}: решение изменилось, а различий в витрине нет "
-                            f"(путь решения в ignore_paths?)")
+                no_diffs.append(file.stem)  # так быть не должно: решение само есть в витрине
             yield row
             if done % PROGRESS_EVERY == 0 or done == total:
                 if on_progress:
                     on_progress(done)
                 say("info", f"Разрезы: обработано {done} из {total}")
 
+    no_diffs: list[str] = []
     say("info", f"Разрезы: {total} заявок")
-    return write_csv(Path(out_csv), COLUMNS, rows())
+    n = write_csv(Path(out_csv), COLUMNS, rows())
+    if no_diffs:
+        # одно сообщение на весь этап, а не по строке на заявку
+        say("warn", f"У {len(no_diffs)} заявок решение изменилось, а различий в витрине нет "
+                    f"(путь решения в ignore_paths?): {', '.join(no_diffs[:5])}"
+                    + (f" и ещё {len(no_diffs) - 5}" if len(no_diffs) > 5 else ""))
+    return n
 
 
 def main(argv: list[str]) -> int:

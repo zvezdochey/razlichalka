@@ -24,8 +24,8 @@ from .errors import BadFile
 # backend/pipeline/procedures.py -> backend/procedures
 DEFAULT_DIR = Path(__file__).resolve().parent.parent / "procedures"
 
-# Кэш загруженных файлов: (что грузили, путь, время изменения) -> словарь. Файл поменяли — перечитаем.
-_cache: dict[tuple[str, str, float], dict] = {}
+# Кэш загруженных файлов: (что грузили, путь, время изменения, размер) -> словарь. Файл поменяли — перечитаем.
+_cache: dict[tuple, dict] = {}
 
 
 def load_builtin(name: str, folder: Path | None = None) -> dict:
@@ -34,7 +34,7 @@ def load_builtin(name: str, folder: Path | None = None) -> dict:
     В файле должна быть ровно одна переменная-словарь заглавными буквами, иначе BadFile.
     """
     file = _file(name, folder)
-    key = ("dict", str(file.resolve()), file.stat().st_mtime)
+    key = ("dict", *_stamp(file))
     if key not in _cache:
         _cache[key] = _exec(name, file)
     return copy.deepcopy(_cache[key])
@@ -47,12 +47,18 @@ def load_builtin_value(name: str, var: str, folder: Path | None = None):
     в `builtin_segments.py`). Нет переменной — BadFile.
     """
     file = _file(name, folder)
-    key = ("value", str(file.resolve()), file.stat().st_mtime)
+    key = ("value", *_stamp(file))
     if key not in _cache:
         _cache[key] = {k: v for k, v in vars(_module(name, file)).items() if k.isupper()}
     if var not in _cache[key]:
         raise BadFile(f"процедура {name}: в файле нет переменной {var}")
     return copy.deepcopy(_cache[key][var])
+
+
+def _stamp(file: Path) -> tuple:
+    """Отпечаток файла для кэша. Размер — на случай, если файл переписали быстрее, чем тикают часы ФС."""
+    st = file.stat()
+    return str(file.resolve()), st.st_mtime_ns, st.st_size
 
 
 def _file(name: str, folder: Path | None) -> Path:
