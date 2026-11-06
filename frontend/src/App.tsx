@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './layout/AppLayout'
-import { NewRunPage } from './pages/NewRunPage'
+import { NewRunPage } from './pages/newRun/NewRunPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { RunPage } from './pages/RunPage'
 import { RunsListPage } from './pages/RunsListPage'
