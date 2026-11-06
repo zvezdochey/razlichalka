@@ -324,25 +324,27 @@
 
 ### 7.2. Факты для сводной таблицы
 
-`GET /api/runs/{id}/facts?dims=REJECT_REASON_AFTER&measure=counts&filter=DECISION_CHANGED:1`
+`GET /api/runs/{id}/facts?dims=CHANGE_TYPE&filter=DIFF_FLAG:1`
 
 Факты — это агрегат «заявки по измерениям». Пользователь сам выбирает измерения.
 
 Параметры:
-- `dims` — измерения через запятую: поля витрины или поля разреза (`PRODUCT`, `PARTNER_TYPE`, `PD_MODEL_BEFORE` и т.п.).
-- `filter` — `поле:значение`, можно несколько через `;`.
-- `measure` — `counts` (количество строк) или `counts_distinct_apps`.
+- `dims` — от одного до трёх разных полей витрины или разреза через запятую. `ARRAY_KEY_1` — первый ключ массива из `ARRAY_KEY`.
+- `filter` — строгое равенство `поле:значение`. Условия через `;` объединяются по И, значения одного условия через запятую — по ИЛИ. Пустое значение выбирает пустые ячейки.
+- `measure` — `counts` (число строк, по умолчанию) или `counts_distinct_apps` (число уникальных заявок). В обоих случаях показатель возвращается в поле `counts`.
+- `limit` — число групп в ответе, от 1 до 5000 (по умолчанию 1000). Группы отсортированы по убыванию показателя. `total_groups` — количество групп после фильтрации до применения `limit`.
+- Пустые значения измерений возвращаются как `null`. Неизвестное поле или некорректные параметры дают `400 bad_file`.
 
-Пример: причины отказа по продуктам, у которых решение изменилось. Счёт по строкам продуктов в заявках, где решение сменилось (`decision_changed`):
+Пример формы ответа на мини-данных: число строк с различиями по типам.
 
 ```json
 {
-  "dims": ["REJECT_REASON_AFTER"],
+  "dims": ["CHANGE_TYPE"],
+  "total_groups": 3,
   "rows": [
-    { "REJECT_REASON_AFTER": "CUTOFF:MFO_ZAIMER_2026_LOW", "counts": 274, "app_ids_ref": "f_low" },
-    { "REJECT_REASON_AFTER": "HARDCHECK:DOCS_EXPIRED", "counts": 134, "app_ids_ref": "f_docs" },
-    { "REJECT_REASON_AFTER": "CUTOFF:MFO_ZAIMER_2026_V3", "counts": 119, "app_ids_ref": "f_v3" },
-    { "REJECT_REASON_AFTER": "CUTOFF:MFO_ZAIMER_2026_MID", "counts": 118, "app_ids_ref": "f_mid" }
+    { "CHANGE_TYPE": "VALUE_CHANGED", "counts": 13, "app_ids_ref": "f_000000000001" },
+    { "CHANGE_TYPE": "ATTRIBUTE_LOST", "counts": 2, "app_ids_ref": "f_000000000002" },
+    { "CHANGE_TYPE": "ATTRIBUTE_NEW", "counts": 1, "app_ids_ref": "f_000000000003" }
   ]
 }
 ```
@@ -354,10 +356,12 @@
 `GET /api/runs/{id}/facts/{app_ids_ref}/apps?page=1&size=50`
 
 ```json
-{ "page": 1, "size": 50, "total": 274, "apps": [ "I32554362", "I32554358" ] }
+{ "page": 1, "size": 50, "total": 2, "apps": [ "MINI-001", "MINI-002" ] }
 ```
 
-Форма ответа. Конкретные id из группы `f_low` ещё не сверены: в примере взяты заявки с `approve → reject`.
+Заявки уникальны и отсортированы по возрастанию id. По умолчанию `page=1` и `size=50`, максимальный `size=500`. Для неизвестной ссылки возвращается `404 not_found`.
+
+Пример для группы `ATTRIBUTE_LOST` из ответа выше.
 
 ### 7.4. Список заявок с различиями
 
@@ -584,7 +588,7 @@
 
 `GET /api/runs/{id}/export.csv?decision_change=approve_to_reject`
 
-Отдаёт CSV по списку заявок (ручка 7.4) с теми же фильтрами.
+Отдаёт все подходящие заявки без пагинации с теми же фильтрами и сортировкой, что в п. 7.4. Разделитель `;`, кодировка UTF-8 с BOM. Текстовые значения, похожие на формулы, начинаются с апострофа для безопасного открытия в Excel. Заголовки ответа: `Content-Type: text/csv; charset=utf-8` и `Content-Disposition: attachment; filename="apps-<run_id>.csv"`.
 
 ---
 
