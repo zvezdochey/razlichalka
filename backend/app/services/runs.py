@@ -98,6 +98,12 @@ def recover() -> None:
             _done[rid].set()
 
 
+def dataset_path(run: dict) -> Path:
+    """Папка исходного датасета из метаданных запуска."""
+    # Старые запуски хранят только id. Родительская папка может переехать.
+    return Path(settings.DATASETS_DIR) / run.get("dataset_folder", run["dataset"])
+
+
 class Ctx:
     """Что видит этап: лог, прогресс, флаг «Стоп» и пути к файлам запуска."""
 
@@ -107,9 +113,7 @@ class Ctx:
         self.config: dict = run["config"]
         self.owner: str = run["owner"]  # чьи пользовательские процедуры подключать в этапе checks
         self.dataset: str = run["dataset"]
-        # Папка с manifest.json и срезами. Храним только имя: DATASETS_DIR может переехать.
-        # В старых run.json поля нет — берём id датасета (обычно он совпадает с именем папки).
-        self.dataset_dir: Path = Path(settings.DATASETS_DIR) / run.get("dataset_folder", run["dataset"])
+        self.dataset_dir = dataset_path(run)
 
     def log(self, level: str, message: str) -> None:
         with _lock:
