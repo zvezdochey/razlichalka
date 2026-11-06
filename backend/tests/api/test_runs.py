@@ -138,13 +138,31 @@ def test_broken_run_json_does_not_stop_server(client, tmp_path):
     assert [r["id"] for r in again.get("/api/runs", headers=ANN).json()["runs"]] == [started["id"]]
 
 
-def test_run_knows_dataset_folder(client, tmp_path):
-    # имя папки не совпадает с run_id из манифеста — запуск всё равно знает, где файлы
+def test_run_knows_dataset_folder(client, tmp_path, monkeypatch):
+    # имя папки не совпадает с run_id из манифеста — этап всё равно знает, где файлы
     (tmp_path / "datasets" / "RUN-T-1").rename(tmp_path / "datasets" / "папка")
+    seen = []
+    monkeypatch.setattr(runs, "PIPELINE", [("normalize", "Приведение ответов", lambda ctx: seen.append(ctx.dataset_dir))])
     _, started = new_run(client)
     wait_for(client, started["id"], {"ready"})
-    assert runs._runs[started["id"]]["dataset_dir"] == str(tmp_path / "datasets" / "папка")
-    assert "dataset_dir" not in client.get(f"/api/runs/{started['id']}", headers=ANN).json()
+    assert seen == [tmp_path / "datasets" / "папка"]
+    assert "dataset_folder" not in client.get(f"/api/runs/{started['id']}", headers=ANN).json()
+
+
+def test_restart_keeps_run_when_save_fails(client, tmp_path, monkeypatch):
+    _, started = new_run(client)
+    wait_for(client, started["id"], {"ready"})
+    path = tmp_path / "data" / "runs" / started["id"] / "run.json"
+    run = json.loads(path.read_text(encoding="utf-8"))
+    path.write_text(json.dumps({**run, "status": "running"}), encoding="utf-8")
+
+    def broken_write(*args):
+        raise OSError("диск только на чтение")
+
+    monkeypatch.setattr(runs, "_write", broken_write)
+    again = TestClient(create_app())
+    data = again.get(f"/api/runs/{started['id']}", headers=ANN).json()
+    assert data["status"] == "error" and data["error"]["code"] == "internal"
 
 
 def test_unfinished_run_becomes_error_after_restart(client, monkeypatch):

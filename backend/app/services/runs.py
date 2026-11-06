@@ -28,7 +28,8 @@ PIPELINE = [
 LOG_TAIL = 50          # сколько последних записей лога отдаёт GET /stages
 SAVE_EVERY = 0.5       # progress пишем на диск не чаще, чем раз в столько секунд
 # Без этих полей run.json считаем битым: их читают ручки запусков
-RUN_KEYS = ("id", "owner", "status", "config_id", "dataset", "created_at", "finished_at",
+# (dataset_folder сюда не входит: в run.json до этого поля его нет, Ctx читает его мягко)
+RUN_KEYS = ("id", "owner", "status", "config_id", "config", "dataset", "created_at", "finished_at",
             "progress", "current_stage", "error", "stages")
 
 _lock = threading.RLock()
@@ -80,17 +81,22 @@ def recover() -> None:
                 if not isinstance(run, dict) or not all(k in run for k in RUN_KEYS):
                     raise ValueError("не хватает полей")
                 rid = run["id"]
-                if run["status"] in ("pending", "running"):
+                unfinished = run["status"] in ("pending", "running")
+                if unfinished:
                     error = {"code": "internal", "message": "Сервер перезапускали во время запуска"}
                     run["status"], run["error"], run["current_stage"] = "error", error, None
                     run["finished_at"] = _now()
                     for st in run["stages"]:
                         if st["status"] == "running":
                             st["status"], st["finished_at"], st["error"] = "error", _now(), error
-                    _write(folder, run)
             except Exception as exc:  # один битый запуск не должен мешать серверу стартовать
                 log.warning("Запуск в %s пропущен — run.json не читается: %s", folder.name, exc)
                 continue
+            if unfinished:
+                try:
+                    _write(folder, run)
+                except OSError as exc:  # файл валидный — запуск оставляем в памяти со статусом error
+                    log.warning("Не удалось сохранить запуск %s после перезапуска: %s", rid, exc)
             _runs[rid] = run
             _dirs[rid] = folder
             _cancel[rid], _done[rid] = threading.Event(), threading.Event()
@@ -105,7 +111,9 @@ class Ctx:
         self.run_dir: Path = _dirs[run["id"]]
         self.config: dict = run["config"]
         self.dataset: str = run["dataset"]
-        self.dataset_dir = Path(run["dataset_dir"])  # папка с manifest.json и срезами
+        # Папка с manifest.json и срезами. Храним только имя: DATASETS_DIR может переехать.
+        # В старых run.json поля нет — берём id датасета (обычно он совпадает с именем папки).
+        self.dataset_dir: Path = Path(settings.DATASETS_DIR) / run.get("dataset_folder", run["dataset"])
 
     def log(self, level: str, message: str) -> None:
         with _lock:
@@ -200,7 +208,7 @@ def create(config: dict, user: str) -> dict:
     snapshot = {k: v for k, v in copy.deepcopy(config).items() if k != "owner"}
     run = {
         "id": rid, "owner": user, "config_id": config["id"], "config": snapshot,
-        "dataset": ds["id"], "dataset_dir": str(ds["path"]), "status": "pending", "created_at": _now(), "finished_at": None,
+        "dataset": ds["id"], "dataset_folder": ds["path"].name, "status": "pending", "created_at": _now(), "finished_at": None,
         "progress": {"done": 0, "total": ds["applications"] * 2},
         "current_stage": None, "error": None,
         "stages": [
