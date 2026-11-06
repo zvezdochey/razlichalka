@@ -14,5 +14,5 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", BACKEND_DIR / "var"))
 # Адреса dev-серверов фронта
 CORS_ORIGINS = ["http://localhost:5173", "http://localhost:3000"]
 
-# Пока настоящий пайплайн (S5) не подключён, этапы — заглушки с sleep
-USE_STUB_PIPELINE = os.environ.get("USE_STUB_PIPELINE", "1") == "1"
+# По умолчанию считает настоящий пайплайн; USE_STUB_PIPELINE=1 — заглушки с sleep (тесты, разработка фронта)
+USE_STUB_PIPELINE = os.environ.get("USE_STUB_PIPELINE", "0") == "1"

@@ -13,11 +13,12 @@ from pathlib import Path
 
 from app import pipeline_stub, settings
 from app.errors import ApiError
-from app.services import datasets
+from app.services import datasets, stages
 
 log = logging.getLogger("razlichalka")
 
-# Этапы по порядку: (имя, заголовок, функция (ctx) -> None)
+# Этапы по порядку: (имя, заголовок, функция-заглушка (ctx) -> None).
+# С USE_STUB_PIPELINE=0 вместо заглушки берём одноимённый этап из services/stages.py.
 PIPELINE = [
     ("normalize", "Приведение ответов", pipeline_stub.stage_normalize),
     ("compare", "Сравнение срезов", pipeline_stub.stage_compare),
@@ -164,7 +165,7 @@ def execute(run: dict) -> None:
                 return
             run["status"] = "running"
             _save(run)
-        for index, (name, _title, func) in enumerate(PIPELINE):
+        for index, (name, _title, stub) in enumerate(PIPELINE):
             stage = run["stages"][index]
             if _cancel[rid].is_set():
                 raise Cancelled()
@@ -173,8 +174,7 @@ def execute(run: dict) -> None:
                 run["current_stage"] = name
                 _save(run)
             try:
-                if not settings.USE_STUB_PIPELINE:
-                    raise ApiError("internal", "Настоящий пайплайн ещё не подключён")
+                func = stub if settings.USE_STUB_PIPELINE else getattr(stages, "stage_" + name)
                 func(Ctx(run, stage, index))
                 if _cancel[rid].is_set():
                     raise Cancelled()
@@ -214,7 +214,7 @@ def create(config: dict, user: str) -> dict:
         "stages": [
             {"name": name, "title": title, "status": "pending", "started_at": None, "finished_at": None,
              "procedure_id": snapshot.get(name) if name in ("normalize", "aggregate") else None,
-             "code_ref": None, "log": []}
+             "code_ref": stages.CODE_REFS.get(name), "log": []}
             for name, title, _ in PIPELINE
         ],
     }
