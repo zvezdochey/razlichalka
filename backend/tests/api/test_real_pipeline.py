@@ -64,6 +64,26 @@ def test_mini_run_to_ready(tmp_path, monkeypatch):
     assert any("Проверки не подключены" in e["message"] for e in stages[3]["log"])
 
 
+def test_ready_run_is_warm(tmp_path, monkeypatch):
+    """E11: к статусу ready витрина уже в кэше — первый вызов сводной не читает CSV с диска."""
+    from app.services import facts, results, warmup
+    client = make_client(tmp_path, monkeypatch, MINI)
+    rid = start(client)
+    assert wait(client, rid, {"ready", "error"}, timeout=60)["status"] == "ready"
+
+    run_dir = settings.DATA_DIR / "runs" / rid
+    reads = []
+    monkeypatch.setattr(results, "read_csv", lambda path: reads.append(path))
+    monkeypatch.setattr(facts, "read_csv", lambda path: reads.append(path))
+    assert client.get(f"/api/runs/{rid}/facts?dims=PATH", headers=ANN).status_code == 200
+    assert client.get(f"/api/runs/{rid}/apps", headers=ANN).status_code == 200
+    assert reads == []
+    # GET /runs/{id} готового запуска ставит прогрев в фон (после перезапуска кэши пустые)
+    warmup._started.discard(run_dir)
+    assert client.get(f"/api/runs/{rid}", headers=ANN).status_code == 200
+    assert run_dir in warmup._started
+
+
 def test_cancel_stops_run(tmp_path, monkeypatch):
     client = make_client(tmp_path, monkeypatch, MINI)
     from pipeline import normalize

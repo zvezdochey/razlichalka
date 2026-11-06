@@ -11,7 +11,7 @@ from pathlib import Path
 
 from app import pipeline_stub, settings, store
 from app.errors import ApiError
-from app.services import datasets, stages
+from app.services import datasets, stages, warmup
 from pipeline.errors import Cancelled as PipelineCancelled
 
 log = logging.getLogger("razlichalka")
@@ -183,6 +183,8 @@ def execute(run: dict) -> None:
             with _lock:
                 stage["status"], stage["finished_at"] = "ready", _now()
                 _save(run)
+        # E11: до статуса ready, чтобы первое открытие сводной не читало витрину с диска (~0,5 с)
+        warmup.warm(_dirs[rid])
         with _lock:
             run["status"], run["current_stage"], run["finished_at"] = "ready", None, _now()
             run["progress"]["done"] = run["progress"]["total"]
