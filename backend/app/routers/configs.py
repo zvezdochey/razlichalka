@@ -1,4 +1,5 @@
 """Конфигурации пользователя (docs/api.md п. 4). Чужие конфигурации не видны."""
+import math
 import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
@@ -38,8 +39,8 @@ def _validate(body: ConfigIn) -> dict:
         if mode not in ARRAY_MODES:
             raise ApiError("bad_code", f"array_modes[{path}]: режим «{mode}» не подходит, нужен key, value или index")
     for path, bounds in body.buckets.items():
-        if any(a >= b for a, b in zip(bounds, bounds[1:])):
-            raise ApiError("bad_code", f"buckets[{path}]: границы должны идти по возрастанию")
+        if not all(math.isfinite(x) for x in bounds) or any(a >= b for a, b in zip(bounds, bounds[1:])):
+            raise ApiError("bad_code", f"buckets[{path}]: границы должны быть числами по возрастанию")
     fields = body.model_dump()
     if body.ignore_paths is None:
         fields["ignore_paths"] = ds["technical_fields"]
@@ -64,8 +65,8 @@ def _now() -> str:
 @router.get("/configs")
 def list_configs(user: str = Depends(current_user)):
     mine = [c for c in store.list(KIND) if c.get("owner") == user]
-    mine.sort(key=lambda c: c["updated_at"], reverse=True)
-    return {"configs": [{k: c[k] for k in ("id", "name", "dataset", "updated_at")} for c in mine]}
+    mine.sort(key=lambda c: c.get("updated_at", ""), reverse=True)
+    return {"configs": [{k: c.get(k) for k in ("id", "name", "dataset", "updated_at")} for c in mine]}
 
 
 @router.post("/configs", status_code=201)

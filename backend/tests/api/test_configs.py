@@ -113,3 +113,10 @@ def test_store_roundtrip(client):
     assert store.list("things") == [{"a": 1}]
     assert store.delete("things", "t_1") is True and store.delete("things", "t_1") is False
     assert store.load("things", "../evil") is None
+
+
+def test_nan_in_buckets_rejected(client):
+    # json.dumps в клиенте не даёт отправить NaN, поэтому шлём сырое тело
+    raw = '{"name": "n", "dataset": "RUN-T-1", "buckets": {"p": [NaN, 1]}}'
+    r = client.post("/api/configs", content=raw, headers={"Content-Type": "application/json"})
+    assert r.status_code == 400 and r.json()["error"]["code"] == "bad_code"
