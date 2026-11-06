@@ -13,6 +13,8 @@ from pipeline.normalize import normalize_dataset
 from pipeline.segments import build_segments
 from pipeline.summary import build_summary
 
+from app import settings
+
 # Имена файлов запуска — CONTRACTS §3
 NORMALIZED = {"BEFORE": "normalized_BEFORE.csv", "AFTER": "normalized_AFTER.csv"}
 COMPARISON = "comparison.csv"
@@ -36,6 +38,8 @@ def _parse_cfg(config: dict) -> dict:
     return {
         "ignore_paths": config.get("ignore_paths") or [],
         "array_modes": config.get("array_modes") or {},
+        "array_rules": config.get("array_rules") or {},
+        "procedures_dir": settings.PROCEDURES_DIR,  # встроенные процедуры — backend/procedures/
         "buckets": config.get("buckets") or {},
     }
 
@@ -74,7 +78,8 @@ def stage_aggregate(ctx) -> None:
     # Две подстадии в одном этапе: сначала слой разрезов (половина прогресса), потом итоги
     ctx.log("info", "Строю слой разрезов (segments.csv)")
     files = len(list_source_files(ctx.dataset_dir, "BEFORE"))
-    build_segments(ctx.dataset_dir, ctx.run_dir / SEGMENTS,
+    # карта полей — только из файла процедуры builtin_segments; поля в конфигурации для неё пока нет
+    build_segments(ctx.dataset_dir, ctx.run_dir / SEGMENTS, procedures_dir=settings.PROCEDURES_DIR,
                    on_progress=lambda n: ctx.progress(n, 2 * files),
                    log=ctx.log, is_cancelled=ctx.is_cancelled)
     if ctx.is_cancelled():

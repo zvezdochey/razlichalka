@@ -101,6 +101,14 @@ def test_real_dataset(tmp_path, source):
     assert not df.duplicated(["APP_ID", "PATH", "ARRAY_KEY"]).any()
 
 
+@pytest.mark.skipif(not (REAL / "manifest.json").exists(), reason="нет настоящего датасета")
+@pytest.mark.parametrize("source, rows", [("BEFORE", 291_047), ("AFTER", 292_033)])
+def test_real_dataset_rows_with_procedure_rules(tmp_path, source, rows):
+    # правила массивов из backend/procedures/builtin_normalize.py дают те же строки, что были в коде (array_rules.py)
+    n, _ = run(tmp_path, source, cfg={}, dataset=REAL)
+    assert n == rows
+
+
 def test_no_partial_csv_on_failure(tmp_path):
     out = tmp_path / "n.csv"
     with pytest.raises(Cancelled):

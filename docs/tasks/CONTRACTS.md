@@ -107,7 +107,11 @@ def normalize_dataset(dataset_dir: Path, source: str, out_csv: Path, parse_cfg: 
 def compare_csv(before_csv: Path, after_csv: Path, out_csv: Path, log=None) -> int: ...
 
 # pipeline/segments.py (E6)
-def build_segments(dataset_dir: Path, out_csv: Path, on_progress=None, log=None, is_cancelled=None) -> int: ...
+def build_segments(dataset_dir: Path, out_csv: Path, *, field_map: dict | None = None, procedures_dir=None,
+                   on_progress=None, log=None, is_cancelled=None) -> int: ...
+# всё после out_csv — только по имени (keyword-only)
+# field_map — пути, которые заменяют пути встроенной карты полей (backend/procedures/builtin_segments.py);
+# None — встроенная карта. Читать одно поле по той же карте: read_field(doc, name, fmap=None) из pipeline/segments.py
 
 # pipeline/summary.py (E7)
 def build_summary(comparison_csv: Path, segments_csv: Path, out_summary_json: Path, out_apps_csv: Path, log=None) -> dict: ...
@@ -124,13 +128,21 @@ def build_summary(comparison_csv: Path, segments_csv: Path, out_summary_json: Pa
 ```python
 parse_cfg = {
   "ignore_paths": ["appData.request_id", "appData.createDateTime"],   # PATH без [] тоже подходят
-  "array_modes": {"decisionResult.scoring[].value": "index"},         # перекрывает режим по умолчанию
+  "array_rules": {"limits[]": {"mode": "key", "key": ["kind"]}},     # правило целиком (можно новый массив)
+  "array_modes": {"decisionResult.scoring[].value": "index"},         # только режим
   "buckets": {"decisionResult.product_trials[].scoring.pd.value": [0.3, 0.6]},
 }
 ```
 
-Режимы массивов по умолчанию и их ключи — таблица в `ПАКЕТ/ЗАДАНИЕ/docs/ФОРМАТ_ОТВЕТА.md` («Массивы: девять штук»).
-Их зашивает в код Егор (E2) как `DEFAULT_ARRAY_RULES`; пользователь через `array_modes` может поменять только режим.
+Правила массивов по умолчанию (режим и ключ) — таблица в `ПАКЕТ/ЗАДАНИЕ/docs/ФОРМАТ_ОТВЕТА.md` («Массивы: девять штук»).
+Они не в коде, а во встроенной процедуре `backend/procedures/builtin_normalize.py` (`ARRAY_RULES`, E9).
+Порядок перекрытия: правила процедуры → `array_rules` конфигурации (правило целиком) → `array_modes` (только режим).
+
+Пути полей слоя разрезов (решение, продукты, выдача, модель PD, порог, причина отказа, скор) — тоже процедура:
+`backend/procedures/builtin_segments.py` (`FIELD_MAP`). Загрузка обоих файлов — `pipeline/procedures.py`
+(`load_builtin(name, folder)`). Папку задаёт `app/settings.py` (`PROCEDURES_DIR`, по умолчанию `backend/procedures`),
+этапы передают её в `parse_cfg["procedures_dir"]` и `build_segments(procedures_dir=...)`; сам `pipeline` окружение не читает.
+Карту полей разрезов из конфигурации пока не поменять — только правкой `builtin_segments.py`.
 
 ## 6. Данные организаторов
 
