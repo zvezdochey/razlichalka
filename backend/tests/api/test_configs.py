@@ -41,6 +41,14 @@ def test_datasets_list_skips_broken(client):
     }]}
 
 
+def test_datasets_duplicate_id_skipped(client, tmp_path):
+    copy = tmp_path / "datasets" / "RUN-T-1-copy"
+    copy.mkdir()
+    copy.joinpath("manifest.json").write_text(
+        (tmp_path / "datasets" / "RUN-T-1" / "manifest.json").read_text(encoding="utf-8"), encoding="utf-8")
+    assert [d["id"] for d in client.get("/api/datasets").json()["datasets"]] == ["RUN-T-1"]
+
+
 def test_datasets_no_folder(client, monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "DATASETS_DIR", tmp_path / "нет-такой")
     r = client.get("/api/datasets")

@@ -120,6 +120,33 @@ def test_run_survives_restart(client):
     assert [r["id"] for r in again.get("/api/runs", headers=ANN).json()["runs"]] == [started["id"]]
 
 
+def test_cancel_after_restart(client):
+    _, started = new_run(client)
+    wait_for(client, started["id"], {"ready"})
+    again = TestClient(create_app())
+    r = again.post(f"/api/runs/{started['id']}/cancel", headers=ANN)
+    assert r.status_code == 200 and r.json()["status"] == "ready"
+
+
+def test_broken_run_json_does_not_stop_server(client, tmp_path):
+    _, started = new_run(client)
+    wait_for(client, started["id"], {"ready"})
+    for name, text in (("r_bad1", "{не json"), ("r_bad2", '{"id": "r_bad2", "status": "running"}'), ("r_bad3", "[]")):
+        (tmp_path / "data" / "runs" / name).mkdir()
+        (tmp_path / "data" / "runs" / name / "run.json").write_text(text, encoding="utf-8")
+    again = TestClient(create_app())
+    assert [r["id"] for r in again.get("/api/runs", headers=ANN).json()["runs"]] == [started["id"]]
+
+
+def test_run_knows_dataset_folder(client, tmp_path):
+    # имя папки не совпадает с run_id из манифеста — запуск всё равно знает, где файлы
+    (tmp_path / "datasets" / "RUN-T-1").rename(tmp_path / "datasets" / "папка")
+    _, started = new_run(client)
+    wait_for(client, started["id"], {"ready"})
+    assert runs._runs[started["id"]]["dataset_dir"] == str(tmp_path / "datasets" / "папка")
+    assert "dataset_dir" not in client.get(f"/api/runs/{started['id']}", headers=ANN).json()
+
+
 def test_unfinished_run_becomes_error_after_restart(client, monkeypatch):
     monkeypatch.setattr(pipeline_stub, "STAGE_SECONDS", 5)
     _, started = new_run(client)
