@@ -288,3 +288,36 @@ export type AttributesParams = {
   page?: number
   size?: number
 }
+
+// ─── 7.2–7.3. Факты и заявки группы ──────────────────────────────────────────
+
+export type FactValue = string | number | null
+export type FactsMeasure = 'counts' | 'counts_distinct_apps'
+
+export type FactsParams = {
+  /** От одного до трёх разных полей. */
+  dims: string[]
+  filter?: Record<string, string[]>
+  measure: FactsMeasure
+  limit?: number
+}
+
+export type FactsRow = {
+  [dimension: string]: FactValue
+  /** Значение показателя для этой группы при любом measure. */
+  counts: number
+  app_ids_ref: string
+}
+
+export type FactsResponse = {
+  dims: string[]
+  rows: FactsRow[]
+  total_groups: number
+}
+
+export type FactAppsResponse = {
+  page: number
+  size: number
+  total: number
+  apps: string[]
+}

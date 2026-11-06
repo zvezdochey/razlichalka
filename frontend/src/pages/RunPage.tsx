@@ -161,6 +161,7 @@ export function RunPage() {
         <NavLink to="overview" className="tabs__item">
           Обзор
         </NavLink>
+        <NavLink to="pivot" className="tabs__item">Сводная</NavLink>
         <NavLink to="apps" className="tabs__item">
           Заявки
         </NavLink>
