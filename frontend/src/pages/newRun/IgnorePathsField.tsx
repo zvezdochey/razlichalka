@@ -61,6 +61,9 @@ export function IgnorePathsField({ paths, onChange }: IgnorePathsFieldProps) {
             event.preventDefault()
             add()
           }}
+          // Клик по «Запустить» сначала уводит фокус отсюда: так недописанный
+          // путь попадёт в список, а не потеряется молча.
+          onBlur={add}
           placeholder="appData.createDateTime"
           aria-label="Путь, который не сравнивать"
         />

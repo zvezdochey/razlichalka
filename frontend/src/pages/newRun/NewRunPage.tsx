@@ -95,6 +95,12 @@ export function NewRunPage() {
   const busy = phase !== 'idle'
   const canSubmit = datasetId !== '' && !busy
   const savedAndUnchanged = savedConfig !== null && !changedSinceSave
+  /**
+   * Прошлый запуск упал на втором шаге и форму с тех пор не меняли — значит
+   * повторное нажатие переиспользует конфигурацию. Если форму поправили,
+   * обещать «вторая не создастся» уже нельзя: следующий запуск создаст новую.
+   */
+  const willReuseConfig = runNotStarted && !changedSinceSave
 
   function handleNameChange(value: string) {
     setName(value)
@@ -122,8 +128,8 @@ export function NewRunPage() {
       aggregate: BUILTIN_AGGREGATE,
       checks: [], // проверки в MVP не подключаем
       ignore_paths: ignorePaths,
-      array_modes: DEFAULT_ARRAY_MODES,
-      buckets: DEFAULT_BUCKETS,
+      array_modes: { ...DEFAULT_ARRAY_MODES },
+      buckets: { ...DEFAULT_BUCKETS },
     }
   }
 
@@ -168,6 +174,12 @@ export function NewRunPage() {
       config = await ensureConfig()
     } catch (error) {
       if (onPage.current) setSubmitError(errorMessage(error))
+      setPhase('idle')
+      return
+    }
+
+    // Пока сохранялась конфигурация, человек мог уйти со страницы — запускать не его дело.
+    if (!onPage.current) {
       setPhase('idle')
       return
     }
@@ -246,7 +258,7 @@ export function NewRunPage() {
       {submitError !== null && (
         <div className="new-run__error">
           <ErrorBox message={submitError} />
-          {runNotStarted && (
+          {willReuseConfig && (
             <p className="muted new-run__error-note">
               Конфигурация сохранена, запуск не стартовал. Нажмите «Запустить» ещё раз — вторая
               конфигурация не создастся.
@@ -267,7 +279,7 @@ export function NewRunPage() {
           Сохранить конфигурацию
         </button>
         <button type="submit" className="btn btn--primary" disabled={!canSubmit}>
-          {runNotStarted ? 'Запустить ещё раз' : 'Запустить'}
+          {willReuseConfig ? 'Запустить ещё раз' : 'Запустить'}
         </button>
       </div>
     </form>
