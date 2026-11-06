@@ -114,10 +114,7 @@ def test_no_partial_csv_on_failure(tmp_path):
     assert not out.exists() and not list(tmp_path.glob("*.tmp"))
 
 
-def test_buckets_without_module_warns(tmp_path):
-    logs = []
-    run(tmp_path, cfg={**CFG, "buckets": {"a.b": [1]}}, log=lambda lvl, m: logs.append(lvl))
-    try:
-        import pipeline.buckets  # noqa: F401
-    except ModuleNotFoundError:
-        assert "warn" in logs
+def test_bad_buckets_is_bad_file(tmp_path):
+    # кривые границы в старой конфигурации — понятная ошибка этапа, а не internal
+    with pytest.raises(BadFile, match="бакеты"):
+        run(tmp_path, cfg={**CFG, "buckets": {"a[].b": [1], "a.b": [2]}})

@@ -1,5 +1,4 @@
 """Конфигурации пользователя (docs/api.md п. 4). Чужие конфигурации не видны."""
-import math
 import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
@@ -11,6 +10,7 @@ from app import store
 from app.deps import current_user
 from app.errors import ApiError
 from app.services import datasets
+from pipeline.buckets import make_adjuster
 
 router = APIRouter()
 KIND = "configs"
@@ -38,16 +38,19 @@ def _validate(body: ConfigIn) -> dict:
     for path, mode in body.array_modes.items():
         if mode not in ARRAY_MODES:
             raise ApiError("bad_code", f"array_modes[{path}]: режим «{mode}» не подходит, нужен key, value или index")
-    for path, bounds in body.buckets.items():
-        if not all(math.isfinite(x) for x in bounds) or any(a >= b for a, b in zip(bounds, bounds[1:])):
-            raise ApiError("bad_code", f"buckets[{path}]: границы должны быть числами по возрастанию")
+    try:
+        # та же проверка, что сделает этап «Приведение ответов», — ошибка видна сразу, а не в запуске
+        make_adjuster(body.buckets)
+    except ValueError as exc:
+        raise ApiError("bad_code", str(exc)) from None
     fields = body.model_dump()
     if body.ignore_paths is None:
         fields["ignore_paths"] = ds["technical_fields"]
     return fields
 
 
-def _own(config_id: str, user: str) -> dict:
+def own_config(config_id: str, user: str) -> dict:
+    """Конфигурация пользователя; чужая или несуществующая — not_found (её же берёт POST /runs)."""
     obj = store.load(KIND, config_id)
     if obj is None or obj.get("owner") != user:
         raise ApiError("not_found", "Конфигурация не найдена")
@@ -78,12 +81,12 @@ def create_config(body: ConfigIn, user: str = Depends(current_user)):
 
 @router.get("/configs/{config_id}")
 def get_config(config_id: str, user: str = Depends(current_user)):
-    return _public(_own(config_id, user))
+    return _public(own_config(config_id, user))
 
 
 @router.put("/configs/{config_id}")
 def update_config(config_id: str, body: ConfigIn, user: str = Depends(current_user)):
-    old = _own(config_id, user)
+    old = own_config(config_id, user)
     obj = {"id": old["id"], "owner": user, **_validate(body), "updated_at": _now()}
     store.save(KIND, obj["id"], obj)
     return _public(obj)
@@ -91,6 +94,6 @@ def update_config(config_id: str, body: ConfigIn, user: str = Depends(current_us
 
 @router.delete("/configs/{config_id}", status_code=204)
 def delete_config(config_id: str, user: str = Depends(current_user)):
-    _own(config_id, user)
+    own_config(config_id, user)
     store.delete(KIND, config_id)
     return Response(status_code=204)

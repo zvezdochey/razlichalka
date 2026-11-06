@@ -82,6 +82,13 @@ def test_ignore_paths():
     assert set(by_path(flat(doc, ignore_paths=["appData", "trials"]))) == set()
 
 
+def test_ignore_whole_array_with_brackets():
+    # массив без правила и пустой массив, заданные путём с [], не дают ни листьев, ни ошибки
+    doc = {"keep": 1, "noRule": [{"a": 1}], "empty": []}
+    rows = flat(doc, ignore_paths=["noRule[]", "empty[]"])
+    assert set(by_path(rows)) == {("keep", "")}
+
+
 def test_null_bool_empty_and_numbers():
     rows = flat({"a": None, "b": True, "c": False, "d": [], "e": {}, "f": 20.0, "g": 1e-05, "h": 7})
     got = {r["PATH"]: r["VALUE"] for r in rows}

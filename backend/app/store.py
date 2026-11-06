@@ -25,20 +25,24 @@ def _path(kind: str, id: str) -> Path:
     return _dir(kind) / f"{id}.json"
 
 
-def save(kind: str, id: str, obj: dict) -> None:
+def write_json(path: Path, obj) -> None:
     """Пишет во временный файл и подменяет настоящий — обрыв не оставит половину файла."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(obj, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def save(kind: str, id: str, obj: dict) -> None:
     path = _path(kind, id)
     with _lock:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(obj, f, ensure_ascii=False, indent=2)
-            os.replace(tmp, path)
-        except BaseException:
-            if os.path.exists(tmp):
-                os.unlink(tmp)
-            raise
+        write_json(path, obj)
 
 
 def load(kind: str, id: str) -> dict | None:
