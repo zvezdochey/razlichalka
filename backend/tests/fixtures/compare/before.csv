@@ -1,0 +1,6 @@
+﻿APP_ID;SOURCE;PREFIX;CLASS;SUFFIX;ARRAY_KEY;KEY;PATH;VALUE;ADJUSTED_VALUE
+1;BEFORE;company;decisionResult;;;decision;company.decisionResult.decision;APPROVE;APPROVE
+1;BEFORE;company;decisionResult;;;limit;company.decisionResult.limit;100;100
+1;BEFORE;company;scoring;pd;P1;value;company.scoring.pd[].value;0.42;(0.3 – 0.6]
+1;BEFORE;company;scoring;;;old;company.scoring.old;x;x
+1;BEFORE;company;scoring;;;nothing;company.scoring.nothing;null;null
