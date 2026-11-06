@@ -41,7 +41,7 @@ def _validate(body: ConfigIn) -> dict:
             raise ApiError("bad_code", f"array_modes[{path}]: режим «{mode}» не подходит, нужен key, value или index")
     for path, rule in body.array_rules.items():
         mode, key = rule.get("mode"), rule.get("key")
-        if mode not in ARRAY_MODES:
+        if not isinstance(mode, str) or mode not in ARRAY_MODES:
             raise ApiError("bad_code", f"array_rules[{path}]: режим «{mode}» не подходит, нужен key, value или index")
         if key is not None and not (isinstance(key, list) and all(isinstance(k, str) and k for k in key)):
             raise ApiError("bad_code", f"array_rules[{path}]: key — список имён полей")

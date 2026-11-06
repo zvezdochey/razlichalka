@@ -96,9 +96,9 @@ def _walk(obj, path: str) -> list:
     return [v for v in values if v is not None]
 
 
-def segment_field_map(overrides: dict | None = None) -> dict:
+def segment_field_map(overrides: dict | None = None, procedures_dir=None) -> dict:
     """Карта полей встроенной процедуры `builtin_segments`, перекрытая `overrides` (то, что задано, — заменяет)."""
-    return {**load_builtin(BUILTIN), **(overrides or {})}
+    return {**load_builtin(BUILTIN, procedures_dir), **(overrides or {})}
 
 
 def read_field(doc: dict, name: str, fmap: dict | None = None):
@@ -141,6 +141,10 @@ def _check_map(fmap: dict) -> dict:
         # поле продукта — относительно элемента массива продуктов; иначе читаем из ответа целиком
         if path.startswith(products + "."):
             product_fields[name] = ("product", path[len(products) + 1:])
+        elif "[]" in path:
+            # массив, но не массив продуктов: «первый элемент» был бы чужим продуктом — молча врать нельзя
+            raise BadFile(f"карта полей разрезов: {name} = {path!r} — поле продукта должно лежать "
+                          f"в массиве продуктов {products} (как PRODUCTS) или вне массивов")
         else:
             product_fields[name] = ("doc", path)
     return {"products": products, "product_id": product_id, "offers": offers, "offer_id": offer_id,
@@ -226,14 +230,15 @@ def _row(app_id: str, before: dict, after: dict) -> dict:
     }
 
 
-def build_segments(dataset_dir: Path, out_csv: Path, field_map: dict | None = None,
+def build_segments(dataset_dir: Path, out_csv: Path, *, field_map: dict | None = None, procedures_dir=None,
                    on_progress=None, log=None, is_cancelled=None) -> int:
     """Пишет segments.csv, по строке на заявку (заявки — файлы среза BEFORE). Возвращает число строк.
 
+    Всё после `out_csv` — только по имени (`field_map=...`), чтобы новый параметр не сдвинул чужие вызовы.
     `field_map` — пути, которые заменяют пути встроенной карты полей (`builtin_segments`);
-    без неё — встроенная карта целиком.
+    без неё — встроенная карта целиком. `procedures_dir` — папка встроенных процедур (из app/settings.py).
     """
-    plan = _check_map(segment_field_map(field_map))
+    plan = _check_map(segment_field_map(field_map, procedures_dir))
     before_files = list_source_files(dataset_dir, "BEFORE")
     after_by_id = {f.stem: f for f in list_source_files(dataset_dir, "AFTER")}
     total = len(before_files)

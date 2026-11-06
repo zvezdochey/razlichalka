@@ -110,6 +110,7 @@ def test_unknown_dataset(client):
     {"buckets": {"p": [0.00000000001, 0.00000000002]}},  # подписи границ совпадают
     {"array_modes": {"p": "random"}},
     {"array_rules": {"p[]": {"mode": "random"}}},
+    {"array_rules": {"p[]": {"mode": ["key"]}}},            # режим не строка — не 500, а bad_code
     {"array_rules": {"p[]": {"mode": "key"}}},              # для key нужен ключ
     {"array_rules": {"p[]": {"mode": "key", "key": "id"}}},  # ключ — список, а не строка
 ])

@@ -173,8 +173,10 @@ def test_field_map_override_reads_renamed_decision(tmp_path):
 
 def test_field_map_override_products_array(tmp_path):
     # продукты переехали в другой массив и поле id — «тот же продукт» и его поля читаются по новой карте
+    # поля продукта, которых в новом формате нет, — пустой путь (иначе они указывали бы в чужой массив)
     fmap = {"PRODUCTS": "offers_eval[].id", "PD_MODEL": "offers_eval[].pd_model",
-            "TOP_OFFER": "shown[].id", "OFFER_RANK": "shown[].pos"}
+            "TOP_OFFER": "shown[].id", "OFFER_RANK": "shown[].pos",
+            "PARTNER_TYPE": "", "ROUTING_METHOD": "", "CUTOFF": "", "REJECT_REASON": ""}
     b = {"decisionResult": {"decision": "APPROVE"},
          "offers_eval": [{"id": 2, "pd_model": "M2"}, {"id": 1, "pd_model": "M1"}], "shown": [{"id": 2, "pos": 1}]}
     a = {"decisionResult": {"decision": "REJECT"}, "offers_eval": [{"id": 2, "pd_model": "M2"}, {"id": 1, "pd_model": "M1"}]}
@@ -195,6 +197,18 @@ def test_field_map_products_must_be_array(tmp_path):
     with pytest.raises(BadFile, match="PRODUCTS"):
         run(tmp_path, {"A1": (doc("A1", "APPROVE", []), doc("A1", "APPROVE", []))},
             field_map={"PRODUCTS": "decisionResult.product_id"})
+
+
+def test_field_map_product_field_in_other_array_is_error(tmp_path):
+    # поле продукта в чужом массиве — ошибка, а не молча «первый элемент»
+    with pytest.raises(BadFile, match="PD_MODEL"):
+        run(tmp_path, {"A1": (doc("A1", "APPROVE", [trial(1)]), doc("A1", "APPROVE", [trial(1)]))},
+            field_map={"PD_MODEL": "decisionResult.available_offers[].model"})
+
+
+def test_field_map_is_keyword_only(tmp_path):
+    with pytest.raises(TypeError):
+        build_segments(MINI, tmp_path / "s.csv", None)
 
 
 def test_read_field():

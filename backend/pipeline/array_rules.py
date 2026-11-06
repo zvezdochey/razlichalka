@@ -19,15 +19,16 @@ from .procedures import load_builtin
 BUILTIN = "builtin_normalize"
 
 
-def default_array_rules() -> dict:
+def default_array_rules(procedures_dir=None) -> dict:
     """Правила встроенной процедуры «Приведение ответов» (свежая копия при каждом вызове)."""
-    return {path: dict(rule) for path, rule in load_builtin(BUILTIN).items()}
+    return load_builtin(BUILTIN, procedures_dir)
 
 
 def _rule_path(path: str, rules: dict) -> str:
     """Путь массива можно писать и без последних `[]`: `a.scoring[].value` — это правило `a.scoring[].value[]`.
 
-    (так путь записан в примере конфига в docs/api.md). Новый массив без `[]` тоже приводим к виду с `[]`.
+    (так путь записан в примере конфига в docs/api.md). Новый массив без `[]` тоже приводим к виду с `[]`:
+    flatten ищет правило только по пути с `[]`, так что запись `"foo"` без этого просто не сработала бы.
     """
     if path in rules or path.endswith("[]"):
         return path

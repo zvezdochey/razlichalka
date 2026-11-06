@@ -51,6 +51,24 @@ def test_array_rules_new_array_matched_by_config_key():
     assert got == {"day": "1", "month": "30"}
 
 
+def test_array_modes_new_path_without_brackets_gets_them():
+    # неизвестный путь без [] приводим к пути массива: flatten ищет правила только по путям с []
+    merged = merge_array_rules(DEFAULT_ARRAY_RULES, {"tags": "value"})
+    assert merged["tags[]"] == {"mode": "value"} and "tags" not in merged
+    rows = flatten_response({"tags": ["b", "a"]}, "A1", "BEFORE", merged)
+    assert len(rows) == 2
+
+
+def test_load_builtin_from_other_folder(tmp_path):
+    from pipeline.errors import BadFile
+    from pipeline.procedures import load_builtin
+    (tmp_path / "builtin_normalize.py").write_text('ARRAY_RULES = {"x[]": {"mode": "index"}}', encoding="utf-8")
+    assert default_array_rules(tmp_path) == {"x[]": {"mode": "index"}}
+    (tmp_path / "two.py").write_text("A = {}\nB = {}", encoding="utf-8")
+    with pytest.raises(BadFile, match="одна переменная"):
+        load_builtin("two", tmp_path)
+
+
 def test_array_modes_applied_after_array_rules():
     path = "decisionResult.product_trials[]"
     merged = merge_array_rules(DEFAULT_ARRAY_RULES, {path: "index"}, {path: {"mode": "key", "key": ["code"]}})
