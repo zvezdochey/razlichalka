@@ -301,8 +301,8 @@
 ```json
 {
   "applications": 2002,
-  "applications_changed": 502,
-  "applications_changed_share": 0.251,
+  "applications_changed": 2002,
+  "applications_changed_share": 1.0,
   "decision_changed": 385,
   "decision_changes": {
     "same": 1617,
@@ -310,11 +310,11 @@
     "reject_to_approve": 112,
     "decision_other": 0
   },
-  "attributes": { "VALUE_CHANGED": 8217, "ATTRIBUTE_NEW": 3835, "ATTRIBUTE_LOST": 3010 }
+  "attributes": { "VALUE_CHANGED": 11571, "ATTRIBUTE_NEW": 4108, "ATTRIBUTE_LOST": 3122 }
 }
 ```
 
-Числа посчитаны скриптом по датасету без нормализации из ТЗ: сравнение по путям, массивы сопоставлены **по позиции**, поэтому `applications_changed` и `attributes` — ориентир, а не эталон. Эталонное число из ТЗ появится, когда будет готова витрина с ключами массивов.
+Числа посчитаны конвейером (`pipeline/`) на настоящем датасете с пустым `ignore_paths`: ключи массивов по правилам E2, сравнение по `VALUE`. Служебные поля (id запроса, даты) отличаются у каждой заявки, поэтому `applications_changed` = все 2002 и пока ничего не показывает. `applications_changed` и `attributes` — **не эталон**: они изменятся, когда в конфиге появится `ignore_paths`. Решения (`decision_*`) от конфига не зависят.
 
 Решения (`decision_changes`) уже совпадают с тем, что видно в данных: `APPROVE → REJECT` 273, `REJECT → APPROVE` 112, остальные 1617 заявок с тем же решением.
 
