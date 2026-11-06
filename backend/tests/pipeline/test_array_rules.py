@@ -31,10 +31,12 @@ def test_two_offers_same_product_give_different_rows():
     assert got == {("p1:standard", "amount"): "100", ("p1:manual", "amount"): "200"}
 
 
-DATASET = Path(os.environ.get("DATASET_DIR", "data/raw"))
+_RUN = Path(__file__).resolve().parents[3] / "ПАКЕТ/ПАКЕТ/ЗАДАНИЕ/ЗАДАНИЕ/data/RUN-20260827-0001/RESULTS"
+DATASET = Path(os.environ.get("DATASET_DIR", _RUN))
 
 
 @pytest.mark.skipif(not DATASET.exists(), reason="нет настоящего датасета (DATASET_DIR)")
 def test_real_dataset_no_errors():
     from pipeline.tools.check_dataset import main
-    assert main(DATASET) == 0
+    for срез in ("BEFORE_MASTER", "AFTER_BETA"):
+        assert main(DATASET / срез) == 0
