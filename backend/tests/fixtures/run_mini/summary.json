@@ -1,0 +1,13 @@
+{
+  "applications": 6,
+  "applications_changed": 4,
+  "applications_changed_share": 0.667,
+  "decision_changed": 3,
+  "decision_changes": {
+    "same": 3,
+    "approve_to_reject": 2,
+    "reject_to_approve": 1,
+    "decision_other": 0
+  },
+  "attributes": { "VALUE_CHANGED": 13, "ATTRIBUTE_NEW": 1, "ATTRIBUTE_LOST": 2 }
+}

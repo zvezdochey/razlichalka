@@ -235,6 +235,15 @@ def get_own(run_id: str, user: str) -> dict:
     return run
 
 
+def ready_dir(run_id: str, user: str) -> Path:
+    """Каталог результатов, доступный владельцу только после завершения запуска."""
+    with _lock:
+        run = get_own(run_id, user)
+        if run["status"] != "ready":
+            raise ApiError("not_ready", "Результаты появятся, когда запуск завершится")
+        return _dirs[run_id]
+
+
 def cancel(run_id: str, user: str) -> dict:
     run = get_own(run_id, user)
     with _lock:

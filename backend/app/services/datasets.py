@@ -25,10 +25,9 @@ def _read_manifest(folder) -> dict | None:
 def _scan() -> list[dict]:
     """Все датасеты вместе с путём к папке (`path` нужен только бэку, наружу его не отдаём)."""
     root = settings.DATASETS_DIR
-    if not root.is_dir():
-        return []
+    folders = sorted(root.iterdir()) if root.is_dir() else []
     result, seen = [], {}
-    for folder in sorted(root.iterdir()):
+    for folder in folders:
         if not (folder / "manifest.json").is_file():
             continue
         ds = _read_manifest(folder)
@@ -40,6 +39,10 @@ def _scan() -> list[dict]:
         seen[ds["id"]] = folder.name
         ds["path"] = folder
         result.append(ds)
+    if not result and settings.USE_STUB_PIPELINE:
+        demo = _read_manifest(settings.STUB_RUN_DIR)
+        if demo is not None:
+            result.append({**demo, "path": settings.STUB_RUN_DIR})
     return result
 
 

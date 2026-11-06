@@ -1,0 +1,8 @@
+{
+  "run_id": "RUN-MINI",
+  "applications": 6,
+  "srez": {
+    "BEFORE": { "label": "MASTER" },
+    "AFTER": { "label": "BETA" }
+  }
+}
