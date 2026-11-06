@@ -77,6 +77,8 @@
     {
       "id": "RUN-20260827-0001",
       "applications": 2002,
+  "applications_only_before": 0,
+  "applications_only_after": 0,
       "sources": { "BEFORE": "MASTER", "AFTER": "BETA" },
       "technical_fields": ["appData.request_id", "appData.createDateTime"]
     }
@@ -182,6 +184,7 @@
   "checks": ["builtin_missing_attrs", "p_1"],
   "ignore_paths": ["appData.request_id", "appData.createDateTime"],
   "array_modes": { "decisionResult.scoring[].value": "index" },
+  "array_rules": { "decisionResult.product_trials[]": { "mode": "key", "key": ["product_id"] } },
   "buckets": { "decisionResult.product_trials[].scoring.pd.value": [0.3, 0.6] }
 }
 ```
@@ -189,7 +192,9 @@
 - `normalize`, `aggregate` — id процедуры нужного `kind`.
 - `checks` — список id проверок (`kind: "check"`).
 - `ignore_paths` — пути, которые не сравниваем. Два технических поля — из `manifest.json` датасета (`technical_fields_always_differ`): они различаются у всех 2002 заявок.
-- `array_modes` — режим сравнения массива по пути: `key`, `value`, `index`. Без записи — `key`. Для `decisionResult.scoring[].value` режим `index` (вектор модели, позиция значима). Полный список массивов и их ключей — в `ФОРМАТ_ОТВЕТА.md`.
+- `array_rules` — правило массива по пути целиком: `{ "mode": "key", "key": ["поле", ...] }`, или `{ "mode": "value" }`, или `{ "mode": "index" }`. Перекрывает правило встроенной процедуры `builtin_normalize` (файл `backend/procedures/builtin_normalize.py`) и позволяет добавить правило для нового массива. Необязательно, по умолчанию `{}`. Для `key` нужен непустой `key`.
+- `array_modes` — только режим массива по пути: `key`, `value`, `index` (ключ остаётся из правила). Для `decisionResult.scoring[].value` режим `index` (вектор модели, позиция значима). Полный список массивов и их ключей — в `ФОРМАТ_ОТВЕТА.md` и в `builtin_normalize.py`.
+- Порядок перекрытия правил массивов: процедура → `array_rules` → `array_modes`. Путь можно писать без последних `[]`.
 - `buckets` — границы бакетов (для `ADJUSTED_VALUE`), одни и те же для обоих срезов. Пример: `pd.value` 0.42 попадает в `(0.3 – 0.6]`.
 
 Ответ: объект конфигурации (`201`).
@@ -313,6 +318,8 @@
   "attributes": { "VALUE_CHANGED": 11571, "ATTRIBUTE_NEW": 4108, "ATTRIBUTE_LOST": 3122 }
 }
 ```
+
+`applications_only_before` / `applications_only_after` — заявки, которые есть только в одном срезе (сломанный JSON, нет ответа). В витрину, факты и список заявок они не попадают: по просьбе организаторов анализируем только заявки с парой before/after, остальные видны лишь этими счётчиками.
 
 Числа посчитаны конвейером (`pipeline/`) на настоящем датасете с пустым `ignore_paths`: ключи массивов по правилам E2, сравнение по `VALUE`. Служебные поля (id запроса, даты) отличаются у каждой заявки, поэтому `applications_changed` = все 2002 и пока ничего не показывает. `applications_changed` и `attributes` — **не эталон**: они изменятся, когда в конфиге появится `ignore_paths`. Решения (`decision_*`) от конфига не зависят.
 

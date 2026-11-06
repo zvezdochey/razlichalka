@@ -1,0 +1,206 @@
+/* Экран «Новый прогон»: секции одна под другой, действия внизу.
+   Поверхности плоские, скругление только у полей и кнопок. */
+
+.new-run {
+  max-width: 920px;
+}
+
+/* fieldset нужен только чтобы блокировать форму на время запросов —
+   собственного вида у него быть не должно. */
+.new-run__fields {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.section {
+  margin-bottom: var(--s-6);
+}
+
+.section h2 {
+  margin-bottom: var(--s-3);
+}
+
+/* Блоки, которые в MVP не работают: приглушены, но не выглядят сломанными */
+.section--later {
+  background: var(--surface-sunken);
+}
+
+.section__note {
+  margin-bottom: var(--s-4);
+}
+
+/* --- Поле формы --- */
+.field {
+  margin-bottom: var(--s-4);
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.field__label {
+  display: block;
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  margin-bottom: var(--s-1);
+}
+
+.field__control {
+  width: 100%;
+  max-width: 420px;
+}
+
+.field__hint {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-table);
+}
+
+/* --- Факты о датасете --- */
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-6);
+  margin: 0 0 var(--s-4);
+  padding: var(--s-3) 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.facts__label {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+  margin-bottom: var(--s-1);
+}
+
+.facts__value {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.facts__value--paths {
+  font-size: var(--fs-table);
+  color: var(--muted);
+}
+
+/* --- Список «Не сравнивать» --- */
+.paths {
+  list-style: none;
+  margin: 0 0 var(--s-2);
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.paths__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 2px var(--s-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  font-size: var(--fs-table);
+}
+
+.paths__remove {
+  font: inherit;
+  font-size: var(--fs-caption);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.paths__remove:hover {
+  color: var(--text);
+}
+
+.paths__add {
+  display: flex;
+  gap: var(--s-2);
+  align-items: center;
+}
+
+.paths__input {
+  flex: 1 1 auto;
+  max-width: 420px;
+  font-size: var(--fs-table);
+}
+
+/* --- Этапы обработки (неактивны) --- */
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.steps__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.steps__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--fs-table);
+}
+
+.steps__title {
+  font-size: var(--fs-body);
+}
+
+.steps__right {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.segmented__btn {
+  font-size: var(--fs-caption);
+  padding: 3px var(--s-2);
+}
+
+/* --- Действия и состояния --- */
+.new-run__error {
+  margin-bottom: var(--s-4);
+}
+
+.new-run__error-note {
+  margin: var(--s-2) 0 0;
+  font-size: var(--fs-table);
+}
+
+.new-run__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--border);
+}
+
+/* Статус слева, кнопки прижаты вправо */
+.new-run__status {
+  flex: 1 1 auto;
+  min-height: 20px;
+  font-size: var(--fs-table);
+}

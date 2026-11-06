@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from .array_rules import DEFAULT_ARRAY_RULES, merge_array_rules
+from .array_rules import default_array_rules, merge_array_rules
 from .buckets import make_adjuster
 from .csvio import write_csv
 from .dataset import list_source_files
@@ -25,7 +25,8 @@ def normalize_dataset(dataset_dir: Path, source: str, out_csv: Path, parse_cfg: 
     parse_cfg = parse_cfg or {}
     files = list_source_files(dataset_dir, source)
     total = len(files)
-    rules = merge_array_rules(DEFAULT_ARRAY_RULES, parse_cfg.get("array_modes") or {})
+    rules = merge_array_rules(default_array_rules(parse_cfg.get("procedures_dir")),
+                             parse_cfg.get("array_modes") or {}, parse_cfg.get("array_rules") or {})
     ignore_paths = parse_cfg.get("ignore_paths") or []
     adjust = None
     if parse_cfg.get("buckets"):
