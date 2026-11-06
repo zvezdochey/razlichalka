@@ -21,7 +21,7 @@
 Каждая сделанная ручка совпадает с примером из `docs/api.md`; сумма `counts` в фактах сходится с ручным `groupby` в тесте.
 
 ## ⚠ 7 ноября задача переехала к Илье
-По плану [README(2).md](../README(2).md) S9 делает Илья:
+По плану [PLAN-day2.md](../PLAN-day2.md) S9 делает Илья:
 - пункты 1–3 (факты, заявки группы, экспорт) → [ilya/I1-facts-export.md](../ilya/I1-facts-export.md);
 - пункты 4–5 (карточка заявки, причины) → [ilya/I3-app-card-reasons.md](../ilya/I3-app-card-reasons.md).
 
