@@ -1,6 +1,7 @@
 """Запуск с настоящим пайплайном (S5): мини-датасет и настоящий датасет организаторов."""
 import json
 import shutil
+import threading
 import time
 from pathlib import Path
 
@@ -62,6 +63,43 @@ def test_mini_run_to_ready(tmp_path, monkeypatch):
     assert stages[0]["code_ref"]["path"] == "procedures/builtin_normalize.py"
     assert stages[3]["code_ref"] is None
     assert any("Проверки не подключены" in e["message"] for e in stages[3]["log"])
+
+
+def test_ready_run_is_warm(tmp_path, monkeypatch):
+    """E11: к статусу ready витрина уже в кэше — первый вызов сводной не читает CSV с диска."""
+    from app.services import facts, results, warmup
+    client = make_client(tmp_path, monkeypatch, MINI)
+    rid = start(client)
+    assert wait(client, rid, {"ready", "error"}, timeout=60)["status"] == "ready"
+
+    run_dir = settings.DATA_DIR / "runs" / rid
+    reads = []
+    monkeypatch.setattr(results, "read_csv", lambda path: reads.append(path))
+    monkeypatch.setattr(facts, "read_csv", lambda path: reads.append(path))
+    assert client.get(f"/api/runs/{rid}/facts?dims=PATH", headers=ANN).status_code == 200
+    assert client.get(f"/api/runs/{rid}/apps", headers=ANN).status_code == 200
+    assert reads == []
+    # GET /runs/{id} готового запуска ставит прогрев в фон (после перезапуска кэши пустые)
+    warmup._started.discard(run_dir)
+    assert client.get(f"/api/runs/{rid}", headers=ANN).status_code == 200
+    assert run_dir in warmup._started
+    for thread in threading.enumerate():  # дожидаемся фонового прогрева, чтобы он не пережил тест
+        if thread.name == f"warm-{rid}":
+            thread.join(timeout=10)
+
+
+def test_warm_failure_keeps_run_ready(tmp_path, monkeypatch):
+    """Прогрев необязателен: если он упал, запуск всё равно ready, а ручка посчитает сама."""
+    from app.services import facts
+
+    def broken(run_dir):
+        raise TypeError("сломался прогрев")
+
+    monkeypatch.setattr(facts, "_facts_base", broken)
+    client = make_client(tmp_path, monkeypatch, MINI)
+    rid = start(client)
+    data = wait(client, rid, {"ready", "error"}, timeout=60)
+    assert data["status"] == "ready", data["error"]
 
 
 def test_cancel_stops_run(tmp_path, monkeypatch):
