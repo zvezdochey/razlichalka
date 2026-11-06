@@ -22,6 +22,7 @@ import shutil
 import sys
 import tempfile
 import time
+import tracemalloc
 from pathlib import Path
 
 from pipeline.compare import compare_csv
@@ -114,7 +115,8 @@ def _run_json(dataset_dir: Path) -> dict:
     }
 
 
-def bench_api(dataset_dir: Path, data_dir: Path) -> list[tuple[str, float, float]]:
+def bench_api(dataset_dir: Path, data_dir: Path) -> tuple[list[tuple[str, float, float, float]], float, float]:
+    """Возвращает (строки «ручка, без прогрева, после прогрева, повторный», время прогрева, память прогрева в МБ)."""
     # app импортируем здесь: остальной pipeline про app не знает (CONTRACTS §1)
     from fastapi.testclient import TestClient
 
@@ -150,16 +152,24 @@ def bench_api(dataset_dir: Path, data_dir: Path) -> list[tuple[str, float, float
                 raise RuntimeError(f"{url}: {response.status_code} {response.text[:200]}")
             return seconds
 
-        # «до»: кэши пустые, как сразу после старта сервера без прогрева
-        _clear_caches()
-        cold = [(call(url), call(url)) for url in urls]
-        # «после»: тот же порядок вызовов, но сначала прогрев (так делает конец запуска и GET /runs/{id})
+        # «до»: перед каждой ручкой кэши пустые — как первый клик сразу после старта сервера без прогрева
+        cold = []
+        for url in urls:
+            _clear_caches()
+            cold.append((call(url), call(url)))
+        # «после»: сначала прогрев (так делает конец запуска и GET /runs/{id}), потом те же ручки
         _clear_caches()
         warm_seconds, _ = timed(lambda: warmup.warm(run_dir))
         warm = [call(url) for url in urls]
+        # память прогрева меряем отдельно: tracemalloc сам замедляет код, время выше — без него
+        _clear_caches()
+        tracemalloc.start()
+        warmup.warm(run_dir)
+        warm_mb = tracemalloc.get_traced_memory()[0] / 2**20
+        tracemalloc.stop()
     rows = [(url, before_first, after_first, again)
             for url, (before_first, again), after_first in zip(urls, cold, warm)]
-    return rows, warm_seconds
+    return rows, warm_seconds, warm_mb
 
 
 def _clear_caches() -> None:
@@ -169,11 +179,11 @@ def _clear_caches() -> None:
         cached.cache_clear()
 
 
-def table(steps, api_rows, warm_seconds) -> str:
+def table(steps, api_rows, warm_seconds, warm_mb) -> str:
     lines = ["| Шаг конвейера | Время, с |", "|---|---:|"]
     lines += [f"| {name} | {seconds:.2f} |" for name, seconds in steps]
     lines.append(f"| **всего** | **{sum(s for _, s in steps):.2f}** |")
-    lines += ["", f"Прогрев кэшей отчёта: {warm_seconds:.2f} с", "",
+    lines += ["", f"Прогрев кэшей отчёта: {warm_seconds:.2f} с, память: {warm_mb:.0f} МБ на запуск", "",
               "| Ручка | Первый вызов без прогрева, мс | Первый вызов после прогрева, мс | Повторный, мс |",
               "|---|---:|---:|---:|"]
     lines += [f"| `{url}` | {cold * 1000:.0f} | {warm * 1000:.0f} | {again * 1000:.0f} |"
@@ -194,13 +204,15 @@ def main(argv: list[str]) -> int:
     run_dir.mkdir(parents=True)
 
     sys.stdout.reconfigure(encoding="utf-8")  # консоль Windows по умолчанию не в UTF-8
-    steps = bench_pipeline(args.dataset_dir, run_dir)
-    api_rows, warm_seconds = bench_api(args.dataset_dir, data_dir)
+    try:
+        steps = bench_pipeline(args.dataset_dir, run_dir)
+        api_rows, warm_seconds, warm_mb = bench_api(args.dataset_dir, data_dir)
+    finally:
+        if not args.out:  # временную папку убираем, даже если замер упал
+            shutil.rmtree(data_dir, ignore_errors=True)
     print("\n".join(hardware()))
     print()
-    print(table(steps, api_rows, warm_seconds))
-    if not args.out:
-        shutil.rmtree(data_dir, ignore_errors=True)
+    print(table(steps, api_rows, warm_seconds, warm_mb))
     return 0
 
 

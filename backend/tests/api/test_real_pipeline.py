@@ -1,6 +1,7 @@
 """Запуск с настоящим пайплайном (S5): мини-датасет и настоящий датасет организаторов."""
 import json
 import shutil
+import threading
 import time
 from pathlib import Path
 
@@ -82,6 +83,23 @@ def test_ready_run_is_warm(tmp_path, monkeypatch):
     warmup._started.discard(run_dir)
     assert client.get(f"/api/runs/{rid}", headers=ANN).status_code == 200
     assert run_dir in warmup._started
+    for thread in threading.enumerate():  # дожидаемся фонового прогрева, чтобы он не пережил тест
+        if thread.name == f"warm-{rid}":
+            thread.join(timeout=10)
+
+
+def test_warm_failure_keeps_run_ready(tmp_path, monkeypatch):
+    """Прогрев необязателен: если он упал, запуск всё равно ready, а ручка посчитает сама."""
+    from app.services import facts
+
+    def broken(run_dir):
+        raise TypeError("сломался прогрев")
+
+    monkeypatch.setattr(facts, "_facts_base", broken)
+    client = make_client(tmp_path, monkeypatch, MINI)
+    rid = start(client)
+    data = wait(client, rid, {"ready", "error"}, timeout=60)
+    assert data["status"] == "ready", data["error"]
 
 
 def test_cancel_stops_run(tmp_path, monkeypatch):
