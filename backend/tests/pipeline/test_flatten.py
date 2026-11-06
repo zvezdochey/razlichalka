@@ -105,3 +105,19 @@ def test_duplicate_key_is_error():
     with pytest.raises(BadFile) as e:
         flat(doc)
     assert "trials[]" in e.value.message and "1:x" in e.value.message
+
+
+def test_key_must_be_scalar():
+    doc = {"trials": [{"product_id": {"a": 1}, "type": "x"}]}
+    with pytest.raises(BadFile) as e:
+        flat(doc)
+    assert "trials[]" in e.value.message
+
+
+@pytest.mark.parametrize("bad", ["a:b", "a|b"])
+def test_key_with_separator_is_error(bad):
+    # «a:b» + «c» и «a» + «b:c» склеились бы в один ключ — запрещаем разделители в значениях
+    with pytest.raises(BadFile):
+        flat({"trials": [{"product_id": bad, "type": "x"}]})
+    with pytest.raises(BadFile):
+        flat({"tags": [bad]})

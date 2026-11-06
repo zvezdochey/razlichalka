@@ -77,6 +77,16 @@ def _is_scalar(value) -> bool:
     return not isinstance(value, (dict, list))
 
 
+def _key_part(value, arr_path: str) -> str:
+    """Кусок ключа элемента: только скаляр, без «:» и «|» (они склеивают ключи и ломают уникальность)."""
+    if not _is_scalar(value):
+        raise BadFile(f"в ключе массива {arr_path} лежит объект или массив, а нужен скаляр")
+    text = format_value(value)
+    if ":" in text or "|" in text:
+        raise BadFile(f"в ключе массива {arr_path} значение {text!r} содержит «:» или «|»")
+    return text
+
+
 def flatten_response(
     doc: dict,
     app_id: str,
@@ -144,12 +154,12 @@ def flatten_response(
             elif mode == "value":
                 if not _is_scalar(element):
                     raise BadFile(f"массив {arr_path} в режиме value должен содержать скаляры")
-                key = format_value(element)
+                key = _key_part(element, arr_path)
             else:
                 if not isinstance(element, dict):
                     raise BadFile(f"массив {arr_path} в режиме key должен содержать объекты")
                 try:
-                    key = ":".join(format_value(_get_by_dotted(element, f)) for f in key_fields)
+                    key = ":".join(_key_part(_get_by_dotted(element, f), arr_path) for f in key_fields)
                 except KeyError as e:
                     raise BadFile(f"в элементе массива {arr_path} нет поля ключа {e.args[0]}") from None
             if key in seen:
