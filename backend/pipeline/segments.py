@@ -299,6 +299,9 @@ def build_segments(dataset_dir: Path, out_csv: Path, *, field_map: dict | None =
     if extra:
         say("warn", f"В AFTER лишних заявок, которых нет в BEFORE: {extra} — в разрезы не попали")
 
+    # заявки, где решение изменилось, а различий в витрине нет; заполняет rows(), в журнал — одним сообщением
+    no_diffs: list[str] = []
+
     def rows():
         for done, file in enumerate(before_files, start=1):
             if is_cancelled and is_cancelled():
@@ -316,7 +319,6 @@ def build_segments(dataset_dir: Path, out_csv: Path, *, field_map: dict | None =
                     on_progress(done)
                 say("info", f"Разрезы: обработано {done} из {total}")
 
-    no_diffs: list[str] = []
     say("info", f"Разрезы: {total} заявок")
     n = write_csv(Path(out_csv), COLUMNS, rows())
     if no_diffs:

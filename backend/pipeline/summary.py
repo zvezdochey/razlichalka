@@ -15,6 +15,7 @@ from pathlib import Path
 
 from pipeline.csvio import read_csv, write_csv
 from pipeline.errors import BadFile
+from pipeline.segments import CHANGE_SOURCES  # словарь «Откуда смена» — один на весь pipeline
 
 # Порядок колонок — CONTRACTS §2.4
 APPS_COLUMNS = [
@@ -24,7 +25,6 @@ APPS_COLUMNS = [
 ]
 CHANGE_TYPES = ["VALUE_CHANGED", "ATTRIBUTE_NEW", "ATTRIBUTE_LOST"]
 DECISION_CHANGES = ["same", "approve_to_reject", "reject_to_approve", "decision_other"]
-CHANGE_SOURCES = ["logic", "data", "both", "none"]  # словарь — pipeline/segments.py, docs/api.md
 # колонка apps.csv ← колонка segments.csv (переносим как есть)
 _COPY = {
     "pd_model_before": "PD_MODEL_BEFORE", "pd_model_after": "PD_MODEL_AFTER",
@@ -87,7 +87,8 @@ def build_summary(comparison_csv: Path, segments_csv: Path, out_summary_json: Pa
                 source = rec["CHANGE_SOURCE"]
                 if source not in sources:
                     raise BadFile(f"segments.csv: у заявки {rec['APP_ID']} CHANGE_SOURCE={source!r}, "
-                                  f"ждали одно из {', '.join(CHANGE_SOURCES)} (разрезы строились без витрины?)")
+                                  f"ждали одно из {', '.join(CHANGE_SOURCES)}. Разрезы построены без витрины "
+                                  f"или старой версией — перезапусти этап aggregate целиком")
                 sources[source] += 1
             row = {
                 "app_id": rec["APP_ID"], "decision_before": before, "decision_after": after,

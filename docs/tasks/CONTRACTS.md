@@ -63,6 +63,9 @@ backend/
 `CHANGE_SOURCE` (E10) — `logic` / `data` / `none` (словарь «Откуда смена» в api.md), у всех заявок. Считается по
 `comparison.csv`: есть `DIFF_FLAG=1` в пути с префиксом из `INPUT_PREFIXES` (`builtin_segments.py`) → `data`,
 иначе есть различия → `logic`, различий нет → `none`. Без витрины (`comparison_csv=None`) колонка пустая.
+Словарь — одна константа `CHANGE_SOURCES` в `pipeline/segments.py` (её же берёт `summary.py`).
+Прогоны, сделанные до E10, — без `CHANGE_SOURCE`: `build_summary` на них даст `bad_file`. Пересчитывать надо
+этап `aggregate` целиком (он строит и `segments.csv`, и итоги), а не только итоги.
 
 ### 2.4. `apps.csv` — таблица заявок (то, что отдаёт `GET /api/runs/{id}/apps`, до фильтров)
 
