@@ -4,3 +4,7 @@
 ПАКЕТ
 .git
 backend/var
+**/.env
+**/venv
+**/.pytest_cache
+backend/tests
