@@ -9,8 +9,15 @@ const API_BASE = '/api'
 /** Сеть не ответила вообще: бэк не поднят, нет интернета, запрос заблокировали. */
 const NETWORK_ERROR_MESSAGE = 'Нет связи с сервером'
 
+/**
+ * Коды шлюза: так отвечает прокси, когда за ним никого нет. Проверено —
+ * dev-сервер Vite при неподнятом бэке отдаёт ровно 502 с пустым телом.
+ */
+const GATEWAY_STATUSES = new Set([502, 503, 504])
+
 /** Ответ пришёл, но прочитать тело ошибки не удалось — показываем хотя бы код. */
 function fallbackMessage(status: number): string {
+  if (GATEWAY_STATUSES.has(status)) return NETWORK_ERROR_MESSAGE
   return `Сервер ответил ошибкой ${status}`
 }
 

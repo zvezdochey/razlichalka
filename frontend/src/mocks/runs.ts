@@ -87,6 +87,12 @@ export function isReady(run: MockRun): boolean {
   return statusOf(run) === 'ready'
 }
 
+/** Запуск уже закончился — успешно или с ошибкой. Такой не отменяют. */
+export function isFinished(run: MockRun): boolean {
+  const status = statusOf(run)
+  return status === 'ready' || status === 'error'
+}
+
 /** Доля выполненной работы от 0 до 1 — из неё считаем и прогресс, и этапы. */
 function progressShare(run: MockRun): number {
   const ms = elapsed(run) - PENDING_MS

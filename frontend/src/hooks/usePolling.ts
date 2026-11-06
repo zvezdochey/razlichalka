@@ -27,6 +27,9 @@ export function usePolling(
     if (stopWhen) return
 
     let stopped = false
+    // Запрос уже в полёте. Без этого флага возврат во вкладку во время запроса
+    // запускал второй цикл опроса параллельно первому.
+    let inFlight = false
     let timer: number | undefined
 
     const schedule = () => {
@@ -35,19 +38,26 @@ export function usePolling(
     }
 
     const tick = async () => {
-      if (stopped) return
-      if (!document.hidden) {
-        try {
-          await pollRef.current()
-        } catch {
-          // Вызывающий сам решает, что показать: здесь только не даём опросу умереть.
-        }
+      // Если запрос уже идёт, выходим молча: следующий шаг запланирует он сам.
+      if (stopped || inFlight) return
+      if (document.hidden) {
+        schedule()
+        return
+      }
+
+      inFlight = true
+      try {
+        await pollRef.current()
+      } catch {
+        // Вызывающий сам решает, что показать: здесь только не даём опросу умереть.
+      } finally {
+        inFlight = false
       }
       schedule()
     }
 
     const onVisibilityChange = () => {
-      if (stopped || document.hidden) return
+      if (stopped || document.hidden || inFlight) return
       // Вернулись во вкладку: опрашиваем сразу, не дожидаясь таймера.
       window.clearTimeout(timer)
       void tick()

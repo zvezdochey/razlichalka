@@ -15,6 +15,7 @@ import {
   cancelMockRun,
   createMockRun,
   findMockRun,
+  isFinished,
   isReady,
   listMockRuns,
   toRunStatus,
@@ -163,6 +164,11 @@ export const handlers = [
     await delay(RESPONSE_DELAY_MS)
     const run = findMockRun(String(params.id))
     if (run === undefined) return notFound('такой запуск')
+    // Завершённый запуск отменить нельзя, иначе итоги пропадут с 409 not_ready
+    // и F4 будет отлаживать поведение, которого на настоящем бэке не будет.
+    if (isFinished(run)) {
+      return error(409, 'conflict', 'Запуск уже завершён — отменять нечего')
+    }
     cancelMockRun(run)
     const status = toRunStatus(run)
     return HttpResponse.json({ id: status.id, status: status.status, error: status.error })

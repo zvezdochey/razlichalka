@@ -16,7 +16,7 @@
 3. `src/api/endpoints.ts` — по функции на каждую MVP-ручку: `getDatasets`, `createConfig`, `createRun`, `getRun`, `listRuns`, `cancelRun`, `getStages`, `getSummary`, `getApps(params)`, `getAttributes(runId, appId, params)`. Параметры списков — типизированный объект, превращается в query-строку аккуратно (пропускает `undefined`).
 4. Ссылки на отчёт: `reportUrl(id)` → `/api/runs/{id}/report`, `reportDownloadUrl(id)` → `/api/runs/{id}/report.html`.
 5. Моки: добавь `msw` (свежую версию смотри в Context7), `src/mocks/handlers.ts` — ответы по примерам из `docs/api.md` (датасет `RUN-20260827-0001`; запуск идёт `pending → running → ready` за ~6 секунд с растущим `progress`; `summary` из п. 7.1; 20–30 заявок в списке с работающими `decision_change`, `search`, `sort`, пагинацией; для заявки — 30 атрибутов с разными `change_type`, включая `null` с одной стороны).
-6. Включение моков: `VITE_USE_MOCKS=1` в `.env.development.local` (не в Git; положи `.env.example`). Без переменной — идём на настоящий бэк через прокси.
+6. Включение моков: в деве моки включены **по умолчанию** (бэк ещё не готов, а фронт должен работать у любого после `git clone`). Выключить и пойти на настоящий бэк через прокси — `VITE_USE_MOCKS=0` в `.env.development.local` (не в Git; положи `.env.example`). В прод-сборке моков нет никогда.
 7. Хук `usePolling(fn, intervalMs, stopWhen)` для опроса запуска раз в секунду, останавливается на `ready`/`error` и при уходе со страницы.
 
 ## Готово, когда
