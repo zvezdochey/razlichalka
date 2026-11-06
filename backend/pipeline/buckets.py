@@ -7,8 +7,10 @@
 - верхняя граница бакета включается: 0.6 → "(0.3 – 0.6]", 0.3 → "≤ 0.3";
 - между числами стоит длинное тире «–» с пробелами (как в docs/api.md);
 - большие числа сокращаются: 100000 → "100K", 1500000 → "1.5M", 1500 → "1.5K";
+- границы различаются хотя бы в 10-м знаке после запятой, иначе ValueError;
 - одна граница [5] даёт два бакета: "≤ 5" и "> 5".
 
+Числа в виде строк разбираются через float(): " 0.5 " и "1e3" тоже числа.
 Границы одни и те же для BEFORE и AFTER. DIFF_FLAG считается по VALUE, не по бакету.
 """
 
@@ -64,14 +66,26 @@ def _check_bounds(path: str, bounds) -> list[float]:
     if not isinstance(bounds, (list, tuple)):
         raise ValueError(f"бакеты для {path}: границы должны быть списком чисел, а не {bounds!r}")
     for b in bounds:
-        if isinstance(b, bool) or not isinstance(b, (int, float)) or not math.isfinite(b):
+        if isinstance(b, bool) or not isinstance(b, (int, float)):
             raise ValueError(f"бакеты для {path}: граница {b!r} — не число ({list(bounds)})")
+        try:
+            finite = math.isfinite(float(b))
+        except OverflowError:  # огромное целое вроде 10**400
+            finite = False
+        if not finite:
+            raise ValueError(f"бакеты для {path}: граница {str(b)[:30]} — не конечное число")
     for a, b in zip(bounds, bounds[1:]):
         if a >= b:
             raise ValueError(
                 f"бакеты для {path}: границы {list(bounds)} должны строго возрастать "
                 f"(без повторов), а {a} идёт перед {b}"
             )
+    labels = [format_bound(b) for b in bounds]
+    if len(set(labels)) != len(labels):
+        raise ValueError(
+            f"бакеты для {path}: границы {list(bounds)} слишком близки — "
+            f"подписи совпадают (точность до 10 знаков после запятой)"
+        )
     return list(bounds)
 
 
@@ -96,7 +110,10 @@ def make_adjuster(buckets_cfg: dict[str, list[float]]) -> Callable[[str, str], s
     for path, bounds in (buckets_cfg or {}).items():
         checked = _check_bounds(path, bounds)
         if checked:
-            by_path[_norm_path(path)] = checked
+            key = _norm_path(path)
+            if key in by_path:
+                raise ValueError(f"бакеты: путь {path} повторяет другой путь с теми же сегментами ({key}); оставьте один")
+            by_path[key] = checked
 
     def adjust(path: str, value_str: str) -> str:
         bounds = by_path.get(_norm_path(path))

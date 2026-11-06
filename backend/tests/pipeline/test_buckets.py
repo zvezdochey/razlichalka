@@ -87,3 +87,25 @@ def test_bad_order_is_value_error_with_path(bounds):
 def test_bad_bounds_type(bounds):
     with pytest.raises(ValueError):
         make_adjuster({PD: bounds})
+
+
+def test_huge_bound_is_value_error():
+    with pytest.raises(ValueError):
+        make_adjuster({PD: [1, 10**400]})
+
+
+def test_paths_collapsing_to_same_key_is_error():
+    with pytest.raises(ValueError):
+        make_adjuster({"a[].x": [1], "a.x": [5]})
+
+
+def test_too_close_bounds_is_error():
+    with pytest.raises(ValueError):
+        make_adjuster({PD: [1e-11, 2e-11]})
+
+
+def test_whitespace_and_exponent_strings_are_numbers():
+    # Зафиксировано: float() принимает пробелы по краям и экспоненту.
+    adjust = make_adjuster({PD: B})
+    assert adjust(PD, " 0.5 ") == "(0.3 – 0.6]"
+    assert adjust(PD, "1e3") == "> 0.6"
