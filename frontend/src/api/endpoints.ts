@@ -1,0 +1,159 @@
+// По функции на каждую ручку MVP из docs/api.md. Экраны зовут только это,
+// про fetch и адреса знает client.ts.
+import { request } from './client'
+import type {
+  AppsParams,
+  AppsResponse,
+  AttributesParams,
+  AttributesResponse,
+  Config,
+  ConfigInput,
+  Dataset,
+  DatasetsResponse,
+  HealthResponse,
+  RunCancelled,
+  RunCreated,
+  RunListItem,
+  RunStatus,
+  RunsResponse,
+  Stage,
+  StagesResponse,
+  Summary,
+} from './types'
+
+/** Параметр можно отменить: при быстрой смене фильтров ответы приходят не по порядку. */
+type Options = {
+  signal?: AbortSignal
+}
+
+type QueryValue = string | number | boolean | string[] | undefined
+
+/**
+ * Собирает query-строку. Пропускает `undefined` и пустые массивы, массив склеивает
+ * запятыми (так ждёт `decision_change`), `true` отдаёт как `1`, `false` — пропускает
+ * (флаг `has_attr_change=0` в договоре не предусмотрен, его просто не присылаем).
+ */
+function toQuery(params: Record<string, QueryValue>): string {
+  const search = new URLSearchParams()
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined) continue
+    if (Array.isArray(value)) {
+      if (value.length > 0) search.set(key, value.join(','))
+      continue
+    }
+    if (typeof value === 'boolean') {
+      if (value) search.set(key, '1')
+      continue
+    }
+    if (value === '') continue
+    search.set(key, String(value))
+  }
+
+  const query = search.toString()
+  return query === '' ? '' : `?${query}`
+}
+
+// ─── 1. Здоровье бэка ────────────────────────────────────────────────────────
+
+export function getHealth(options?: Options): Promise<HealthResponse> {
+  return request<HealthResponse>('/health', options)
+}
+
+// ─── 2. Датасеты ─────────────────────────────────────────────────────────────
+
+export async function getDatasets(options?: Options): Promise<Dataset[]> {
+  const res = await request<DatasetsResponse>('/datasets', options)
+  return res.datasets
+}
+
+// ─── 4. Конфигурации ─────────────────────────────────────────────────────────
+
+export function createConfig(input: ConfigInput, options?: Options): Promise<Config> {
+  return request<Config>('/configs', {
+    ...options,
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+// ─── 5. Запуски ──────────────────────────────────────────────────────────────
+
+export function createRun(configId: string, options?: Options): Promise<RunCreated> {
+  return request<RunCreated>('/runs', {
+    ...options,
+    method: 'POST',
+    body: JSON.stringify({ config_id: configId }),
+  })
+}
+
+export function getRun(runId: string, options?: Options): Promise<RunStatus> {
+  return request<RunStatus>(`/runs/${encodeURIComponent(runId)}`, options)
+}
+
+export async function listRuns(options?: Options): Promise<RunListItem[]> {
+  const res = await request<RunsResponse>('/runs', options)
+  return res.runs
+}
+
+export function cancelRun(runId: string, options?: Options): Promise<RunCancelled> {
+  return request<RunCancelled>(`/runs/${encodeURIComponent(runId)}/cancel`, {
+    ...options,
+    method: 'POST',
+  })
+}
+
+// ─── 6. Журнал этапов ────────────────────────────────────────────────────────
+
+export async function getStages(runId: string, options?: Options): Promise<Stage[]> {
+  const res = await request<StagesResponse>(`/runs/${encodeURIComponent(runId)}/stages`, options)
+  return res.stages
+}
+
+// ─── 7. Витрина ──────────────────────────────────────────────────────────────
+
+export function getSummary(runId: string, options?: Options): Promise<Summary> {
+  return request<Summary>(`/runs/${encodeURIComponent(runId)}/summary`, options)
+}
+
+export function getApps(
+  runId: string,
+  params: AppsParams = {},
+  options?: Options,
+): Promise<AppsResponse> {
+  const query = toQuery({
+    decision_change: params.decision_change,
+    has_attr_change: params.has_attr_change,
+    search: params.search,
+    sort: params.sort,
+    page: params.page,
+    size: params.size,
+  })
+  return request<AppsResponse>(`/runs/${encodeURIComponent(runId)}/apps${query}`, options)
+}
+
+// ─── 8. Одна заявка ──────────────────────────────────────────────────────────
+
+export function getAttributes(
+  runId: string,
+  appId: string,
+  params: AttributesParams = {},
+  options?: Options,
+): Promise<AttributesResponse> {
+  const query = toQuery({ page: params.page, size: params.size })
+  const path = `/runs/${encodeURIComponent(runId)}/apps/${encodeURIComponent(appId)}/attributes`
+  return request<AttributesResponse>(`${path}${query}`, options)
+}
+
+// ─── 11. Отчёт ───────────────────────────────────────────────────────────────
+// Это не fetch, а адреса для <a href>: отчёт открывает и скачивает сам браузер.
+
+/** HTML-страница отчёта — открыть в новой вкладке. */
+export function reportUrl(runId: string): string {
+  return `/api/runs/${encodeURIComponent(runId)}/report`
+}
+
+/** То же, но с заголовком на скачивание. */
+export function reportDownloadUrl(runId: string): string {
+  return `/api/runs/${encodeURIComponent(runId)}/report.html`
+}
