@@ -30,5 +30,4 @@ data/raw/
 .agents/
 skills-lock.json
 .claude/*
-!.claude/agents/
-!.claude/agents/*
+!.claude/agents
