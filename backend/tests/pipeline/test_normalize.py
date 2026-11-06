@@ -10,9 +10,9 @@ from pipeline.dataset import list_source_files, read_manifest
 from pipeline.errors import BadFile, Cancelled
 from pipeline.flatten import COLUMNS
 from pipeline.normalize import normalize_dataset
+from tests.real_dataset import REAL
 
 MINI = Path(__file__).parent.parent / "fixtures" / "dataset_mini"
-REAL = Path(__file__).parents[3] / "ПАКЕТ" / "ПАКЕТ" / "ЗАДАНИЕ" / "ЗАДАНИЕ" / "data" / "RUN-20260827-0001"
 CFG = {"ignore_paths": ["appData.request_id", "appData.createDateTime"]}
 
 
@@ -92,10 +92,32 @@ def test_csvio_roundtrip_keeps_null(tmp_path):
     assert p.read_bytes().startswith(b"\xef\xbb\xbf")
 
 
-@pytest.mark.skipif(not REAL.exists(), reason="нет настоящего датасета")
+@pytest.mark.skipif(not (REAL / "manifest.json").exists(), reason="нет настоящего датасета")
 @pytest.mark.parametrize("source", ["BEFORE", "AFTER"])
 def test_real_dataset(tmp_path, source):
     n, df = run(tmp_path, source, dataset=REAL)
     assert n == len(df) > 250_000
     assert not df["PATH"].str.contains("request_id|createDateTime").any()
     assert not df.duplicated(["APP_ID", "PATH", "ARRAY_KEY"]).any()
+
+
+def test_no_partial_csv_on_failure(tmp_path):
+    out = tmp_path / "n.csv"
+    with pytest.raises(Cancelled):
+        normalize_dataset(MINI, "BEFORE", out, CFG, is_cancelled=lambda: True)
+    assert not out.exists() and not list(tmp_path.glob("*.tmp"))
+    ds = tmp_path / "ds"
+    shutil.copytree(MINI, ds)
+    (ds / "RESULTS" / "BEFORE" / "A3.json").write_text("{не json", encoding="utf-8")
+    with pytest.raises(BadFile):
+        normalize_dataset(ds, "BEFORE", out, CFG)
+    assert not out.exists() and not list(tmp_path.glob("*.tmp"))
+
+
+def test_buckets_without_module_warns(tmp_path):
+    logs = []
+    run(tmp_path, cfg={**CFG, "buckets": {"a.b": [1]}}, log=lambda lvl, m: logs.append(lvl))
+    try:
+        import pipeline.buckets  # noqa: F401
+    except ModuleNotFoundError:
+        assert "warn" in logs

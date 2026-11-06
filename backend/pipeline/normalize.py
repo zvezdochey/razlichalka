@@ -28,11 +28,16 @@ def normalize_dataset(dataset_dir: Path, source: str, out_csv: Path, parse_cfg: 
     ignore_paths = parse_cfg.get("ignore_paths") or []
     adjust = None
     if parse_cfg.get("buckets"):
-        try:  # E4 может быть ещё не слита — тогда бакетизации нет (ADJUSTED_VALUE = VALUE)
+        try:
             from .buckets import make_adjuster
+        except ModuleNotFoundError as e:
+            # E4 ещё не слита: бакетизации нет (ADJUSTED_VALUE = VALUE). Любую другую ошибку не прячем.
+            if e.name != f"{__package__}.buckets":
+                raise
+            if log:
+                log("warn", "Бакеты заданы, но модуля buckets нет — ADJUSTED_VALUE равен VALUE")
+        else:
             adjust = make_adjuster(parse_cfg["buckets"])
-        except ImportError:
-            adjust = None
 
     def say(level: str, message: str) -> None:
         if log:
