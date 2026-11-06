@@ -11,12 +11,15 @@ model: sonnet
 - Стек: Python + FastAPI, папка `backend/`
 - Формат всех ответов — жёсткий контракт в `docs/api.md`. Не меняй поля и их названия молча.
   Если формат не подходит — скажи об этом человеку и не правь контракт сам.
-- Словари `decision` (`approve`/`reject`/`other`) и `change` (7 значений) — только эти значения.
+- Словари `decision` (`approve`/`reject`/`other`), `decision_change` (4 значения) и `change_type`
+  (`SAME`/`VALUE_CHANGED`/`ATTRIBUTE_NEW`/`ATTRIBUTE_LOST`) — только эти значения, см. `docs/api.md`.
   Любые «одобрено», `APPROVE`, `1` из файла бэк сам переводит в эти слова.
-- Главный паттерн: `POST /api/comparisons` один раз считает и выдаёт `id`, дальше все ручки
-  работают по этому `id`, ничего не пересчитывая.
-- Все ошибки — в одном виде `{ "error": { "code", "message" } }` с кодами `bad_file`,
-  `no_id_column`, `not_found`, `internal` из `docs/api.md`.
+- Главный паттерн: `POST /api/runs` запускает прогон по сохранённой конфигурации и сразу выдаёт `id`.
+  Статус и этапы — `GET /api/runs/{id}` и `GET /api/runs/{id}/stages`. Итоги, факты и отчёт
+  отдаются только при статусе `ready`, ничего не пересчитывая на каждый запрос.
+- Датасет на вход не загружается: он лежит на сервере, список — `GET /api/datasets`.
+- Все ошибки — в одном виде `{ "error": { "code", "message" } }` с кодами из раздела «Ошибки»
+  в `docs/api.md` (`bad_file`, `bad_code`, `no_id_column`, `not_found`, `not_ready`, `conflict`, `internal`).
 - Работай только в `backend/`, не трогай `frontend/`.
 
 Когда приходишь к задаче:
