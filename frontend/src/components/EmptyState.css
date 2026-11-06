@@ -1,0 +1,15 @@
+.empty-state {
+  padding: var(--s-8) var(--s-4);
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.empty-state__title {
+  font-size: var(--fs-panel);
+  margin-bottom: var(--s-2);
+}
+
+.empty-state__action {
+  margin-top: var(--s-4);
+}
