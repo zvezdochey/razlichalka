@@ -2,6 +2,8 @@
 
 Ключ строки — (APP_ID, PATH, ARRAY_KEY). Сравниваем строго по VALUE (не по ADJUSTED_VALUE):
 значение, сменившееся внутри одного бакета, — всё равно VALUE_CHANGED.
+PREFIX/CLASS/SUFFIX/KEY берутся из AFTER, а у ATTRIBUTE_LOST (там AFTER нет) — из BEFORE.
+Сортировка: APP_ID «естественная» (1, 2, 10, а не 1, 10, 2), затем PATH и ARRAY_KEY как строки.
 Строка `null` (JSON null) и «атрибута нет в срезе» — разные случаи: второе даёт пустые ячейки стороны.
 """
 
@@ -73,7 +75,9 @@ def compare_csv(before_csv: Path, after_csv: Path, out_csv: Path, log=None) -> i
     out["CHANGE_TYPE"] = change_type
     out["DIFF_FLAG"] = (change_type != "SAME").astype(int).astype(str)
 
-    out = out[COLUMNS].sort_values(KEY, kind="stable")
+    # Естественный порядок APP_ID: числа внутри id дополняем нулями, чтобы 2 шло раньше 10
+    natural = out["APP_ID"].str.replace(r"\d+", lambda m: m.group().zfill(20), regex=True)
+    out = out.assign(_app=natural).sort_values(["_app", "PATH", "ARRAY_KEY"], kind="stable")[COLUMNS]
 
     counts = out["CHANGE_TYPE"].value_counts()
     if log:

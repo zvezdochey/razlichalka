@@ -45,6 +45,18 @@ def test_columns_and_sort(tmp_path):
     assert keys == sorted(keys)
 
 
+def test_app_id_sorted_naturally(tmp_path):
+    """id заявок идут как числа: 2, 10, 100, а не 10, 100, 2."""
+    def rows(src):
+        return [dict(zip(NORM_COLS, [i, src, "p", "c", "", "", "k", "p.c.k", "1", "1"])) for i in ("10", "2", "100")]
+
+    b, a, out = tmp_path / "b.csv", tmp_path / "a.csv", tmp_path / "c.csv"
+    write_csv(b, NORM_COLS, rows("BEFORE"))
+    write_csv(a, NORM_COLS, rows("AFTER"))
+    compare_csv(b, a, out)
+    assert list(read_csv(out)["APP_ID"]) == ["2", "10", "100"]
+
+
 def test_same(mini):
     r = row(mini, "1", "company.decisionResult.decision")
     assert (r["CHANGE_TYPE"], r["DIFF_FLAG"]) == ("SAME", "0")
@@ -151,6 +163,7 @@ def test_matches_reference(tmp_path):
     assert set(map(tuple, got.values)) == set(map(tuple, ref.values))
 
 
+@pytest.mark.slow
 def test_performance_big(tmp_path):
     n = 145_000
 
