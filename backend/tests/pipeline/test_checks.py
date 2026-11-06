@@ -130,10 +130,44 @@ def test_load_check_from_file(tmp_path):
     assert load_check(f, "file")["label"] == "Хорошая"
 
 
-@pytest.mark.parametrize("code", ["def run(:", "x = 1", "CHECK = {'id': 'a'}", "raise ValueError('при загрузке')"])
+@pytest.mark.parametrize("code", ["def run(:", "x = 1", "CHECK = {'id': 'a'}",
+                                  "raise ValueError('x')\nCHECK = {'id': 1, 'label': 1, 'params': {}, 'entrypoint': print}"])
 def test_load_check_bad(code):
     with pytest.raises(BadFile):
         load_check(code, "code")
+
+
+def test_load_check_infinite_loop_does_not_hang():
+    started = time.time()
+    code = "while True:\n    pass\nCHECK = {'id': 'a', 'label': 'b', 'params': {}, 'entrypoint': print}"
+    with pytest.raises(BadFile, match="не загрузился"):
+        load_check(code, "code", timeout=3)
+    assert time.time() - started < 30
+
+
+def test_load_check_runs_only_in_child_without_secrets(monkeypatch):
+    # код отработал при загрузке, но не в этом процессе и без секретов окружения
+    monkeypatch.setenv("MY_LOAD_SECRET", "abc")
+    code = ("import os\nSECRET = os.environ.get('MY_LOAD_SECRET')\n"
+            "def run(m, p):\n    return []\n"
+            "CHECK = {'id': 'a', 'label': str(SECRET), 'params': {}, 'entrypoint': run}")
+    assert load_check(code, "code")["label"] == "None"
+
+
+def test_load_check_side_effect_not_in_parent(tmp_path):
+    marker = tmp_path / "ran.txt"
+    code = (f"import os\nopen({str(marker)!r}, 'w').write(str(os.getpid()))\n"
+            "CHECK = {'id': 'a', 'label': 'b', 'params': {}, 'entrypoint': print}")
+    load_check(code, "code")
+    import os
+    assert marker.read_text() != str(os.getpid())
+
+
+def test_validate_entrypoint_not_a_function():
+    code = 'CHECK = {"id": "a", "label": "b", "params": {}, "entrypoint": 5}\n'
+    assert "функцией" in validate_check_code(code)[0]["message"]
+    lam = 'CHECK = {"id": "a", "label": "b", "params": {}, "entrypoint": lambda m, p: []}\n'
+    assert validate_check_code(lam) == []
 
 
 def test_validate_ok():

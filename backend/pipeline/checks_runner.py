@@ -9,6 +9,7 @@
 """
 
 import ast
+import builtins
 import multiprocessing as mp
 import os
 import queue
@@ -22,22 +23,20 @@ from .errors import BadFile
 RESULT_COLUMNS = ["LABEL", "SOURCE", "ARGUMENT", "CNT", "TOTAL", "METRIC", "APP_IDS", "RESULT", "CONFIDENCE"]
 CHECK_KEYS = ("id", "label", "params", "entrypoint")
 DEFAULT_TIMEOUT = 60  # секунд на одну проверку
+LOAD_TIMEOUT = 15  # секунд на загрузку кода проверки
 
 
 # --- загрузка -----------------------------------------------------------------
 
-def load_check(path_or_code, kind: str = "file") -> dict:
-    """Загружает проверку. kind = "file" (путь к .py) или "code" (текст кода). Возвращает объект CHECK.
+def _restrict_env() -> None:
+    """В дочернем процессе оставляем только самое нужное: секретов сервера код пользователя не увидит."""
+    keep = {k: v for k, v in os.environ.items() if k.upper() in ("SYSTEMROOT", "PATH", "TEMP", "TMP")}
+    os.environ.clear()
+    os.environ.update(keep)
 
-    В CHECK добавляется `source` = (kind, значение), по нему проверку можно заново загрузить в другом процессе.
-    """
-    if kind == "file":
-        code = Path(path_or_code).read_text(encoding="utf-8")
-        name = str(path_or_code)
-    elif kind == "code":
-        code, name = str(path_or_code), "<check>"
-    else:
-        raise ValueError(f"kind должен быть 'file' или 'code', получено {kind!r}")
+
+def _exec_check(code: str, name: str) -> dict:
+    """Исполняет код и достаёт CHECK. ТОЛЬКО в дочернем процессе (или в тестах): код может зависнуть."""
     module = types.ModuleType("user_check")
     try:
         exec(compile(code, name, "exec"), module.__dict__)
@@ -53,7 +52,58 @@ def load_check(path_or_code, kind: str = "file") -> dict:
         raise BadFile(f"В CHECK не хватает ключей: {', '.join(missing)}")
     if not callable(check["entrypoint"]):
         raise BadFile("CHECK['entrypoint'] должен быть функцией")
-    return {**check, "source": (kind, path_or_code)}
+    return check
+
+
+def _read_code(path_or_code, kind: str) -> tuple[str, str]:
+    if kind == "file":
+        return Path(path_or_code).read_text(encoding="utf-8"), str(path_or_code)
+    if kind == "code":
+        return str(path_or_code), "<check>"
+    raise ValueError(f"kind должен быть 'file' или 'code', получено {kind!r}")
+
+
+def _load_worker(code, name, out):
+    _restrict_env()
+    try:
+        check = _exec_check(code, name)
+        out.put(("ok", {"id": check["id"], "label": check["label"], "params": check["params"]}))
+    except BaseException as e:  # noqa: BLE001
+        out.put(("err", str(e) if isinstance(e, BadFile) else f"{type(e).__name__}: {e}"))
+
+
+def load_check(path_or_code, kind: str = "file", timeout: float = LOAD_TIMEOUT) -> dict:
+    """Загружает проверку. kind = "file" (путь к .py) или "code" (текст кода). Возвращает объект CHECK.
+
+    Код НЕ исполняется в главном процессе: сначала статическая проверка (`validate_check_code`), потом загрузка
+    в отдельном процессе с таймаутом и без переменных окружения. Поэтому код с `while True` на верхнем уровне
+    даёт BadFile, а не вешает сервер. `entrypoint` в возвращённом CHECK исполняет код только при вызове
+    (в `run_checks` с настоящим `Mart` это тоже происходит в дочернем процессе).
+    В CHECK добавляется `source` = (kind, значение) — по нему проверку грузит дочерний процесс запуска.
+    """
+    code, name = _read_code(path_or_code, kind)
+    problems = validate_check_code(code)
+    if problems:
+        p = problems[0]
+        raise BadFile(f"Строка {p['line']}: {p['message']}")
+    ctx = mp.get_context("spawn")
+    out = ctx.Queue()
+    proc = ctx.Process(target=_load_worker, args=(code, name, out), daemon=True)
+    proc.start()
+    try:
+        status, payload = out.get(timeout=timeout)
+    except queue.Empty:
+        raise BadFile(f"Код проверки не загрузился за {timeout:g} с (бесконечный цикл на верхнем уровне?)") from None
+    finally:
+        proc.kill()
+        proc.join()
+    if status == "err":
+        raise BadFile(payload)
+
+    def entrypoint(mart, params):
+        return _exec_check(code, name)["entrypoint"](mart, params)
+
+    return {**payload, "entrypoint": entrypoint, "source": (kind, path_or_code)}
 
 
 def validate_check_code(code: str) -> list[dict]:
@@ -66,6 +116,14 @@ def validate_check_code(code: str) -> list[dict]:
     except SyntaxError as e:
         return [{"line": e.lineno or 1, "message": f"Синтаксическая ошибка: {e.msg}"}]
     funcs = {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
+    known = set(funcs) | set(dir(builtins))  # что можно указать в entrypoint: функции, импорты, присваивания
+    for n in ast.walk(tree):
+        if isinstance(n, (ast.Import, ast.ImportFrom)):
+            known |= {(a.asname or a.name).split(".")[0] for a in n.names}
+        elif isinstance(n, ast.ClassDef):
+            known.add(n.name)
+        elif isinstance(n, ast.Name) and isinstance(n.ctx, ast.Store):
+            known.add(n.id)
     check_node = None
     for node in tree.body:
         if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "CHECK" for t in node.targets):
@@ -80,8 +138,10 @@ def validate_check_code(code: str) -> list[dict]:
             if k not in keys:
                 problems.append({"line": check_node.lineno, "message": f"В CHECK нет ключа '{k}'"})
         entry = keys.get("entrypoint")
-        if isinstance(entry, ast.Name) and entry.id not in funcs:
+        if isinstance(entry, ast.Name) and entry.id not in known:
             problems.append({"line": entry.lineno, "message": f"Функция '{entry.id}' (entrypoint) не определена в коде"})
+        elif entry is not None and not isinstance(entry, (ast.Name, ast.Lambda, ast.Attribute, ast.Call)):
+            problems.append({"line": entry.lineno, "message": "entrypoint должен быть функцией"})
     elif "run" not in funcs:
         problems.append({"line": check_node.lineno, "message": "Нет функции run(mart, params)"})
     return problems
@@ -116,9 +176,7 @@ def _call(mart, check: dict, params: dict) -> list[dict]:
 
 def _worker(comparison_csv, segments_csv, tasks, results):
     """Дочерний процесс: один раз грузит витрину и по очереди выполняет проверки."""
-    keep = {k: v for k, v in os.environ.items() if k.upper() in ("SYSTEMROOT", "PATH", "TEMP", "TMP")}
-    os.environ.clear()
-    os.environ.update(keep)
+    _restrict_env()
     from .mart import Mart
     mart = Mart(comparison_csv, segments_csv)
     results.put(("ready", None, None))
@@ -128,7 +186,8 @@ def _worker(comparison_csv, segments_csv, tasks, results):
             return
         i, (kind, value), params = task
         try:
-            check = load_check(value, kind)
+            code, name = _read_code(value, kind)
+            check = _exec_check(code, name)
             results.put(("ok", i, _call(mart, check, params)))
         except BaseException as e:  # noqa: BLE001 — пользовательский код может бросить что угодно
             results.put(("err", i, f"{type(e).__name__}: {e}"))
