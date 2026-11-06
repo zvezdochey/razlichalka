@@ -1,0 +1,15 @@
+.error-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-bg);
+  border-left: 3px solid var(--danger);
+  color: var(--danger);
+}
+
+.error-box__text {
+  font-size: var(--fs-body);
+}

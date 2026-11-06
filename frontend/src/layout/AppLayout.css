@@ -1,0 +1,100 @@
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.app__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 var(--h-header);
+  height: var(--h-header);
+  padding: 0 var(--s-4);
+  background: var(--text);
+  color: #ffffff;
+}
+
+.app__brand {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.app__user {
+  font-size: var(--fs-table);
+  color: #cfcfca;
+}
+
+.app__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.app__nav {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 var(--w-sidebar);
+  width: var(--w-sidebar);
+  padding: var(--s-3) 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.app__nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  height: var(--h-header);
+  padding: 0 var(--s-4);
+  color: var(--text);
+  font-size: var(--fs-body);
+  text-decoration: none;
+}
+
+a.app__nav-item:hover {
+  background: var(--surface-sunken);
+}
+
+/* Активный раздел: брендовый маркер слева, без заливки всей строки */
+a.app__nav-item.active {
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.app__nav-item--disabled {
+  color: var(--faint);
+  cursor: default;
+}
+
+.app__content {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--s-6);
+}
+
+/* Ниже 1200 px меню сжимается — отдаём ширину таблицам.
+   Не до иконок: подписи должны остаться целыми, обрезанное слово читается как поломка. */
+@media (max-width: 1199px) {
+  .app__nav {
+    flex-basis: 120px;
+    width: 120px;
+  }
+
+  .app__nav-item {
+    height: 36px;
+    padding: 0 var(--s-2);
+    font-size: var(--fs-caption);
+  }
+
+  .app__nav-item .chip {
+    display: none;
+  }
+
+  .app__content {
+    padding: var(--s-4);
+  }
+}

@@ -1,0 +1,64 @@
+/* Единственный источник цветов и размеров. Значения согласованы в frontend/PLAN.md п. 1
+   и frontend/DESIGN.md п. 2 — в одиночку не перекрашиваем. */
+:root {
+  /* холст и поверхности */
+  --bg: #f5f5f3;
+  --surface: #ffffff;
+  --surface-sunken: #fafaf8;
+
+  /* текст */
+  --text: #181818;
+  --muted: #626262;
+  --faint: #8c8c86;
+
+  /* линии */
+  --border: #dededa;
+  --border-strong: #c9c9c2;
+
+  /* бренд — только основное действие и активный маркер */
+  --accent: #c93620;
+  --accent-ink: #ffffff;
+  --accent-2: #f08a32;
+
+  /* вердикты проверок — единственное место, где цвет означает оценку */
+  --pass: #18704a;
+  --pass-bg: #eaf3ec;
+  --fail: #ad3d29;
+  --fail-bg: #fae9e4;
+  --low: #7c7059;
+  --low-bg: #f2eee6;
+
+  /* ошибка самого приложения (сеть, упавший запрос) — это не вердикт проверки.
+     Пока выглядит так же, но токен отдельный: если понадобится отличать сбой
+     от честного FAIL, меняется одно место, а не разметка по всем экранам. */
+  --danger: var(--fail);
+  --danger-bg: var(--fail-bg);
+
+  /* служебное */
+  --info: #2864a0;
+  --focus: #2864a0;
+
+  /* размеры: скругление только у интерактивных элементов, у панелей 0 */
+  --r-control: 4px;
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --h-header: 48px;
+  --w-sidebar: 180px;
+  --row-h: 32px;
+
+  /* шкала кеглей */
+  --fs-caption: 11px;
+  --fs-table: 13px;
+  --fs-body: 14px;
+  --fs-panel: 20px;
+  --fs-page: 28px;
+  --fs-metric: 34px;
+
+  /* шрифты */
+  --font-ui: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}

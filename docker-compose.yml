@@ -15,5 +15,14 @@ services:
       - razlichalka_var:/var/razlichalka
     restart: unless-stopped
 
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   razlichalka_var:

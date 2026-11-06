@@ -38,20 +38,26 @@
 docker compose up --build
 ```
 
-Бэк: `http://localhost:8000` (Swagger — `/docs`, проверка — `curl localhost:8000/api/health`). Фронт в Docker добавится, когда будет готов каркас фронта.
+- интерфейс — `http://localhost:3000` (запросы `/api/...` nginx проксирует на бэк);
+- бэк напрямую — `http://localhost:8000`, Swagger — `/docs`, проверка — `curl localhost:8000/api/health`.
 
 Остановить: `docker compose down`. Вместе с результатами запусков: `docker compose down -v`.
 
-Без Docker (бэк):
+Без Docker:
 
 ```bash
+# бэк
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
+
+# фронт (в другом терминале; /api проксируется на localhost:8000)
+cd frontend
+npm ci && npm run dev
 ```
 
-Тесты: `cd backend && pytest`.
+Тесты бэка: `cd backend && pytest`.
 
 ## Задача
 
