@@ -105,6 +105,7 @@ class Ctx:
         self._run, self._stage, self._index = run, stage, index
         self.run_dir: Path = _dirs[run["id"]]
         self.config: dict = run["config"]
+        self.owner: str = run["owner"]  # чьи пользовательские процедуры подключать в этапе checks
         self.dataset: str = run["dataset"]
         # Папка с manifest.json и срезами. Храним только имя: DATASETS_DIR может переехать.
         # В старых run.json поля нет — берём id датасета (обычно он совпадает с именем папки).

@@ -42,3 +42,8 @@ def get_attributes(
     page: Page = 1, size: Size = 100,
 ):
     return results.attributes(run_dir, app_id, only_diff=only_diff, search=search, page=page, size=size)
+
+
+@router.get("/checks")
+def get_checks(run_dir: RunDir, result: str = "", page: Page = 1, size: Size = 50):
+    return results.checks(run_dir, result=result, page=page, size=size)

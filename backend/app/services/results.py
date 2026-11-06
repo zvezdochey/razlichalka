@@ -1,4 +1,5 @@
 """Чтение неизменяемых результатов готового запуска."""
+import json
 from functools import lru_cache
 from pathlib import Path
 
@@ -113,3 +114,48 @@ def attributes(
         rows = rows[_contains(rows["path"], search.casefold())]
     rows = rows.sort_values(["diff_flag", "path"], ascending=[False, True])
     return {"app_id": app_id, **_page(rows, "attributes", page, size)}
+
+
+def _apps_ref(run_dir: Path, app_ids: list[str]) -> str | None:
+    """Ссылка на список заявок для ручки 7.3. make_apps_ref приходит с I1; пока её нет — ссылки нет."""
+    if not app_ids:
+        return None
+    try:
+        from app.services.facts import make_apps_ref
+    except ImportError:
+        return None
+    return make_apps_ref(run_dir, app_ids)
+
+
+def _number(text: str):
+    try:
+        return float(text)
+    except ValueError:
+        return text
+
+
+def checks(run_dir: Path, *, result: str, page: int, size: int) -> dict:
+    """Таблица проверок (docs/api.md п. 10.1) из checks.csv."""
+    if result and result not in ("PASS", "FAIL"):
+        raise ApiError("bad_file", "result — PASS или FAIL")
+    rows = read_csv(_artifact(run_dir, "checks.csv")).fillna("")
+    index_file = run_dir / "checks_index.json"
+    ids = json.loads(index_file.read_text(encoding="utf-8")) if index_file.is_file() else {}
+    if result:
+        rows = rows[rows["RESULT"] == result]
+    start = (page - 1) * size
+    out = []
+    for r in rows.iloc[start:start + size].to_dict("records"):
+        app_ids = [a for a in str(r["APP_IDS"]).split("|") if a]
+        out.append({
+            "check_id": ids.get(r["LABEL"]),
+            "check_name": r["LABEL"],
+            "source": r["SOURCE"] or None,
+            "argument": r["ARGUMENT"] or None,
+            "numbers": f"{r['CNT']} / {r['TOTAL']}" if r["CNT"] != "" else None,
+            "metric": _number(r["METRIC"]) if r["METRIC"] != "" else None,
+            "result": r["RESULT"],
+            "apps_ref": _apps_ref(run_dir, app_ids),
+            "faint": r["CONFIDENCE"] == "LOW",
+        })
+    return {"page": page, "size": size, "total": len(rows), "rows": out}

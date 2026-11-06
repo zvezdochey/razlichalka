@@ -59,7 +59,7 @@ def test_mini_run_to_ready(tmp_path, monkeypatch):
 
     stages = client.get(f"/api/runs/{rid}/stages", headers=ANN).json()["stages"]
     assert [s["status"] for s in stages] == ["ready"] * 4
-    assert stages[0]["code_ref"]["path"] == "backend/pipeline/normalize.py"
+    assert stages[0]["code_ref"]["path"] == "procedures/builtin_normalize.py"
     assert stages[3]["code_ref"] is None
     assert any("Проверки не подключены" in e["message"] for e in stages[3]["log"])
 
