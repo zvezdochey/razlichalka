@@ -53,10 +53,15 @@
 
 ## Саня — фронт, Claude Code
 
-- [ ] `/plugin install frontend-design@claude-plugins-official` — красивый UI, а не шаблонный
-- [ ] `npx skills add anthropics/skills@webapp-testing` — запускает сайт, делает скриншоты, смотрит ошибки
-- [ ] `/plugin install typescript-lsp@claude-plugins-official` — ИИ сразу видит ошибки TypeScript
-- [ ] `/plugin install security-guidance@claude-plugins-official` — предупреждает про дырявый код
+- [x] `/plugin install frontend-design@claude-plugins-official` — красивый UI, а не шаблонный
+- [x] `npx skills add anthropics/skills@webapp-testing` — запускает сайт, делает скриншоты, смотрит ошибки
+- [x] `/plugin install typescript-lsp@claude-plugins-official` — ИИ сразу видит ошибки TypeScript
+- [x] `/plugin install security-guidance@claude-plugins-official` — предупреждает про дырявый код
+- [x] `/plugin install commit-commands@claude-plugins-official` — коммит + push + PR одной командой
+- [x] `/plugin install code-simplifier@claude-plugins-official` — чистит код для читаемости, не меняя поведение
+
+Подробности (версии, нюансы вроде Playwright без Chrome) — в `docs/frontend/ai-setup.md`.
+Этот файл — список того, что ставить; тот — как именно оно настроено на практике.
 
 ## Стёпа — бэк, Codex
 
