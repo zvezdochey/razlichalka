@@ -38,7 +38,13 @@ function orderStages(stages: Stage[]): Stage[] {
  * Уровень записи журнала. Словарь в договоре пока не закреплён (расхождение №7),
  * поэтому незнакомый уровень показываем как есть и ничего не ломаем.
  */
-function levelLook(level: string): { label: string; icon: string; tone: string } {
+function levelLook(
+  level: string,
+  cancelled: boolean,
+): { label: string; icon: string; tone: string } {
+  // Запуск остановлен человеком — бэк пишет это уровнем `error`, но аварии не было,
+  // поэтому внутри остановленного прогона такие строки нейтральные.
+  if (level === 'error' && cancelled) return { label: 'остановлено', icon: '■', tone: 'warn' }
   if (level === 'error') return { label: 'ошибка', icon: '×', tone: 'error' }
   if (level === 'warn') return { label: 'предупреждение', icon: '!', tone: 'warn' }
   if (level === 'info') return { label: 'инфо', icon: 'i', tone: 'info' }
@@ -170,7 +176,7 @@ export function LogTab() {
                     >
                       {isOpen ? 'Скрыть журнал' : `Журнал этапа (${stage.log.length})`}
                     </button>
-                    {isOpen && <StageLog entries={stage.log} />}
+                    {isOpen && <StageLog entries={stage.log} cancelled={cancelled} />}
                   </>
                 ) : (
                   <div className="stage__code faint">Записей журнала нет</div>
@@ -190,11 +196,11 @@ export function LogTab() {
   )
 }
 
-function StageLog({ entries }: { entries: StageLogEntry[] }) {
+function StageLog({ entries, cancelled }: { entries: StageLogEntry[]; cancelled: boolean }) {
   return (
     <ol className="stage__log">
       {entries.map((entry, index) => {
-        const look = levelLook(entry.level)
+        const look = levelLook(entry.level, cancelled)
         return (
           <li key={`${entry.at}-${index}`} className={`log-line log-line--${look.tone}`}>
             <span className="log-line__at mono">{formatTime(entry.at)}</span>
