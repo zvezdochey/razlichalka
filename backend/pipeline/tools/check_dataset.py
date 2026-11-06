@@ -11,7 +11,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from pipeline.array_rules import DEFAULT_ARRAY_RULES
+from pipeline.array_rules import default_array_rules
 from pipeline.errors import BadFile
 from pipeline.flatten import flatten_response
 
@@ -22,6 +22,7 @@ def main(dataset_dir: Path) -> int:
         print(f"В {dataset_dir} нет *.json")
         return 1
 
+    rules = default_array_rules()
     leaves: list[int] = []
     paths: set[str] = set()
     dup_keys = 0
@@ -31,7 +32,7 @@ def main(dataset_dir: Path) -> int:
     for f in files:
         try:
             doc = json.loads(f.read_text(encoding="utf-8"))
-            rows = flatten_response(doc, f.stem, "BEFORE", DEFAULT_ARRAY_RULES)
+            rows = flatten_response(doc, f.stem, "BEFORE", rules)
         except BadFile as e:
             kind = "нет правила" if "нет правила" in e.message else "дубль ключа" if "дубль" in e.message else "другое"
             errors[kind] += 1

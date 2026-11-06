@@ -74,6 +74,11 @@ def test_config_full_cycle(client):
     assert r.status_code == 200
     assert r.json()["id"] == cfg["id"] and r.json()["name"] == "Новое имя"
     assert r.json()["buckets"] == {"a.b": [0.3, 0.6]}
+    assert r.json()["array_rules"] == {}
+
+    rules = {"limits[]": {"mode": "key", "key": ["kind"]}}
+    r = client.put(f"/api/configs/{cfg['id']}", json={**new, "array_rules": rules}, headers=as_user("ann"))
+    assert r.status_code == 200 and r.json()["array_rules"] == rules
 
     assert client.delete(f"/api/configs/{cfg['id']}", headers=as_user("ann")).status_code == 204
     assert client.get(f"/api/configs/{cfg['id']}", headers=as_user("ann")).status_code == 404
@@ -104,6 +109,9 @@ def test_unknown_dataset(client):
     {"buckets": {"a[].b": [1], "a.b": [2]}},          # один и тот же путь дважды
     {"buckets": {"p": [0.00000000001, 0.00000000002]}},  # подписи границ совпадают
     {"array_modes": {"p": "random"}},
+    {"array_rules": {"p[]": {"mode": "random"}}},
+    {"array_rules": {"p[]": {"mode": "key"}}},              # для key нужен ключ
+    {"array_rules": {"p[]": {"mode": "key", "key": "id"}}},  # ключ — список, а не строка
 ])
 def test_bad_body_is_bad_code(client, patch):
     r = client.post("/api/configs", json={**BODY, **patch})

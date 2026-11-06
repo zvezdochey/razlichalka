@@ -1,10 +1,11 @@
-"""Правила массивов датасета: как сопоставлять элементы между версиями «до» и «после».
+"""Правила массивов: как сопоставлять элементы между версиями «до» и «после».
 
-Массивы сопоставляются по ключу, а не по позиции: иначе вставка элемента в начало
-даёт лавину ложных различий. Режимы: key / value / index (см. docstring flatten.py).
+Сами правила — данные процедуры `backend/procedures/builtin_normalize.py` (ARRAY_RULES), а не код:
+на другом формате ответа СПР правят файл процедуры или конфигурацию, а не этот модуль.
+Режимы: key / value / index (см. docstring flatten.py).
 
-Правила взяты из таблицы «Массивы: девять штук» в ТЗ (ФОРМАТ_ОТВЕТА.md).
-Пользователь через `parse_cfg["array_modes"]` может поменять только РЕЖИМ, ключи зашиты здесь.
+Порядок перекрытия (CONTRACTS §5):
+    правила процедуры → `array_rules` конфигурации (правило целиком) → `array_modes` конфигурации (только режим).
 
 Проверено на настоящем датасете RUN-20260827-0001 (python -m pipeline.tools.check_dataset <срез>):
 все 9 правил из ТЗ подошли без правок — «нет правила» и «дубль ключа» дали 0 ошибок.
@@ -13,31 +14,36 @@
 Повторов (APP_ID, PATH, ARRAY_KEY) нет. В AFTER на 2 PATH больше — это новые атрибуты версии BETA.
 """
 
-DEFAULT_ARRAY_RULES: dict[str, dict] = {
-    "decisionResult.available_offers[]": {"mode": "key", "key": ["product_id", "type"]},
-    "decisionResult.product_trials[]": {"mode": "key", "key": ["product_id"]},
-    "decisionResult.product_trials[].rules[]": {"mode": "key", "key": ["name"]},
-    "decisionResult.product_trials[].scoring.scoreModels[]": {"mode": "key", "key": ["modelName"]},
-    "decisionResult.scoring[]": {"mode": "key", "key": ["modelName"]},
-    "decisionResult.scoring[].value[]": {"mode": "index"},
-    "ext_data[]": {"mode": "key", "key": ["body.action"]},
-    "product_catalog[]": {"mode": "key", "key": ["mfo_id", "product_id"]},
-    "tariff_matrix[]": {"mode": "key", "key": ["mfo_id", "product_id"]},
-}
+from .procedures import load_builtin
+
+BUILTIN = "builtin_normalize"
 
 
-def merge_array_rules(defaults: dict, array_modes: dict) -> dict:
-    """Копия правил, где режим переопределён по путям из `array_modes`. Ключи (`key`) не трогаем.
+def default_array_rules() -> dict:
+    """Правила встроенной процедуры «Приведение ответов» (свежая копия при каждом вызове)."""
+    return {path: dict(rule) for path, rule in load_builtin(BUILTIN).items()}
 
-    Путь массива можно писать и без последних `[]`: `decisionResult.scoring[].value` — это
-    правило `decisionResult.scoring[].value[]` (так путь записан в примере конфига в docs/api.md).
+
+def _rule_path(path: str, rules: dict) -> str:
+    """Путь массива можно писать и без последних `[]`: `a.scoring[].value` — это правило `a.scoring[].value[]`.
+
+    (так путь записан в примере конфига в docs/api.md). Новый массив без `[]` тоже приводим к виду с `[]`.
+    """
+    if path in rules or path.endswith("[]"):
+        return path
+    return path + "[]"
+
+
+def merge_array_rules(defaults: dict, array_modes: dict, array_rules: dict | None = None) -> dict:
+    """Копия правил `defaults`, перекрытая конфигурацией.
+
+    `array_rules` — {путь: {"mode": ..., "key": [...]}} — заменяет правило целиком (можно добавить новый массив);
+    `array_modes` — {путь: режим} — меняет только режим, ключ (`key`) остаётся.
     """
     merged = {path: dict(rule) for path, rule in defaults.items()}
+    for path, rule in (array_rules or {}).items():
+        merged[_rule_path(path, merged)] = dict(rule)
     for path, mode in (array_modes or {}).items():
-        if path not in merged and path + "[]" in merged:
-            path += "[]"
-        if path in merged:
-            merged[path]["mode"] = mode
-        else:
-            merged[path] = {"mode": mode}
+        path = _rule_path(path, merged)
+        merged.setdefault(path, {})["mode"] = mode
     return merged

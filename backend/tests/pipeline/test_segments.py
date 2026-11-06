@@ -162,6 +162,51 @@ def test_cancel_leaves_no_file(tmp_path):
     assert not out.exists()
 
 
+def test_field_map_override_reads_renamed_decision(tmp_path):
+    # другая версия СПР: решение лежит в result.verdict — меняем только карту полей, не код
+    pairs = {"A1": ({"result": {"verdict": "APPROVE"}}, {"result": {"verdict": "REJECT"}})}
+    n, df = run(tmp_path, pairs, field_map={"DECISION": "result.verdict"})
+    assert n == 1
+    assert (df.loc["A1", "DECISION_BEFORE"], df.loc["A1", "DECISION_AFTER"]) == ("APPROVE", "REJECT")
+    assert df.loc["A1", "DECISION_CHANGED"] == "1"
+
+
+def test_field_map_override_products_array(tmp_path):
+    # продукты переехали в другой массив и поле id — «тот же продукт» и его поля читаются по новой карте
+    fmap = {"PRODUCTS": "offers_eval[].id", "PD_MODEL": "offers_eval[].pd_model",
+            "TOP_OFFER": "shown[].id", "OFFER_RANK": "shown[].pos"}
+    b = {"decisionResult": {"decision": "APPROVE"},
+         "offers_eval": [{"id": 2, "pd_model": "M2"}, {"id": 1, "pd_model": "M1"}], "shown": [{"id": 2, "pos": 1}]}
+    a = {"decisionResult": {"decision": "REJECT"}, "offers_eval": [{"id": 2, "pd_model": "M2"}, {"id": 1, "pd_model": "M1"}]}
+    _, df = run(tmp_path, {"A1": (b, a)}, field_map=fmap)
+    row = df.loc["A1"]
+    assert row["PRODUCTS"] == "1|2"
+    assert (row["TOP_OFFER_BEFORE"], row["TOP_OFFER_AFTER"]) == ("2", "")
+    assert (row["PD_MODEL_BEFORE"], row["PD_MODEL_AFTER"]) == ("M2", "M1")  # без выдачи — наименьший id
+
+
+def test_field_map_empty_path_gives_empty_column(tmp_path):
+    _, df = run(tmp_path, {"A1": (doc("A1", "APPROVE", [trial(1)], okb=700), doc("A1", "APPROVE", [trial(1)], okb=710))},
+                field_map={"SCORE_OKB": ""})
+    assert df.loc["A1", "SCORE_OKB_BEFORE"] == "" and df.loc["A1", "SCORE_OKB_AFTER"] == ""
+
+
+def test_field_map_products_must_be_array(tmp_path):
+    with pytest.raises(BadFile, match="PRODUCTS"):
+        run(tmp_path, {"A1": (doc("A1", "APPROVE", []), doc("A1", "APPROVE", []))},
+            field_map={"PRODUCTS": "decisionResult.product_id"})
+
+
+def test_read_field():
+    from pipeline.segments import read_field
+    d = doc("A1", "APPROVE", [trial(1), trial(2)], okb=700)
+    assert read_field(d, "DECISION") == "APPROVE"
+    assert read_field(d, "PRODUCTS") == [1, 2]
+    assert read_field(d, "SCORE_OKB") == 700
+    assert read_field({}, "DECISION") is None
+    assert read_field(d, "DECISION", {"DECISION": "x.y"}) is None
+
+
 def test_progress_reaches_total(tmp_path):
     seen = []
     build_segments(MINI, tmp_path / "s.csv", on_progress=seen.append)

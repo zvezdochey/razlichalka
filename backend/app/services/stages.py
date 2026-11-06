@@ -36,6 +36,7 @@ def _parse_cfg(config: dict) -> dict:
     return {
         "ignore_paths": config.get("ignore_paths") or [],
         "array_modes": config.get("array_modes") or {},
+        "array_rules": config.get("array_rules") or {},
         "buckets": config.get("buckets") or {},
     }
 
