@@ -32,7 +32,17 @@
 
 ## Как запустить
 
-Пока только локально, без Docker (Docker добавит задача S2).
+Нужен Docker. Датасет в Git не лежит: по умолчанию берётся из `ПАКЕТ/ЗАДАНИЕ/data`; если он в другом месте — `cp .env.example .env` и поправь `DATASETS_PATH`.
+
+```bash
+docker compose up --build
+```
+
+Бэк: `http://localhost:8000` (Swagger — `/docs`, проверка — `curl localhost:8000/api/health`). Фронт в Docker добавится, когда будет готов каркас фронта.
+
+Остановить: `docker compose down`. Вместе с результатами запусков: `docker compose down -v`.
+
+Без Docker (бэк):
 
 ```bash
 cd backend
@@ -41,7 +51,6 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
-Проверка: `curl localhost:8000/api/health` → `{"status":"ok"}`, Swagger — `http://localhost:8000/docs`.
 Тесты: `cd backend && pytest`.
 
 ## Задача
@@ -77,10 +86,6 @@ uvicorn app.main:app --reload --port 8000
 
 Полная постановка: `02_ОПИСАНИЕ_ЗАДАЧИ.md` (в репозиторий не входит, в `.gitignore`).
 Контракт между бэком и фронтом: [docs/api.md](docs/api.md).
-
-## Как запустить
-
-> Раздел заполнится, когда выберем стек и появится `docker-compose.yml`. Пока проект не запускается.
 
 ## Стек
 
