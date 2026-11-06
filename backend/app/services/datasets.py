@@ -22,18 +22,31 @@ def _read_manifest(folder) -> dict | None:
         return None
 
 
-def list_datasets() -> list[dict]:
+def _scan() -> list[dict]:
+    """Все датасеты вместе с путём к папке (`path` нужен только бэку, наружу его не отдаём)."""
     root = settings.DATASETS_DIR
     if not root.is_dir():
         return []
-    result = []
+    result, seen = [], {}
     for folder in sorted(root.iterdir()):
-        if (folder / "manifest.json").is_file():
-            ds = _read_manifest(folder)
-            if ds:
-                result.append(ds)
+        if not (folder / "manifest.json").is_file():
+            continue
+        ds = _read_manifest(folder)
+        if ds is None:
+            continue
+        if ds["id"] in seen:
+            log.warning("Датасет %s пропущен — id %s уже занят папкой %s", folder.name, ds["id"], seen[ds["id"]])
+            continue
+        seen[ds["id"]] = folder.name
+        ds["path"] = folder
+        result.append(ds)
     return result
 
 
+def list_datasets() -> list[dict]:
+    return [{k: v for k, v in ds.items() if k != "path"} for ds in _scan()]
+
+
 def get_dataset(dataset_id: str) -> dict | None:
-    return next((d for d in list_datasets() if d["id"] == dataset_id), None)
+    """Датасет по id; в `path` — папка с manifest.json (id из манифеста может не совпадать с её именем)."""
+    return next((d for d in _scan() if d["id"] == dataset_id), None)
