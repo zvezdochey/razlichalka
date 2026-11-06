@@ -95,3 +95,11 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiRequestError('internal', 'Сервер вернул не JSON')
   }
 }
+
+/**
+ * Запуск остановил пользователь, а не сломался. В договоре это тот же `status: 'error'`
+ * (п. 5.4), отличается только кодом — и показывать это надо нейтрально, не как аварию.
+ */
+export function isCancelled(error: ApiError | null | undefined): boolean {
+  return error?.code === 'cancelled'
+}

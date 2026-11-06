@@ -1,0 +1,166 @@
+/* Журнал этапов: вертикальный путь из четырёх шагов. Плоско, разделители — волосяные линии. */
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+
+.log__stages {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.stage {
+  padding: var(--s-3) var(--s-4);
+  border-bottom: 1px solid var(--border);
+  border-left: 2px solid var(--border);
+}
+
+.stage:last-child {
+  border-bottom: none;
+}
+
+/* Левая кромка отмечает, где мы на пути: пройдено, идёт, упало. */
+.stage--ready {
+  border-left-color: var(--border-strong);
+}
+
+.stage--running {
+  border-left-color: var(--accent);
+  background: var(--surface-sunken);
+}
+
+.stage--error {
+  border-left-color: var(--danger);
+}
+
+/* Остановили сами — путь просто обрывается, без тревожного цвета. */
+.stage--stopped {
+  border-left-color: var(--border-strong);
+}
+
+.stage--pending .stage__title {
+  color: var(--muted);
+}
+
+.stage__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+}
+
+.stage__title {
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+
+.stage__times {
+  font-size: var(--fs-caption);
+}
+
+.stage__now {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  max-width: 520px;
+}
+
+.stage__code {
+  margin-top: var(--s-1);
+  font-size: var(--fs-caption);
+}
+
+.stage__toggle {
+  font: inherit;
+  font-size: var(--fs-caption);
+  margin-top: var(--s-2);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--info);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* --- Строки журнала --- */
+.stage__log {
+  list-style: none;
+  margin: var(--s-2) 0 0;
+  padding: var(--s-2) 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.log-line {
+  display: grid;
+  grid-template-columns: 72px 112px 1fr;
+  gap: var(--s-2);
+  align-items: baseline;
+  padding: 2px 0;
+  font-size: var(--fs-caption);
+}
+
+.log-line__at {
+  color: var(--faint);
+}
+
+.log-line__level {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--s-1);
+  color: var(--muted);
+}
+
+.log-line__icon {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+  font-weight: 600;
+}
+
+/* Предупреждение — не вердикт проверки, поэтому не `--low`, а второй цвет бренда. */
+.log-line--warn .log-line__level {
+  color: var(--accent-2);
+}
+
+.log-line--error .log-line__level {
+  color: var(--danger);
+}
+
+.log-line--error .log-line__message {
+  color: var(--danger);
+}
+
+/* --- Итог запуска: отмена и падение выглядят по-разному --- */
+.log__stop h2,
+.log__fail h2 {
+  font-size: var(--fs-panel);
+  margin-bottom: var(--s-2);
+}
+
+/* Отмена — нейтрально: человек сам так решил, это не авария. */
+.log__stop {
+  border-left: 3px solid var(--border-strong);
+}
+
+/* Настоящее падение — единственный случай, когда здесь появляется красный. */
+.log__fail {
+  background: var(--danger-bg);
+  border-color: var(--danger-bg);
+  border-left: 3px solid var(--danger);
+  color: var(--danger);
+}
+
+.log__refresh {
+  align-self: flex-start;
+}
+
+@media (max-width: 720px) {
+  .log-line {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: var(--s-1) 0;
+  }
+}

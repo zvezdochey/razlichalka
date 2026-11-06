@@ -22,3 +22,57 @@
   font-weight: 600;
   border-bottom-color: var(--accent);
 }
+
+/* --- Шапка прогона: контекст остаётся виден на любой вкладке --- */
+.run-head {
+  align-items: flex-start;
+  margin-bottom: var(--s-4);
+}
+
+.run-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-6);
+  margin: var(--s-3) 0 0;
+}
+
+.run-meta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.run-meta dt {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+
+.run-meta dd {
+  margin: 0;
+  font-size: var(--fs-table);
+}
+
+.run-actions {
+  display: flex;
+  gap: var(--s-2);
+  flex-shrink: 0;
+}
+
+/* Прогресс в шапке: виден с любой вкладки, пока идёт расчёт */
+.run-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  margin-bottom: var(--s-4);
+}
+
+.run-progress__text {
+  font-size: var(--fs-body);
+}
+
+.run-notice {
+  margin-bottom: var(--s-4);
+}
