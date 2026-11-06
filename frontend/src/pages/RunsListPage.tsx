@@ -13,12 +13,7 @@ export function RunsListPage() {
       </div>
       <EmptyState
         title="Прогонов пока нет"
-        hint="Создайте прогон, чтобы сравнить решения двух версий СПР."
-        action={
-          <Link to="/runs/new" className="btn btn--primary">
-            Новый прогон
-          </Link>
-        }
+        hint="Нажмите «Новый прогон», чтобы сравнить решения двух версий СПР."
       />
     </>
   )

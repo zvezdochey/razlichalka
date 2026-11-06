@@ -1,10 +1,11 @@
+import { useSyncExternalStore } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
-import { getCurrentUser } from '../lib/user'
+import { getCurrentUser, subscribeUser } from '../lib/user'
 import './AppLayout.css'
 
 /** Шапка 48 px + левое меню 180 px + область контента. Ориентир — ноутбук 1366×768. */
 export function AppLayout() {
-  const user = getCurrentUser()
+  const user = useSyncExternalStore(subscribeUser, getCurrentUser)
 
   return (
     <div className="app">
