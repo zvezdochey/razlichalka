@@ -30,6 +30,20 @@
 
 Все подробности — в [CONTRIBUTING.md](CONTRIBUTING.md). Формат запросов бэка и фронта — в [docs/api.md](docs/api.md). Кому какие плагины ставить — в [docs/ai-tools.md](docs/ai-tools.md).
 
+## Как запустить
+
+Пока только локально, без Docker (Docker добавит задача S2).
+
+```bash
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000
+```
+
+Проверка: `curl localhost:8000/api/health` → `{"status":"ok"}`, Swagger — `http://localhost:8000/docs`.
+Тесты: `cd backend && pytest`.
+
 ## Задача
 
 **Система анализа изменений** · Анализ данных · СПР · Web
