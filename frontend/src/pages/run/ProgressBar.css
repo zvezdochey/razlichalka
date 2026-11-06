@@ -1,0 +1,43 @@
+/* Полоса прогресса. Движение здесь оправдано: система меняет состояние сама. */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+
+.progress__track {
+  position: relative;
+  overflow: hidden;
+  height: 4px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+}
+
+.progress__fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 300ms linear;
+}
+
+/* Объём неизвестен — честный индикатор активности вместо выдуманной доли. */
+.progress__track--unknown::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 30%;
+  background: var(--accent-2);
+  animation: progress-sweep 1.2s ease-in-out infinite;
+}
+
+.progress__caption {
+  font-size: var(--fs-caption);
+}
+
+@keyframes progress-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(333%);
+  }
+}

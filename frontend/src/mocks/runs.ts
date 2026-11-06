@@ -34,8 +34,13 @@ type MockRun = {
   configId: string
   /** Момент старта в миллисекундах. */
   startedAt: number
-  /** Заполнено, если запуск остановили: тогда он навсегда в статусе error. */
-  cancelledAt: number | null
+  /**
+   * Момент, когда запуск перестал идти не по своей воле: его остановили или он упал.
+   * Заполнено — значит запуск навсегда в статусе `error`.
+   */
+  stoppedAt: number | null
+  /** Чем именно кончился запуск. Отмена — `cancelled`, падение — `internal`. */
+  stopError: ApiError | null
 }
 
 const runs = new Map<string, MockRun>()
@@ -50,12 +55,40 @@ runs.set(READY_RUN_ID, {
   id: READY_RUN_ID,
   configId: 'cfg_1',
   startedAt: Date.now() - RUN_DURATION_MS * 10,
-  cancelledAt: null,
+  stoppedAt: null,
+  stopError: null,
+})
+
+/**
+ * Упавший запуск — чтобы F4 было на чём показать «Ошибку выполнения», а не только
+ * отмену. Падает на `compare`: прогресс успел дойти до середины работы.
+ */
+const FAILED_RUN_ID = 'r_fail'
+const FAILED_RUN_STARTED_AT = Date.now() - RUN_DURATION_MS * 20
+const FAILED_RUN_ERROR: ApiError = {
+  code: 'internal',
+  message:
+    'Этап «Сравнение срезов» прерван: не удалось прочитать файл среза AFTER ' +
+    '(RUN-20260827-0001/BETA/APP-0412.json)',
+}
+runs.set(FAILED_RUN_ID, {
+  id: FAILED_RUN_ID,
+  configId: 'cfg_1',
+  startedAt: FAILED_RUN_STARTED_AT,
+  // Чуть больше половины работы: normalize успел, compare упал на середине.
+  stoppedAt: FAILED_RUN_STARTED_AT + PENDING_MS + (RUN_DURATION_MS - PENDING_MS) * 0.6,
+  stopError: FAILED_RUN_ERROR,
 })
 
 export function createMockRun(configId: string): MockRun {
   const id = `r_${(nextRunNumber++).toString(16).padStart(4, '0')}`
-  const run: MockRun = { id, configId, startedAt: Date.now(), cancelledAt: null }
+  const run: MockRun = {
+    id,
+    configId,
+    startedAt: Date.now(),
+    stoppedAt: null,
+    stopError: null,
+  }
   runs.set(id, run)
   return run
 }
@@ -64,20 +97,22 @@ export function findMockRun(id: string): MockRun | undefined {
   return runs.get(id)
 }
 
-/** Остановка пользователем. По коду `cancelled` фронт отличит её от падения. */
-export function cancelMockRun(run: MockRun): void {
-  if (run.cancelledAt === null) run.cancelledAt = Date.now()
-}
-
 const CANCELLED_ERROR: ApiError = { code: 'cancelled', message: 'Остановлено пользователем' }
 
+/** Остановка пользователем. По коду `cancelled` фронт отличит её от падения. */
+export function cancelMockRun(run: MockRun): void {
+  if (run.stoppedAt !== null) return
+  run.stoppedAt = Date.now()
+  run.stopError = CANCELLED_ERROR
+}
+
 function elapsed(run: MockRun): number {
-  const until = run.cancelledAt ?? Date.now()
+  const until = run.stoppedAt ?? Date.now()
   return until - run.startedAt
 }
 
 function statusOf(run: MockRun): Status {
-  if (run.cancelledAt !== null) return 'error'
+  if (run.stoppedAt !== null) return 'error'
   const ms = elapsed(run)
   if (ms < PENDING_MS) return 'pending'
   return ms < RUN_DURATION_MS ? 'running' : 'ready'
@@ -112,8 +147,8 @@ export function toRunStatus(run: MockRun): RunStatus {
   const finishedAt =
     status === 'ready'
       ? isoAt(run.startedAt + RUN_DURATION_MS)
-      : run.cancelledAt !== null
-        ? isoAt(run.cancelledAt)
+      : run.stoppedAt !== null
+        ? isoAt(run.stoppedAt)
         : null
 
   return {
@@ -125,7 +160,7 @@ export function toRunStatus(run: MockRun): RunStatus {
     finished_at: finishedAt,
     progress: { done, total: TOTAL_FILES },
     current_stage: status === 'running' ? currentStage(share) : null,
-    error: run.cancelledAt !== null ? CANCELLED_ERROR : null,
+    error: run.stopError,
   }
 }
 
@@ -184,7 +219,7 @@ export function toStages(run: MockRun): Stage[] {
               path: `procedures/${stage.name}.py`,
               line: 1,
             },
-      log: buildLog(stage.name, status, stageStartMs),
+      log: buildLog(stage.name, status, stageStartMs, run.stopError),
     }
 
     startShare = endShare
@@ -208,13 +243,44 @@ function stageStatus(
   return 'pending'
 }
 
-function buildLog(name: StageName, status: Status, startMs: number): Stage['log'] {
+function buildLog(
+  name: StageName,
+  status: Status,
+  startMs: number,
+  stopError: ApiError | null,
+): Stage['log'] {
   if (status === 'pending') return []
   if (status === 'error') {
-    return [{ at: isoAt(startMs), level: 'error', message: 'Остановлено пользователем' }]
+    return [
+      {
+        at: isoAt(startMs),
+        // Остановка пользователем — не авария, поэтому уровень не `error`.
+        level: stopError?.code === 'cancelled' ? 'warn' : 'error',
+        message: stopError?.message ?? 'Этап прерван',
+      },
+    ]
   }
+
   const half = Math.floor(TOTAL_FILES / 2)
-  const log = [{ at: isoAt(startMs), level: 'info', message: `Этап ${name} начат` }]
+  const log: Stage['log'] = [
+    { at: isoAt(startMs), level: 'info', message: `Этап ${name} начат` },
+  ]
+
+  // Предупреждение и незнакомый уровень нужны фронту, чтобы было видно:
+  // уровни раскрашены по словарю (№7), а неизвестный уровень не ломает отрисовку.
+  if (name === 'normalize') {
+    log.push({
+      at: isoAt(startMs + 120),
+      level: 'warn',
+      message: '3 файла без APP_ID — пропущены',
+    })
+    log.push({
+      at: isoAt(startMs + 180),
+      level: 'trace',
+      message: 'Правила массивов взяты из процедуры по умолчанию',
+    })
+  }
+
   if (status === 'ready') {
     log.push({
       at: isoAt(startMs + 500),
@@ -228,5 +294,6 @@ function buildLog(name: StageName, status: Status, startMs: number): Stage['log'
       message: `Обработано ${half} из ${TOTAL_FILES}`,
     })
   }
+
   return log
 }

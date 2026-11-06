@@ -46,11 +46,11 @@ def _mini(tmp_path):
     seg = tmp_path / "segments.csv"
     cmp_ = tmp_path / "comparison.csv"
     write_csv(seg, SEG_COLUMNS, [
-        _seg("A1", "APPROVE", "REJECT", PD_MODEL_BEFORE="M1", REJECT_REASON_AFTER="CUTOFF"),
-        _seg("A2", "REJECT", "APPROVE"),
-        _seg("A3", "APPROVE", "APPROVE"),
-        _seg("A4", "APPROVE", "VERIFICATION"),
-        _seg("A5", "REJECT", "REJECT"),  # в витрине строк нет
+        _seg("A1", "APPROVE", "REJECT", PD_MODEL_BEFORE="M1", REJECT_REASON_AFTER="CUTOFF", CHANGE_SOURCE="data"),
+        _seg("A2", "REJECT", "APPROVE", CHANGE_SOURCE="logic"),
+        _seg("A3", "APPROVE", "APPROVE", CHANGE_SOURCE="logic"),  # решение то же — в change_sources не идёт
+        _seg("A4", "APPROVE", "VERIFICATION", CHANGE_SOURCE="logic"),
+        _seg("A5", "REJECT", "REJECT", CHANGE_SOURCE="none"),  # в витрине строк нет
     ])
     write_csv(cmp_, CMP_COLUMNS, [
         _cmp("A1", "x", "VALUE_CHANGED"), _cmp("A1", "y", "ATTRIBUTE_NEW"), _cmp("A1", "z", "SAME"),
@@ -73,6 +73,7 @@ def test_mini_counts(tmp_path):
         "decision_changed": 3,
         "decision_changes": {"same": 2, "approve_to_reject": 1, "reject_to_approve": 1, "decision_other": 1},
         "attributes": {"VALUE_CHANGED": 3, "ATTRIBUTE_NEW": 1, "ATTRIBUTE_LOST": 1},
+        "change_sources": {"logic": 2, "data": 1, "both": 0, "none": 0},
     }
     assert json.loads(out_json.read_text(encoding="utf-8")) == summary
 
@@ -85,6 +86,22 @@ def test_mini_counts(tmp_path):
     assert by_id.loc["A1", "pd_model_before"] == "M1"
     assert by_id.loc["A1", "reject_reason_after"] == "CUTOFF"
     assert by_id.loc["A2", "reject_reason_after"] == ""  # пустое остаётся пустым
+    assert list(by_id["change_source"]) == ["data", "logic", "logic", "logic", "none"]
+
+
+def test_change_sources_sum_is_decision_changed(tmp_path):
+    cmp_, seg = _mini(tmp_path)
+    s = build_summary(cmp_, seg, tmp_path / "s.json", tmp_path / "a.csv")
+    assert sum(s["change_sources"].values()) == s["decision_changed"]
+
+
+def test_change_source_empty_on_decision_change_is_error(tmp_path):
+    """Разрезы построены без витрины (CHANGE_SOURCE пустой) — итоги не врут молча нулями."""
+    seg, cmp_ = tmp_path / "s.csv", tmp_path / "c.csv"
+    write_csv(seg, SEG_COLUMNS, [_seg("A1", "APPROVE", "REJECT")])
+    write_csv(cmp_, CMP_COLUMNS, [_cmp("A1", "x", "VALUE_CHANGED")])
+    with pytest.raises(BadFile, match="CHANGE_SOURCE"):
+        build_summary(cmp_, seg, tmp_path / "s.json", tmp_path / "a.csv")
 
 
 def test_share_rounded(tmp_path):
@@ -114,10 +131,11 @@ def test_real_dataset(tmp_path):
     """Весь конвейер на настоящем датасете: числа решений — из docs/api.md п. 7.1."""
     nb, na, cmp_ = tmp_path / "nb.csv", tmp_path / "na.csv", tmp_path / "cmp.csv"
     seg = tmp_path / "seg.csv"
-    normalize_dataset(REAL, "BEFORE", nb, {})
-    normalize_dataset(REAL, "AFTER", na, {})
+    cfg = {"ignore_paths": ["appData.request_id", "appData.createDateTime"]}  # иначе вход «другой» у всех
+    normalize_dataset(REAL, "BEFORE", nb, cfg)
+    normalize_dataset(REAL, "AFTER", na, cfg)
     compare_csv(nb, na, cmp_)
-    build_segments(REAL, seg)
+    build_segments(REAL, seg, comparison_csv=cmp_)
 
     s = build_summary(cmp_, seg, tmp_path / "summary.json", tmp_path / "apps.csv")
     print("\nREAL SUMMARY:", json.dumps(s, ensure_ascii=False))
@@ -125,4 +143,6 @@ def test_real_dataset(tmp_path):
     assert s["decision_changed"] == 385
     assert s["decision_changes"] == {
         "same": 1617, "approve_to_reject": 273, "reject_to_approve": 112, "decision_other": 0}
+    # E10: у 167 смен решения поменялся вход (ext_data[] score_okb), у 218 — только то, что посчитала СПР
+    assert s["change_sources"] == {"logic": 218, "data": 167, "both": 0, "none": 0}
     assert len(read_csv(tmp_path / "apps.csv")) == 2002

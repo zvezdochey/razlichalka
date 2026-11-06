@@ -1,7 +1,7 @@
-﻿app_id;decision_before;decision_after;decision_change;attributes_changed;pd_model_before;pd_model_after;cutoff_before;cutoff_after;reject_reason_before;reject_reason_after
-MINI-001;approve;reject;approve_to_reject;12;MODEL_V2;MODEL_V2;STANDARD;TIGHT;;CUTOFF
-MINI-002;reject;approve;reject_to_approve;2;MODEL_V1;MODEL_V1;STANDARD;STANDARD;HARDCHECK;
-MINI-003;approve;approve;same;0;MODEL_V2;MODEL_V2;STANDARD;STANDARD;;
-MINI-004;reject;reject;same;1;MODEL_V1;MODEL_V1;TIGHT;TIGHT;CUTOFF;CUTOFF
-MINI-005;approve;reject;approve_to_reject;1;MODEL_V1;MODEL_V1;STANDARD;STANDARD;;
-MINI-006;approve;approve;same;0;;;;;;
+﻿app_id;decision_before;decision_after;decision_change;attributes_changed;pd_model_before;pd_model_after;cutoff_before;cutoff_after;reject_reason_before;reject_reason_after;change_source
+MINI-001;approve;reject;approve_to_reject;12;MODEL_V2;MODEL_V2;STANDARD;TIGHT;;CUTOFF;data
+MINI-002;reject;approve;reject_to_approve;2;MODEL_V1;MODEL_V1;STANDARD;STANDARD;HARDCHECK;;logic
+MINI-003;approve;approve;same;0;MODEL_V2;MODEL_V2;STANDARD;STANDARD;;;none
+MINI-004;reject;reject;same;1;MODEL_V1;MODEL_V1;TIGHT;TIGHT;CUTOFF;CUTOFF;data
+MINI-005;approve;reject;approve_to_reject;1;MODEL_V1;MODEL_V1;STANDARD;STANDARD;;;logic
+MINI-006;approve;approve;same;0;;;;;;;none

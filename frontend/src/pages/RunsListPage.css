@@ -1,0 +1,13 @@
+/* Список прогонов. Строка целиком кликабельна, но ведёт её настоящая ссылка в первой ячейке. */
+.runs-table__row {
+  cursor: pointer;
+}
+
+.runs-table__link {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.runs-table__row:hover .runs-table__link {
+  text-decoration: underline;
+}
