@@ -6,6 +6,8 @@
 Версия 2 (6 ноября). Переписана под ТЗ: на вход — готовый датасет прогона, а не два файла.
 Данные: `ПАКЕТ/ЗАДАНИЕ/data/RUN-20260827-0001/` — два среза по 2002 JSON-файла.
 
+Примеры ниже взяты из этого датасета (посчитано скриптом по файлам), кроме мест, где явно написано «форма».
+
 Адрес бэка: `http://localhost:8000`. Все ручки начинаются с `/api`.
 Пользователь пока не авторизуется: передаём заголовок `X-User: <имя>`. Конфигурации и запуски принадлежат этому пользователю.
 
@@ -27,7 +29,7 @@
 **Срез** (`source`): `BEFORE` (MASTER, прод) и `AFTER` (BETA, изменение).
 
 **Решение** (`decision`): `approve`, `reject`, `other`.
-Бэк сам переводит `APPROVE`/`REJECT` из данных (и любые другие написания) в эти значения.
+Бэк сам переводит `APPROVE`/`REJECT` из данных (и любые другие написания) в эти значения. В датасете встречаются только `APPROVE` и `REJECT`.
 
 **Решение изменилось** (`decision_change`):
 
@@ -36,7 +38,7 @@
 | `same` | решение то же |
 | `approve_to_reject` | было approve → стало reject |
 | `reject_to_approve` | было reject → стало approve |
-| `decision_other` | решение изменилось иначе (например, на `other`) |
+| `decision_other` | решение изменилось иначе (например, на `other`); в датасете таких нет |
 
 **Изменение атрибута** (`change_type`) — из ТЗ, ровно четыре значения:
 
@@ -110,6 +112,8 @@
 }
 ```
 
+Имена встроенных проверок взяты из `checks/` датасета.
+
 ### 3.2. Создать процедуру
 
 `POST /api/procedures`
@@ -176,15 +180,15 @@
   "checks": ["builtin_missing_attrs", "p_1"],
   "ignore_paths": ["appData.request_id", "appData.createDateTime"],
   "array_modes": { "decisionResult.scoring[].value": "index" },
-  "buckets": { "PD": [0.3, 0.6] }
+  "buckets": { "decisionResult.product_trials[].scoring.pd.value": [0.3, 0.6] }
 }
 ```
 
 - `normalize`, `aggregate` — id процедуры нужного `kind`.
 - `checks` — список id проверок (`kind: "check"`).
-- `ignore_paths` — пути, которые не сравниваем. По умолчанию — два технических поля из датасета.
-- `array_modes` — режим сравнения массива по пути: `key`, `value`, `index`. Без записи — `key`.
-- `buckets` — границы бакетов (для `ADJUSTED_VALUE`), одни и те же для обоих срезов.
+- `ignore_paths` — пути, которые не сравниваем. Два технических поля — из `manifest.json` датасета (`technical_fields_always_differ`): они различаются у всех 2002 заявок.
+- `array_modes` — режим сравнения массива по пути: `key`, `value`, `index`. Без записи — `key`. Для `decisionResult.scoring[].value` режим `index` (вектор модели, позиция значима). Полный список массивов и их ключей — в `ФОРМАТ_ОТВЕТА.md`.
+- `buckets` — границы бакетов (для `ADJUSTED_VALUE`), одни и те же для обоих срезов. Пример: `pd.value` 0.42 попадает в `(0.3 – 0.6]`.
 
 Ответ: объект конфигурации (`201`).
 
@@ -231,7 +235,7 @@
 }
 ```
 
-- `progress` — количество обработанных файлов из общего числа.
+- `progress` — количество обработанных файлов из общего числа. В датасете `4004` = 2002 × 2 срезов.
 - Фронт опрашивает раз в секунду, пока статус `pending` или `running`.
 - При `error` в поле `error` лежит объект ошибки (см. «Ошибки»).
 
@@ -292,25 +296,26 @@
 ```json
 {
   "applications": 2002,
-  "applications_changed": 340,
-  "applications_changed_share": 0.170,
-  "decision_changed": 95,
+  "applications_changed": 502,
+  "applications_changed_share": 0.251,
+  "decision_changed": 385,
   "decision_changes": {
-    "same": 1907,
-    "approve_to_reject": 210,
-    "reject_to_approve": 95,
+    "same": 1617,
+    "approve_to_reject": 273,
+    "reject_to_approve": 112,
     "decision_other": 0
   },
-  "attributes": { "SAME": 280000, "VALUE_CHANGED": 6000, "ATTRIBUTE_NEW": 2000, "ATTRIBUTE_LOST": 1200 }
+  "attributes": { "VALUE_CHANGED": 8217, "ATTRIBUTE_NEW": 3835, "ATTRIBUTE_LOST": 3010 }
 }
 ```
 
-Числа здесь — только пример формы, на реальных данных они будут другими.
-Поле `applications_changed` — число заявок с хотя бы одним различием. Его сверяем с эталоном.
+Числа посчитаны скриптом по датасету без нормализации из ТЗ: сравнение по путям, массивы сопоставлены **по позиции**, поэтому `applications_changed` и `attributes` — ориентир, а не эталон. Эталонное число из ТЗ появится, когда будет готова витрина с ключами массивов.
+
+Решения (`decision_changes`) уже совпадают с тем, что видно в данных: `APPROVE → REJECT` 273, `REJECT → APPROVE` 112, остальные 1617 заявок с тем же решением.
 
 ### 7.2. Факты для сводной таблицы
 
-`GET /api/runs/{id}/facts?dims=PREFIX,PATH&measure=counts&filter=CHANGE_TYPE:VALUE_CHANGED`
+`GET /api/runs/{id}/facts?dims=REJECT_REASON_AFTER&measure=counts&filter=DECISION_CHANGED:1`
 
 Факты — это агрегат «заявки по измерениям». Пользователь сам выбирает измерения.
 
@@ -319,11 +324,16 @@
 - `filter` — `поле:значение`, можно несколько через `;`.
 - `measure` — `counts` (количество строк) или `counts_distinct_apps`.
 
+Пример: причины отказа по продуктам, у которых решение изменилось. Счёт по строкам продуктов в заявках, где решение сменилось (`decision_changed`):
+
 ```json
 {
-  "dims": ["PREFIX", "PATH"],
+  "dims": ["REJECT_REASON_AFTER"],
   "rows": [
-    { "PREFIX": "decisionResult", "PATH": "decisionResult.scoring.pd", "counts": 210, "app_ids_ref": "f_9c1" }
+    { "REJECT_REASON_AFTER": "CUTOFF:MFO_ZAIMER_2026_LOW", "counts": 274, "app_ids_ref": "f_low" },
+    { "REJECT_REASON_AFTER": "HARDCHECK:DOCS_EXPIRED", "counts": 134, "app_ids_ref": "f_docs" },
+    { "REJECT_REASON_AFTER": "CUTOFF:MFO_ZAIMER_2026_V3", "counts": 119, "app_ids_ref": "f_v3" },
+    { "REJECT_REASON_AFTER": "CUTOFF:MFO_ZAIMER_2026_MID", "counts": 118, "app_ids_ref": "f_mid" }
   ]
 }
 ```
@@ -335,12 +345,14 @@
 `GET /api/runs/{id}/facts/{app_ids_ref}/apps?page=1&size=50`
 
 ```json
-{ "page": 1, "size": 50, "total": 210, "apps": [ "I32554355", "I32554354" ] }
+{ "page": 1, "size": 50, "total": 274, "apps": [ "I32554362", "I32554358" ] }
 ```
+
+Форма ответа. Конкретные id из группы `f_low` ещё не сверены: в примере взяты заявки с `approve → reject`.
 
 ### 7.4. Список заявок с различиями
 
-`GET /api/runs/{id}/apps?decision_change=approve_to_reject&search=I325&sort=-applications_changed&page=1&size=50`
+`GET /api/runs/{id}/apps?decision_change=approve_to_reject&search=I32554&sort=-attributes_changed&page=1&size=50`
 
 Параметры:
 - `decision_change` — один или несколько значений через запятую (словарь «Решение изменилось»).
@@ -353,24 +365,39 @@
 {
   "page": 1,
   "size": 50,
-  "total": 210,
+  "total": 273,
   "apps": [
     {
-      "app_id": "I32554355",
+      "app_id": "I32554362",
       "decision_before": "approve",
       "decision_after": "reject",
       "decision_change": "approve_to_reject",
-      "attributes_changed": 4,
-      "pd_model_before": "PD_RETAIL_V2",
-      "pd_model_after": "PD_RETAIL_V2",
-      "cutoff_before": "PD_RETAIL",
-      "cutoff_after": "PD_RETAIL",
+      "attributes_changed": 30,
+      "pd_model_before": "ML_MICRO_LOAN_V2",
+      "pd_model_after": "ML_MICRO_LOAN_V2",
+      "cutoff_before": "MFO_ZAIMER_2026",
+      "cutoff_after": "MFO_ZAIMER_2026_MID",
       "reject_reason_before": null,
-      "reject_reason_after": "HARDCHECK"
+      "reject_reason_after": "CUTOFF"
+    },
+    {
+      "app_id": "I32554354",
+      "decision_before": "reject",
+      "decision_after": "approve",
+      "decision_change": "reject_to_approve",
+      "attributes_changed": 35,
+      "pd_model_before": "ML_MICRO_LOAN_V1",
+      "pd_model_after": "ML_MICRO_LOAN_V1",
+      "cutoff_before": "MFO_ZAIMER_2026",
+      "cutoff_after": "MFO_ZAIMER_2026",
+      "reject_reason_before": "HARDCHECK",
+      "reject_reason_after": null
     }
   ]
 }
 ```
+
+Значения заявок (`decision`, модели, пороги, `reject_reason`) — из датасета. `attributes_changed` — по нашему подсчёту (см. 7.1).
 
 ---
 
@@ -378,25 +405,36 @@
 
 ### 8.1. Сравнение атрибутов заявки
 
-`GET /api/runs/{id}/apps/{app_id}/attributes?change_type=VALUE_CHANGED,ATTRIBUTE_NEW&page=1&size=100`
+`GET /api/runs/{id}/apps/{app_id}/attributes?page=1&size=100`
 
-Это строки витрины одной заявки.
+Это строки витрины одной заявки. Пример — `I32554362`, продукт `751`:
 
 ```json
 {
-  "app_id": "I32554355",
+  "app_id": "I32554362",
   "page": 1,
   "size": 100,
-  "total": 4,
+  "total": 30,
   "attributes": [
     {
-      "path": "decisionResult.scoring.pd.value",
-      "array_key": "",
+      "path": "decisionResult.product_trials[].scoring.pd.value",
+      "array_key": "751",
       "key": "value",
-      "value_before": "0.42",
-      "value_after": "0.58",
+      "value_before": "0.694",
+      "value_after": "0.494",
+      "adjusted_before": "(0.6 – 1]",
+      "adjusted_after": "(0.4 – 0.6]",
+      "diff_flag": 1,
+      "change_type": "VALUE_CHANGED"
+    },
+    {
+      "path": "decisionResult.product_trials[].cutOff.value",
+      "array_key": "751",
+      "key": "value",
+      "value_before": "0.55",
+      "value_after": "0.62",
       "adjusted_before": "(0.3 – 0.6]",
-      "adjusted_after": "(0.3 – 0.6]",
+      "adjusted_after": "(0.6 – 1]",
       "diff_flag": 1,
       "change_type": "VALUE_CHANGED"
     }
@@ -404,24 +442,41 @@
 }
 ```
 
+Бакеты в примере подобраны для наглядности, в конфигурации границы задаёт пользователь. `ADJUSTED_VALUE` в этом примере показан по схеме ТЗ, значения не сверены с эталоном.
+
 Атрибут с `ATTRIBUTE_NEW` или `ATTRIBUTE_LOST` имеет пустое значение с той стороны, где его нет: `value_before` или `value_after` равно `null`.
 
 ### 8.2. Карточка заявки (до и после)
 
 `GET /api/runs/{id}/apps/{app_id}`
 
-Для окна «почему»: решение, офферы, стоп-факторы, модели и пороги в каждом срезе. Формат — две колонки `before` и `after`. Это только для показа, не для технического хранения.
+Для окна «почему»: решение, офферы, стоп-факторы, модели и пороги в каждом срезе. Пример — `I32554354` (reject → approve):
 
 ```json
 {
-  "app_id": "I32554355",
-  "decision_change": "approve_to_reject",
-  "before": { "decision": "approve", "products": [ { "product_id": "CASH_LOAN", "partner_type": "CURRENT", "decision": "approve", "reject_reason": null, "pd_model": "PD_RETAIL_V2", "pd": 0.42, "cutoff": { "name": "PD_RETAIL", "value": 0.55 }, "rules": [ { "name": "AGELOW@21", "hit": false } ] } ] },
-  "after":  { "decision": "reject",  "products": [ { "product_id": "CASH_LOAN", "partner_type": "CURRENT", "decision": "reject",  "reject_reason": "HARDCHECK", "reject_reason_code": "AGELOW@21", "pd_model": "PD_RETAIL_V2", "pd": 0.58, "cutoff": { "name": "PD_RETAIL", "value": 0.55 }, "rules": [ { "name": "AGELOW@21", "hit": true } ] } ] },
-  "reasons": [ { "text": "Сработал стоп-фактор AGELOW@21", "source": "rule", "confidence": "high" } ]
+  "app_id": "I32554354",
+  "decision_change": "reject_to_approve",
+  "before": {
+    "decision": "reject",
+    "offers": [],
+    "products": [
+      { "product_id": 15210, "decision": "reject", "reject_reason": "HARDCHECK", "reject_reason_code": "AGELOW@21", "pd_model": "ML_MICRO_LOAN_V1", "pd": 0.637, "cutoff": { "name": "MFO_ZAIMER_2026", "value": 0.55 }, "rules": [ { "name": "AGELOW@21", "hit": true } ] },
+      { "product_id": 5123, "decision": "reject", "reject_reason": "HARDCHECK", "reject_reason_code": "AGELOW@21", "pd_model": "ML_MICRO_LOAN_V1", "pd": 0.637, "cutoff": { "name": "MFO_ZAIMER_2026", "value": 0.55 }, "rules": [ { "name": "AGELOW@21", "hit": true } ] }
+    ]
+  },
+  "after": {
+    "decision": "approve",
+    "offers": [ { "product_id": 15210, "type": "standard" }, { "product_id": 5123, "type": "standard" }, { "product_id": 15210, "type": "manual" } ],
+    "products": [
+      { "product_id": 15210, "decision": "approve", "reject_reason": null, "pd_model": "ML_MICRO_LOAN_V1", "pd": 0.637, "cutoff": { "name": "MFO_ZAIMER_2026", "value": 0.55 }, "rules": [ { "name": "AGELOW@21", "hit": false } ] },
+      { "product_id": 5123, "decision": "approve", "reject_reason": null, "pd_model": "ML_MICRO_LOAN_V1", "pd": 0.637, "cutoff": { "name": "MFO_ZAIMER_2026", "value": 0.55 }, "rules": [ { "name": "AGELOW@21", "hit": false } ] }
+    ]
+  },
+  "reasons": [ { "text": "Сработал стоп-фактор AGELOW@21 в BEFORE, в AFTER не сработал", "source": "rule", "confidence": "high" } ]
 }
 ```
 
+- В `after.offers` у продукта `15210` два оффера: `standard` и `manual`. Ключ оффера — пара `product_id` + `type`, по одному `product_id` они склеятся.
 - `reasons[].source`: `rule` (стоп-фактор), `score` (сдвиг балла), `cutoff` (сдвиг порога), `product` (сменился продукт), `unknown`.
 - `confidence`: `high` — причина видна в данных, `low` — наша догадка.
 
@@ -431,17 +486,21 @@
 
 `GET /api/runs/{id}/reasons`
 
+Пример по датасету: причины у продуктов в заявках, где решение изменилось (счёт по строкам продуктов, после сравнения):
+
 ```json
 {
   "reasons": [
-    { "text": "Сработал стоп-фактор AGELOW@21", "source": "rule", "affected": 210, "share": 0.62 },
-    { "text": "Сдвиг порога PD_RETAIL 0.55 → 0.58", "source": "cutoff", "affected": 128, "share": 0.38 }
+    { "text": "Отсечка MFO_ZAIMER_2026_LOW (порог 0.7)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_LOW", "affected": 274, "share": 0.425 },
+    { "text": "Стоп-фактор DOCS_EXPIRED", "source": "rule", "rule": "DOCS_EXPIRED", "affected": 134, "share": 0.208 },
+    { "text": "Отсечка MFO_ZAIMER_2026_V3 (порог 0.62)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_V3", "affected": 119, "share": 0.184 },
+    { "text": "Отсечка MFO_ZAIMER_2026_MID (порог 0.62)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_MID", "affected": 118, "share": 0.183 }
   ],
-  "unexplained": 35
+  "unexplained": null
 }
 ```
 
-`unexplained` — сколько изменённых заявок не удалось объяснить. Показываем жюри честно.
+`share` — доля от строк продуктов с причиной отказа в заявках, где решение изменилось на `reject` (всего 645 строк). Это не доля от заявок. `unexplained` пока `null`: мы не считали заявки без причины, правило для этого ещё не написано.
 
 ---
 
@@ -451,7 +510,7 @@
 
 `GET /api/runs/{id}/checks?result=FAIL&page=1&size=50`
 
-Строки всех проверок, сколько бы их ни было и кто бы их ни написал.
+Строки всех проверок, сколько бы их ни было и кто бы их ни написал. Ниже — **форма**, значения не считались: проверки из `checks/` мы ещё не запускали.
 
 ```json
 {
@@ -468,17 +527,6 @@
       "metric": null,
       "result": "PASS",
       "apps_ref": null,
-      "faint": false
-    },
-    {
-      "check_id": "p_1",
-      "check_name": "Approval Rate продукта <10%",
-      "source": "AFTER",
-      "argument": "CASH_LOAN",
-      "numbers": "214 / 500",
-      "metric": "21.4%",
-      "result": "FAIL",
-      "apps_ref": "f_41a",
       "faint": false
     }
   ]
@@ -509,9 +557,7 @@
 
 Отвечает только при `ready`. Модели передаём агрегаты, выборку различий и результаты проверок, но не всю витрину.
 
-```json
-{ "status": "ready", "text": "Решение изменилось у 95 заявок; главная причина — стоп-фактор AGELOW@21. Проверьте…", "generated_at": "2026-11-06T12:05:00Z" }
-```
+Пример текста (форма): `{ "status": "ready", "text": "Решение изменилось у 385 заявок: 273 стали отказом, 112 — одобрением. Больше всего строк упирается в отсечку MFO_ZAIMER_2026_LOW…", "generated_at": "2026-11-06T12:05:00Z" }`
 
 Если `status` равен `pending`, фронт показывает «Считаем…» и опрашивает ручку. Если `error`, показываем текст ошибки, отчёт остаётся доступен.
 
