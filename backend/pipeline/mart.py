@@ -8,8 +8,13 @@
 (как в CSV), кроме двух поправок в `segments()`, без которых готовые проверки организаторов не работают:
   * `DECISION_CHANGED` — число 0/1 (иначе строка "0" в `if s.get(...)` считалась бы «истиной»);
   * `PRODUCTS` — через `;` (проверка организаторов делает `.split(";")`, а в файле разделитель `|`).
+
+Фильтры `path` и `path_prefix` понимают путь и со скобками массивов, и без них: в нашей витрине
+`decisionResult.product_trials[].rules[].hit`, а проверки организаторов спрашивают
+`decisionResult.product_trials.rules.hit` (в их схеме PATH — «без индексов массивов»). Это один атрибут.
 """
 
+import re
 from pathlib import Path
 
 import numpy as np
@@ -28,6 +33,12 @@ _FILTER_COLUMNS = {
     "app_ids": "APP_ID",
 }
 _FILTERS = set(_FILTER_COLUMNS) | {"path_prefix"}
+_BRACKETS = re.compile(r"\[[^\]]*\]")
+
+
+def _plain_path(path: str) -> str:
+    """Путь без скобок массивов: 'a[].b[0].c' -> 'a.b.c'."""
+    return _BRACKETS.sub("", path)
 
 
 def _as_list(value) -> list[str]:
@@ -46,6 +57,7 @@ class Mart:
         self._segments = self._load_segments(self.segments_csv)
         self._indexes: dict[str, dict] = {}
         self._prefix_cache: dict[str, list[str]] = {}
+        self._plain_paths: dict[str, list[str]] | None = None  # путь без скобок -> пути витрины
         self._all = np.arange(len(self._records))
 
     @staticmethod
@@ -70,6 +82,19 @@ class Mart:
             return np.empty(0, dtype=np.intp)
         return parts[0] if len(parts) == 1 else np.unique(np.concatenate(parts))
 
+    def _paths_like(self, values: list[str]) -> list[str]:
+        """Пути витрины для фильтра `path`: совпадение как есть или без скобок массивов."""
+        if self._plain_paths is None:
+            self._plain_paths = {}
+            for p in self._index("PATH"):
+                self._plain_paths.setdefault(_plain_path(p), []).append(p)
+        found: list[str] = []
+        for v in values:
+            for p in self._plain_paths.get(_plain_path(v), []):
+                if p not in found:
+                    found.append(p)
+        return found
+
     def _select(self, filters: dict) -> np.ndarray:
         """Позиции строк, подходящих под все фильтры (по возрастанию, то есть в порядке файла)."""
         unknown = set(filters) - _FILTERS
@@ -82,8 +107,12 @@ class Mart:
             if name == "path_prefix":
                 prefix = str(value)
                 if prefix not in self._prefix_cache:
-                    self._prefix_cache[prefix] = [p for p in self._index("PATH") if p.startswith(prefix)]
+                    plain = _plain_path(prefix)
+                    self._prefix_cache[prefix] = [p for p in self._index("PATH")
+                                                  if p.startswith(prefix) or _plain_path(p).startswith(plain)]
                 pos = self._positions("PATH", self._prefix_cache[prefix])
+            elif name == "path":
+                pos = self._positions("PATH", self._paths_like(_as_list(value)))
             else:
                 pos = self._positions(_FILTER_COLUMNS[name], _as_list(value))
             result = pos if result is None else np.intersect1d(result, pos, assume_unique=True)

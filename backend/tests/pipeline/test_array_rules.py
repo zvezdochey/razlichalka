@@ -20,6 +20,13 @@ def test_merge_changes_only_mode():
     assert DEFAULT_ARRAY_RULES[path]["mode"] == "key"  # исходные правила не испорчены
 
 
+def test_merge_path_without_trailing_brackets():
+    # путь из примера конфига в docs/api.md — без последних []
+    merged = merge_array_rules(DEFAULT_ARRAY_RULES, {"decisionResult.scoring[].value": "value"})
+    assert merged["decisionResult.scoring[].value[]"]["mode"] == "value"
+    assert "decisionResult.scoring[].value" not in merged
+
+
 def test_two_offers_same_product_give_different_rows():
     doc = {"decisionResult": {"available_offers": [
         {"product_id": "p1", "type": "standard", "amount": 100},

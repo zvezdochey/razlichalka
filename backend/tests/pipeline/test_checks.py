@@ -80,6 +80,12 @@ def test_rows_are_dicts_with_upper_keys_in_file_order(mart):
     ({"app_ids": "2", "path": "a.y"}, 1),
     ({"path": "a.y", "change_type": "SAME"}, 0),
     ({"path": "нет такого"}, 0),
+    # пути без скобок массивов (так пишут проверки организаторов) — тот же атрибут
+    ({"path": "b.z.v"}, 2),
+    ({"path": ["a.x", "b.z.v"]}, 4),
+    ({"path_prefix": "b.z.v"}, 2),
+    ({"path_prefix": "b.z[]"}, 2),
+    ({"path": "b.z"}, 0),
 ])
 def test_filters(mart, filters, expected):
     assert mart.count(**filters) == expected
@@ -264,3 +270,7 @@ def test_five_real_checks(tmp_path):
     assert rows and all(set(r) == set(RESULT_COLUMNS) for r in rows)
     assert not any(str(r["ARGUMENT"]).startswith(("RuntimeError", "TypeError", "KeyError")) for r in rows)
     assert {r["LABEL"] for r in rows} >= {load_check(f, "file")["label"] for f in files}
+    # Проверки не только не падают, но и находят изменения: пути без [] совпадают с путями витрины
+    stop = [r for r in rows if r["LABEL"] == "Стоп-фактор перестал работать"]
+    assert stop and all(r["RESULT"] == "FAIL" for r in stop), stop
+    assert sum(int(r["CNT"]) for r in stop) > 0
