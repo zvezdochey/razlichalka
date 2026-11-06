@@ -77,6 +77,8 @@
     {
       "id": "RUN-20260827-0001",
       "applications": 2002,
+  "applications_only_before": 0,
+  "applications_only_after": 0,
       "sources": { "BEFORE": "MASTER", "AFTER": "BETA" },
       "technical_fields": ["appData.request_id", "appData.createDateTime"]
     }
@@ -313,6 +315,8 @@
   "attributes": { "VALUE_CHANGED": 11571, "ATTRIBUTE_NEW": 4108, "ATTRIBUTE_LOST": 3122 }
 }
 ```
+
+`applications_only_before` / `applications_only_after` — заявки, которые есть только в одном срезе (сломанный JSON, нет ответа). В витрину, факты и список заявок они не попадают: по просьбе организаторов анализируем только заявки с парой before/after, остальные видны лишь этими счётчиками.
 
 Числа посчитаны конвейером (`pipeline/`) на настоящем датасете с пустым `ignore_paths`: ключи массивов по правилам E2, сравнение по `VALUE`. Служебные поля (id запроса, даты) отличаются у каждой заявки, поэтому `applications_changed` = все 2002 и пока ничего не показывает. `applications_changed` и `attributes` — **не эталон**: они изменятся, когда в конфиге появится `ignore_paths`. Решения (`decision_*`) от конфига не зависят.
 
