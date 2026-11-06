@@ -1,5 +1,7 @@
 """Чтение неизменяемых результатов готового запуска."""
+from csv import DictWriter
 from functools import lru_cache
+from io import StringIO
 from pathlib import Path
 
 import pandas as pd
@@ -21,7 +23,7 @@ ATTRIBUTE_FIELDS = [
 ]
 
 
-def _artifact(run_dir: Path, filename: str) -> Path:
+def result_file(run_dir: Path, filename: str) -> Path:
     path = run_dir / filename
     if not path.is_file():
         raise ApiError("not_found", f"Файл результатов «{filename}» не найден")
@@ -29,25 +31,25 @@ def _artifact(run_dir: Path, filename: str) -> Path:
 
 
 def summary(run_dir: Path) -> bytes:
-    return _artifact(run_dir, "summary.json").read_bytes()
+    return result_file(run_dir, "summary.json").read_bytes()
 
 
 # Путь включает id запуска и различает хранилища. В кэше только файлы готовых запусков.
 @lru_cache(maxsize=16)
 def _apps(run_dir: Path) -> pd.DataFrame:
-    rows = read_csv(_artifact(run_dir, "apps.csv"))[APP_FIELDS]
+    rows = read_csv(result_file(run_dir, "apps.csv"))[APP_FIELDS]
     rows["attributes_changed"] = pd.to_numeric(rows["attributes_changed"]).astype("Int64")
     return rows.set_index("app_id", drop=False).rename_axis(None)
 
 
 @lru_cache(maxsize=16)
 def _segments(run_dir: Path) -> pd.DataFrame:
-    return read_csv(_artifact(run_dir, "segments.csv")).set_index("APP_ID")
+    return read_csv(result_file(run_dir, "segments.csv")).set_index("APP_ID")
 
 
 @lru_cache(maxsize=4)
 def _attributes(run_dir: Path) -> pd.DataFrame:
-    rows = read_csv(_artifact(run_dir, "comparison.csv"))
+    rows = read_csv(result_file(run_dir, "comparison.csv"))
     rows.columns = rows.columns.str.lower()
     rows["diff_flag"] = rows["diff_flag"].astype(int)
     return rows.set_index("app_id")[ATTRIBUTE_FIELDS]
@@ -71,10 +73,9 @@ def _page(rows: pd.DataFrame, key: str, page: int, size: int) -> dict:
     }
 
 
-def apps(
-    run_dir: Path, *, decision_change: str, has_attr_change: bool, search: str,
-    sort: str, page: int, size: int,
-) -> dict:
+def _filter_apps(
+    run_dir: Path, *, decision_change: str, has_attr_change: bool, search: str, sort: str,
+) -> pd.DataFrame:
     field = sort.removeprefix("-")
     if sort and field not in APP_FIELDS:
         raise ApiError("bad_file", f"Неизвестное поле сортировки «{field}»")
@@ -96,7 +97,38 @@ def apps(
         rows = rows[matches]
     if sort:
         rows = rows.sort_values(field, ascending=not sort.startswith("-"), kind="stable")
+    return rows
+
+
+def apps(
+    run_dir: Path, *, decision_change: str, has_attr_change: bool, search: str,
+    sort: str, page: int, size: int,
+) -> dict:
+    rows = _filter_apps(
+        run_dir, decision_change=decision_change, has_attr_change=has_attr_change, search=search, sort=sort,
+    )
     return _page(rows, "apps", page, size)
+
+
+def _excel_value(value):
+    # Excel распознаёт текст, начинающийся с этих символов, как формулу.
+    if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@", "＝", "＋", "－", "＠")):
+        return "'" + value
+    return value
+
+
+def export_apps(
+    run_dir: Path, *, decision_change: str, has_attr_change: bool, search: str, sort: str,
+) -> bytes:
+    rows = _filter_apps(
+        run_dir, decision_change=decision_change, has_attr_change=has_attr_change, search=search, sort=sort,
+    )
+    records = ({name: _excel_value(value) for name, value in row.items()} for row in rows.to_dict("records"))
+    output = StringIO(newline="")
+    writer = DictWriter(output, fieldnames=APP_FIELDS, delimiter=";")
+    writer.writeheader()
+    writer.writerows(records)
+    return output.getvalue().encode("utf-8-sig")
 
 
 def attributes(
