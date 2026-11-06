@@ -25,7 +25,7 @@ cd ~/projects/hackathon && git checkout main && git pull && git checkout -b <в�
 |---|---|
 | F1 | Выполни задачу из `docs/tasks/sanya/F1-skeleton.md`. Сначала прочитай `AGENTS.md`, `docs/api.md`, `frontend/DESIGN.md` и раздел «F1» в `frontend/PLAN.md` — там зафиксирован визуальный язык и правки к задаче, следуй им. |
 | F2 | Выполни задачу из `docs/tasks/sanya/F2-api-layer-mocks.md`. Сначала прочитай `AGENTS.md`, `docs/api.md`, а в `frontend/PLAN.md` — разделы «1.5. Что уже готово» и «F2». Каркас из F1 уже в репозитории, переписывать его не надо. |
-| F3 | Выполни задачу из `docs/tasks/sanya/F3-new-run.md`. Сначала прочитай `AGENTS.md`, `docs/api.md` (п. 2, 4, 5), `frontend/DESIGN.md` (п. 4) и раздел «F3» в `frontend/PLAN.md`. |
+| F3 | Выполни задачу из `docs/tasks/sanya/F3-new-run.md`. Сначала прочитай `AGENTS.md`, `docs/api.md` (п. 2, 4, 5), `frontend/DESIGN.md` (п. 4), а в `frontend/PLAN.md` — разделы «1.5. Что уже готово» и «F3». Слой API и моки из F2 уже в репозитории: запросы делай **только** функциями из `src/api`, свой `fetch` не пиши. |
 | F4 | Выполни задачу из `docs/tasks/sanya/F4-runs-and-progress.md`. Сначала прочитай `AGENTS.md`, `docs/api.md` (п. 5, 6), `frontend/DESIGN.md` (п. 3, 5) и раздел «F4» в `frontend/PLAN.md`. |
 | F5 | Выполни задачу из `docs/tasks/sanya/F5-overview.md`. Сначала прочитай `AGENTS.md`, `docs/api.md` (п. 7.1), `frontend/DESIGN.md` (п. 6) и раздел «F5» в `frontend/PLAN.md`. |
 | F6 | Выполни задачу из `docs/tasks/sanya/F6-apps-table.md`. Сначала прочитай `AGENTS.md`, `docs/api.md` (п. 7.4), `frontend/DESIGN.md` (п. 8, 11) и раздел «F6» в `frontend/PLAN.md`. |
@@ -36,6 +36,12 @@ cd ~/projects/hackathon && git checkout main && git pull && git checkout -b <в�
 **«Работай только в `frontend/`. Если видишь расхождение с `docs/api.md` или проблему на стороне бэка —
 не правь чужие файлы, выпиши расхождение в раздел «Расхождения» в `frontend/PLAN.md` и скажи мне.
 Не коммить и не пушь без моего явного разрешения.»**
+
+И ещё одно, про первоисточник: **`PLAN.md` и `docs/api.md` — это наш пересказ задания.**
+Само задание (презентация организаторов на 22 страницы, требования, «что не будет принято»)
+лежит вне репозитория, в `~/projects/hackathon-materials/`. Заглядывать туда стоит перед началом
+задачи и перед тем, как сказать «готово» — какие файлы и зачем, расписано в `frontend/CLAUDE.md`,
+раздел «Сверяйся с исходниками задания».
 
 ### Кого звать на каждой задаче
 
