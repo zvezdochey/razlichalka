@@ -32,17 +32,32 @@
 
 ## Как запустить
 
-Пока только локально, без Docker (Docker добавит задача S2).
+Нужен Docker. Датасет в Git не лежит: по умолчанию берётся из `ПАКЕТ/ЗАДАНИЕ/data`; если он в другом месте — `cp .env.example .env` и поправь `DATASETS_PATH`.
 
 ```bash
+docker compose up --build
+```
+
+- интерфейс — `http://localhost:3000` (запросы `/api/...` nginx проксирует на бэк);
+- бэк напрямую — `http://localhost:8000`, Swagger — `/docs`, проверка — `curl localhost:8000/api/health`.
+
+Остановить: `docker compose down`. Вместе с результатами запусков: `docker compose down -v`.
+
+Без Docker:
+
+```bash
+# бэк
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
+
+# фронт (в другом терминале; /api проксируется на localhost:8000)
+cd frontend
+npm ci && npm run dev
 ```
 
-Проверка: `curl localhost:8000/api/health` → `{"status":"ok"}`, Swagger — `http://localhost:8000/docs`.
-Тесты: `cd backend && pytest`.
+Тесты бэка: `cd backend && pytest`.
 
 ## Задача
 
@@ -77,10 +92,6 @@ uvicorn app.main:app --reload --port 8000
 
 Полная постановка: `02_ОПИСАНИЕ_ЗАДАЧИ.md` (в репозиторий не входит, в `.gitignore`).
 Контракт между бэком и фронтом: [docs/api.md](docs/api.md).
-
-## Как запустить
-
-> Раздел заполнится, когда выберем стек и появится `docker-compose.yml`. Пока проект не запускается.
 
 ## Стек
 

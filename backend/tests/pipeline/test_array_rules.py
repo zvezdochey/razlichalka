@@ -1,12 +1,11 @@
 """Тесты правил массивов. JSON — выдуманные, не данные организаторов."""
 
-import os
-from pathlib import Path
 
 import pytest
 
 from pipeline.array_rules import DEFAULT_ARRAY_RULES, merge_array_rules
 from pipeline.flatten import flatten_response
+from tests.real_dataset import REAL
 
 
 def test_nine_rules():
@@ -31,8 +30,7 @@ def test_two_offers_same_product_give_different_rows():
     assert got == {("p1:standard", "amount"): "100", ("p1:manual", "amount"): "200"}
 
 
-_RUN = Path(__file__).resolve().parents[3] / "ПАКЕТ/ПАКЕТ/ЗАДАНИЕ/ЗАДАНИЕ/data/RUN-20260827-0001/RESULTS"
-DATASET = Path(os.environ.get("DATASET_DIR", _RUN))
+DATASET = REAL / "RESULTS"
 
 
 @pytest.mark.skipif(not DATASET.exists(), reason="нет настоящего датасета (DATASET_DIR)")
