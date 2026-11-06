@@ -1,0 +1,9 @@
+{
+  "run_id": "MINI-0001",
+  "applications": 3,
+  "srez": {
+    "BEFORE": {"label": "OLD", "dir": "RESULTS/BEFORE"},
+    "AFTER": {"label": "NEW", "dir": "RESULTS/AFTER"}
+  },
+  "technical_fields_always_differ": ["appData.request_id", "appData.createDateTime"]
+}

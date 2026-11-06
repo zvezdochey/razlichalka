@@ -1,0 +1,35 @@
+{
+  "appData": {
+    "application_id": "A3",
+    "request_id": "r-A3",
+    "createDateTime": "2024-01-01T00:00:00Z"
+  },
+  "decisionResult": {
+    "decision": "REJECT",
+    "product_trials": [
+      {
+        "product_id": 1,
+        "scoring": {
+          "pd": {
+            "value": 0.694
+          }
+        },
+        "rules": [
+          {
+            "name": "R1",
+            "result": true
+          }
+        ]
+      },
+      {
+        "product_id": 2,
+        "scoring": {
+          "pd": {
+            "value": 0.5
+          }
+        },
+        "rules": []
+      }
+    ]
+  }
+}
