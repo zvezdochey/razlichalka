@@ -79,7 +79,9 @@ def stage_aggregate(ctx) -> None:
     ctx.log("info", "Строю слой разрезов (segments.csv)")
     files = len(list_source_files(ctx.dataset_dir, "BEFORE"))
     # карта полей — только из файла процедуры builtin_segments; поля в конфигурации для неё пока нет
+    # витрина нужна для CHANGE_SOURCE (логика или входные данные, E10)
     build_segments(ctx.dataset_dir, ctx.run_dir / SEGMENTS, procedures_dir=settings.PROCEDURES_DIR,
+                   comparison_csv=ctx.run_dir / COMPARISON,
                    on_progress=lambda n: ctx.progress(n, 2 * files),
                    log=ctx.log, is_cancelled=ctx.is_cancelled)
     if ctx.is_cancelled():
