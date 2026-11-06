@@ -50,6 +50,7 @@ def test_datasets_duplicate_id_skipped(client, tmp_path):
 
 
 def test_datasets_no_folder(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "USE_STUB_PIPELINE", False)
     monkeypatch.setattr(settings, "DATASETS_DIR", tmp_path / "нет-такой")
     r = client.get("/api/datasets")
     assert r.status_code == 200 and r.json() == {"datasets": []}

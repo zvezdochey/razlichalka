@@ -5,6 +5,7 @@ from pathlib import Path
 # backend/app/settings.py -> корень репозитория на два уровня выше папки backend
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 REPO_DIR = BACKEND_DIR.parent
+STUB_RUN_DIR = BACKEND_DIR / "tests" / "fixtures" / "run_mini"
 
 # Папка с датасетами (только читаем)
 DATASETS_DIR = Path(os.environ.get("DATASETS_DIR", REPO_DIR / "ПАКЕТ" / "ЗАДАНИЕ" / "data"))

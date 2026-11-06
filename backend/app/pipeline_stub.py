@@ -1,5 +1,8 @@
 """Заглушки этапов (S4): «работают» пару секунд, шлют прогресс и пишут лог. Настоящие функции подключит S5."""
 import time
+from shutil import copyfile
+
+from app.settings import STUB_RUN_DIR
 
 STAGE_SECONDS = 2.5  # сколько «работает» каждый этап (в тестах уменьшаем)
 STEPS = 10
@@ -27,6 +30,10 @@ def stage_compare(ctx) -> None:
 
 def stage_aggregate(ctx) -> None:
     _work(ctx, "Факты counts")
+    if ctx.is_cancelled():
+        return
+    for name in ("comparison.csv", "segments.csv", "apps.csv", "summary.json"):
+        copyfile(STUB_RUN_DIR / name, ctx.run_dir / name)
 
 
 def stage_checks(ctx) -> None:

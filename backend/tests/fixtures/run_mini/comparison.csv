@@ -1,0 +1,22 @@
+﻿APP_ID;PREFIX;CLASS;SUFFIX;ARRAY_KEY;KEY;PATH;VALUE_BEFORE;VALUE_AFTER;ADJUSTED_BEFORE;ADJUSTED_AFTER;DIFF_FLAG;CHANGE_TYPE
+MINI-001;appData;;;;age;appData.age;30;30;30;30;0;SAME
+MINI-001;decisionResult;;;;decision;decisionResult.decision;APPROVE;REJECT;APPROVE;REJECT;1;VALUE_CHANGED
+MINI-001;decisionResult;product_trials[];scoring.pd;101;value;decisionResult.product_trials[].scoring.pd.value;0.42;0.68;(0.3 – 0.6];(0.6 – 1];1;VALUE_CHANGED
+MINI-001;decisionResult;product_trials[];cutOff;101;name;decisionResult.product_trials[].cutOff.name;STANDARD;TIGHT;STANDARD;TIGHT;1;VALUE_CHANGED
+MINI-001;decisionResult;product_trials[];;101;rejectReason;decisionResult.product_trials[].rejectReason;;CUTOFF;;CUTOFF;1;ATTRIBUTE_NEW
+MINI-001;decisionResult;product_trials[];;101;creditLimit;decisionResult.product_trials[].creditLimit;30000;;30000;;1;ATTRIBUTE_LOST
+MINI-001;appData;;;;amount;appData.amount;25000;30000;25000;30000;1;VALUE_CHANGED
+MINI-001;appData;;;;income;appData.income;50000;52000;50000;52000;1;VALUE_CHANGED
+MINI-001;appData;;;;employment;appData.employment;PART_TIME;FULL_TIME;PART_TIME;FULL_TIME;1;VALUE_CHANGED
+MINI-001;appData;;;;score;appData.score;600;580;600;580;1;VALUE_CHANGED
+MINI-001;appData;;;;routing;appData.routing;WEB;BRANCH;WEB;BRANCH;1;VALUE_CHANGED
+MINI-001;appData;;;;term;appData.term;6;9;6;9;1;VALUE_CHANGED
+MINI-001;appData;;;;region;appData.region;NORTH;SOUTH;NORTH;SOUTH;1;VALUE_CHANGED
+MINI-001;decisionResult;product_trials[];scoring.pd;101;model;decisionResult.product_trials[].scoring.pd.model;MODEL_V2;MODEL_V2;MODEL_V2;MODEL_V2;0;SAME
+MINI-002;decisionResult;;;;decision;decisionResult.decision;REJECT;APPROVE;REJECT;APPROVE;1;VALUE_CHANGED
+MINI-002;decisionResult;product_trials[];;202;rejectReason;decisionResult.product_trials[].rejectReason;HARDCHECK;;HARDCHECK;;1;ATTRIBUTE_LOST
+MINI-003;decisionResult;;;;decision;decisionResult.decision;APPROVE;APPROVE;APPROVE;APPROVE;0;SAME
+MINI-004;appData;;;;score;appData.score;600;620;600;620;1;VALUE_CHANGED
+MINI-004;decisionResult;;;;decision;decisionResult.decision;REJECT;REJECT;REJECT;REJECT;0;SAME
+MINI-005;decisionResult;;;;decision;decisionResult.decision;APPROVE;REJECT;APPROVE;REJECT;1;VALUE_CHANGED
+MINI-006;decisionResult;;;;decision;decisionResult.decision;APPROVE;APPROVE;APPROVE;APPROVE;0;SAME

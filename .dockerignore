@@ -7,4 +7,7 @@ backend/var
 **/.env
 **/venv
 **/.pytest_cache
-backend/tests
+backend/tests/*
+!backend/tests/fixtures
+backend/tests/fixtures/*
+!backend/tests/fixtures/run_mini
