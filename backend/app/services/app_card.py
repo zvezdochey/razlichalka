@@ -10,12 +10,26 @@ from app.services import results
 from pipeline.dataset import list_source_files
 from pipeline.procedures import DEFAULT_DIR
 from pipeline.segments import BUILTIN, read_field, segment_field_map
-from pipeline.summary import decision_change, normalize_decision
+from pipeline.summary import normalize_decision
+
+CARD_FIELDS_FILE = "card_fields.json"
 
 
 def card_fields() -> dict:
     procedures_dir = settings.PROCEDURES_DIR
     return _card_fields(procedures_dir, _procedure_stamp(DEFAULT_DIR), _procedure_stamp(procedures_dir))
+
+
+def run_card_fields(run_dir: Path) -> dict:
+    snapshot = run_dir / CARD_FIELDS_FILE
+    if snapshot.is_file():
+        return _saved_card_fields(snapshot)
+    return card_fields()  # Старые запуски были созданы без снимка карты.
+
+
+@lru_cache(maxsize=16)
+def _saved_card_fields(snapshot: Path) -> dict:
+    return json.loads(snapshot.read_text(encoding="utf-8"))
 
 
 def _procedure_stamp(folder: Path) -> tuple[int, int] | None:
@@ -201,21 +215,22 @@ def _changes(before: dict, after: dict, change: str, source: str) -> list[dict]:
 
 
 def app_card(run_dir: Path, dataset_dir: Path, app_id: str) -> dict:
-    decisions = results.app_decisions(run_dir)
-    if app_id not in decisions.index:
-        raise ApiError("not_found", "Заявка не найдена")
+    row = results.app_row(run_dir, app_id)
 
     before_path = source_index(dataset_dir, "BEFORE").get(app_id)
     after_path = source_index(dataset_dir, "AFTER").get(app_id)
     if before_path is None or after_path is None:
         raise ApiError("not_found", "Исходный ответ заявки не найден в одном из срезов")
-    fields = card_fields()
+    fields = run_card_fields(run_dir)
     before, after = read_slice(before_path, fields), read_slice(after_path, fields)
-    change = decision_change(before["decision"], after["decision"])
+    # Решения уже сохранены в витрине, в том числе для старых запусков без снимка карты.
+    before["decision"] = row["decision_before"]
+    after["decision"] = row["decision_after"]
+    change = row["decision_change"]
     return {
         "app_id": app_id,
         "decision_change": change,
         "before": before,
         "after": after,
-        "reasons": _changes(before, after, change, decisions.at[app_id, "change_source"]),
+        "reasons": _changes(before, after, change, row["change_source"]),
     }

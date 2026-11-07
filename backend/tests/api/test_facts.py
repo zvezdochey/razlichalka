@@ -72,6 +72,27 @@ def test_groups_count_rows_and_limit(client, run):
     assert limited == {**actual, "rows": actual["rows"][:1]}
 
 
+def test_json_filter_keeps_literal_separators_and_group_refs(client, run):
+    path = settings.DATA_DIR / "runs" / run / "comparison.csv"
+    rows = read_csv(path)
+    needle = "appData.key,with;separator"
+    rows.loc[0, "PATH"] = needle
+    write_csv(path, list(rows.columns), rows.to_dict("records"))
+    warmup.reset()
+    response = get_facts(client, run, dims="PATH", filter=json.dumps({"PATH": [needle]}))
+    assert len(response["rows"]) == 1
+    assert response["rows"][0]["PATH"] == needle
+    ref = response["rows"][0]["app_ids_ref"]
+    apps = client.get(f"/api/runs/{run}/facts/{ref}/apps").json()
+    assert apps["apps"] == [rows.iloc[0]["APP_ID"]]
+
+
+@pytest.mark.parametrize("raw", ['{"PATH":[]}', '{"PATH":[1]}', '{"DIFF_FLAG":["2"]}', '{"UNKNOWN":["x"]}', '{"PATH":'])
+def test_bad_json_filters(client, run, raw):
+    response = client.get(f"/api/runs/{run}/facts", params={"dims": "PATH", "filter": raw})
+    assert response.status_code == 400
+
+
 def test_group_links_apply_all_conditions_and_survive_restart(client, run):
     params = {
         "dims": "DECISION_CHANGED,DIFF_FLAG",

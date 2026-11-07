@@ -4,11 +4,23 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from threading import Lock
+from weakref import WeakValueDictionary
 
 from app.services import app_card, facts, results
 
 SOURCES = {"CUTOFF": "cutoff", "HARDCHECK": "rule"}
-_lock = Lock()
+_locks = WeakValueDictionary()
+_locks_guard = Lock()
+
+
+def _run_lock(run_dir: Path, dataset_dir: Path):
+    key = (run_dir, dataset_dir)
+    with _locks_guard:
+        lock = _locks.get(key)
+        if lock is None:
+            lock = Lock()
+            _locks[key] = lock
+        return lock
 
 
 @dataclass
@@ -42,7 +54,7 @@ def _reason_text(kind: str, name: str, thresholds: set[float]) -> str:
 
 def reasons(run_dir: Path, dataset_dir: Path) -> dict:
     # Второй запрос проверяет кэш после того, как первый закончит расчёт.
-    with _lock:
+    with _run_lock(run_dir, dataset_dir):
         return _cached_reasons(run_dir, dataset_dir)
 
 
@@ -56,7 +68,7 @@ def _cached_reasons(run_dir: Path, dataset_dir: Path) -> dict:
         return {"reasons": [], "unexplained": 0, "by_source": by_source}
 
     after_files = app_card.source_index(dataset_dir, "AFTER")
-    fields = app_card.card_fields()
+    fields = app_card.run_card_fields(run_dir)
     groups: dict[tuple[str, str], ReasonGroup] = defaultdict(ReasonGroup)
     explained = set()
     for app_id in rejected:

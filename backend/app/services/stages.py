@@ -14,12 +14,12 @@ from pipeline.dataset import list_source_files
 from pipeline.errors import BadFile
 from pipeline.mart import Mart
 from pipeline.normalize import normalize_dataset
-from pipeline.segments import build_segments
+from pipeline.segments import build_segments, segment_field_map
 from pipeline.summary import build_summary
 
-from app import settings
+from app import settings, store
 from app.errors import ApiError
-from app.services import procedures
+from app.services import app_card, procedures
 
 # Имена файлов запуска — CONTRACTS §3
 NORMALIZED = {"BEFORE": "normalized_BEFORE.csv", "AFTER": "normalized_AFTER.csv"}
@@ -87,12 +87,14 @@ def stage_aggregate(ctx) -> None:
     files = len(list_source_files(ctx.dataset_dir, "BEFORE"))
     # карта полей — только из файла процедуры builtin_segments; поля в конфигурации для неё пока нет
     # витрина нужна для CHANGE_SOURCE (логика или входные данные, E10)
-    build_segments(ctx.dataset_dir, ctx.run_dir / SEGMENTS, procedures_dir=settings.PROCEDURES_DIR,
+    fields = segment_field_map(procedures_dir=settings.PROCEDURES_DIR)
+    build_segments(ctx.dataset_dir, ctx.run_dir / SEGMENTS, field_map=fields, procedures_dir=settings.PROCEDURES_DIR,
                    comparison_csv=ctx.run_dir / COMPARISON,
                    on_progress=lambda n: ctx.progress(n, 2 * files),
                    log=ctx.log, is_cancelled=ctx.is_cancelled)
     if ctx.is_cancelled():
         return
+    store.write_json(ctx.run_dir / app_card.CARD_FIELDS_FILE, fields)
     ctx.log("info", "Считаю итоги (summary.json, apps.csv)")
     build_summary(ctx.run_dir / COMPARISON, ctx.run_dir / SEGMENTS,
                   ctx.run_dir / SUMMARY, ctx.run_dir / APPS, log=ctx.log,

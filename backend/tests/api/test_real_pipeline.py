@@ -65,6 +65,23 @@ def test_mini_run_to_ready(tmp_path, monkeypatch):
     assert any("Проверки не подключены" in e["message"] for e in stages[3]["log"])
 
 
+def test_partial_custom_field_map_is_snapshotted_without_default_paths(tmp_path, monkeypatch):
+    procedures = tmp_path / "procedures"
+    shutil.copytree(settings.PROCEDURES_DIR, procedures)
+    fields = {
+        "DECISION": "decisionResult.decision", "PRODUCTS": "custom[].id",
+        "TOP_OFFER": "offers[].id", "OFFER_RANK": "offers[].rank",
+    }
+    (procedures / "builtin_segments.py").write_text(f"FIELD_MAP = {fields!r}\nINPUT_PREFIXES = []\n", encoding="utf-8")
+    monkeypatch.setattr(settings, "PROCEDURES_DIR", procedures)
+    client = make_client(tmp_path, monkeypatch, MINI)
+    rid = start(client)
+    state = wait(client, rid, {"ready", "error"}, timeout=30)
+    assert state["status"] == "ready", state["error"]
+    saved = settings.DATA_DIR / "runs" / rid / "card_fields.json"
+    assert json.loads(saved.read_text(encoding="utf-8")) == fields
+
+
 def test_ready_run_is_warm(tmp_path, monkeypatch):
     """E11: к статусу ready витрина уже в кэше — первый вызов сводной не читает CSV с диска."""
     from app.services import facts, results, warmup

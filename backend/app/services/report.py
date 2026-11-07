@@ -21,7 +21,7 @@ def render(run: dict, run_dir: Path, app_url: str) -> str:
     )["apps"]
     # FAIL выше PASS; запуски без этапа checks (старые) — просто без таблицы
     try:
-        table = results.checks(run_dir, result="", page=1, size=500)
+        table = results.checks(run_dir, result="", page=1, size=None, include_refs=False)
         checks = sorted(table["rows"], key=lambda r: r["result"] != "FAIL")
         checks_total = table["total"]
     except ApiError:
