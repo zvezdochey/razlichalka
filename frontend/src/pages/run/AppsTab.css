@@ -47,3 +47,5 @@
 .apps-pagination { font-size: var(--fs-table); font-variant-numeric: tabular-nums; }
 .apps-skeleton div { height: 20px; background: var(--surface-sunken); border-bottom: 1px solid var(--border); margin: var(--s-3) 0; }
 @media (max-width: 960px) { .apps-search { max-width: none; } }
+
+.apps-hint { margin: 0; font-size: 0.875rem; }

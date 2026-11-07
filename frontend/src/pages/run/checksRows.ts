@@ -85,9 +85,9 @@ export function isShareMetric(row: CheckRow): boolean {
   return row.metric >= 0 && row.metric <= 1 && Math.abs(row.metric - cnt / total) < 0.0005
 }
 
-const PERCENT = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 })
+const PERCENT = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 })
 
-/** Доля 0,2508 → «25,08 %». */
+/** Доля 0,2508 → «25,1 %». */
 export function formatShare(value: number): string {
   return `${PERCENT.format(value * 100)} %`
 }
@@ -106,10 +106,70 @@ export function plural(n: number, forms: [string, string, string]): string {
   return forms[2]
 }
 
-const EXAMPLES: [string, string, string] = ['пример', 'примера', 'примеров']
+const APPS: [string, string, string] = ['заявку', 'заявки', 'заявок']
 
-/** «20 примеров из 273» — когда проверка сохранила не все заявки, иначе просто число. */
+/** «20 из 130» — когда проверка сохранила не все заявки, иначе просто число. */
 export function examplesLabel(shown: number, count: number | null): string {
   if (count === null || shown >= count) return formatNumber(shown)
-  return `${formatNumber(shown)} ${plural(shown, EXAMPLES)} из ${formatNumber(count)}`
+  return `${formatNumber(shown)} из ${formatNumber(count)}`
+}
+
+/** Текст ссылки в колонке «Заявки»: «Показать 130 заявок» или «Показать 20 из 130 заявок». */
+export function appsLinkLabel(shown: number | undefined, count: number | null): string {
+  if (shown === undefined) return count === null ? 'Показать заявки' : `Показать ${formatNumber(count)} ${plural(count, APPS)}`
+  if (count === null || shown >= count) return `Показать ${formatNumber(shown)} ${plural(shown, APPS)}`
+  return `Показать ${formatNumber(shown)} из ${formatNumber(count)} заявок`
+}
+
+/** Версия данных простыми словами: AFTER → «после (новая)». Незнакомое значение оставляем как есть. */
+export function sourceLabel(source: string | null): string | null {
+  if (source === null) return null
+  const key = source.toUpperCase()
+  if (key === 'AFTER') return 'после (новая)'
+  if (key === 'BEFORE') return 'до (старая)'
+  return source
+}
+
+/** Длинный путь вида a.b.c.d показываем хвостом «…c.d»; полный путь уходит в подсказку. */
+export function shortPath(text: string): string {
+  if (/\s/.test(text)) return text
+  const parts = text.split(/[./]/).filter(Boolean)
+  if (parts.length <= 2) return text
+  return `…${text.slice(text.length - (parts[parts.length - 2].length + parts[parts.length - 1].length + 1))}`
+}
+
+/** Порог, с которого строки одной проверки сворачиваем в группу. */
+export const GROUP_MIN_ROWS = 6
+
+/** Либо одна строка, либо группа строк одной проверки. */
+export type TableItem =
+  | { kind: 'row'; row: CheckRow }
+  | { kind: 'group'; key: string; title: string; rows: CheckRow[]; fails: number }
+
+/** Группируем по проверке; группа встаёт на место своей первой строки. Мелкие проверки остаются строками. */
+export function groupRows(rows: CheckRow[]): TableItem[] {
+  const byKey = new Map<string, CheckRow[]>()
+  for (const row of rows) {
+    const key = row.check_id ?? row.check_name
+    byKey.set(key, [...(byKey.get(key) ?? []), row])
+  }
+  const items: TableItem[] = []
+  const done = new Set<string>()
+  for (const row of rows) {
+    const key = row.check_id ?? row.check_name
+    const group = byKey.get(key) ?? []
+    if (group.length < GROUP_MIN_ROWS) {
+      items.push({ kind: 'row', row })
+    } else if (!done.has(key)) {
+      done.add(key)
+      items.push({
+        kind: 'group',
+        key,
+        title: row.check_name,
+        rows: group,
+        fails: group.filter((r) => r.result === 'FAIL').length,
+      })
+    }
+  }
+  return items
 }

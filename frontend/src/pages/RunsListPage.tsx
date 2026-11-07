@@ -1,16 +1,77 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import type { RunListItem } from '../api'
-import { isAbortError, listRuns } from '../api'
+import { getRun, getSummary, isAbortError, listRuns } from '../api'
 import { EmptyState, ErrorBox, Spinner, StatusBadge } from '../components'
 import { formatDateTime } from '../lib/format'
 import './RunsListPage.css'
+
+/** Сколько запросов за итогами строк летит одновременно. */
+const MAX_PARALLEL = 3
+/** Сколько строк показываем: итоги грузим только для них. */
+const PAGE_SIZE = 20
+
+/** Что показываем в колонках «Сменили решение» и «FAIL»; `null` — ещё грузится, `'error'` — не вышло. */
+type RowInfo = { changed: number; fail: number | null } | { reason: string } | 'error'
+
+const INTERRUPTED_TEXT = 'Прерван перезапуском сервера — запустите повторно'
+
+/** Грузит итоги для строк: ready — из summary, error — причину из статуса. Не больше MAX_PARALLEL запросов сразу. */
+function useRowInfo(runs: RunListItem[] | null): Record<string, RowInfo> {
+  const [info, setInfo] = useState<Record<string, RowInfo>>({})
+  const started = useRef(new Set<string>())
+
+  useEffect(() => {
+    if (runs === null) return
+    const controller = new AbortController()
+    const queue = runs
+      .slice(0, PAGE_SIZE)
+      .filter((run) => (run.status === 'ready' || run.status === 'error') && !started.current.has(run.id))
+    queue.forEach((run) => started.current.add(run.id))
+
+    async function load(run: RunListItem) {
+      try {
+        if (run.status === 'ready') {
+          const summary = await getSummary(run.id, { signal: controller.signal })
+          setInfo((prev) => ({
+            ...prev,
+            [run.id]: { changed: summary.decision_changed, fail: summary.checks_fail ?? null },
+          }))
+        } else {
+          const status = await getRun(run.id, { signal: controller.signal })
+          if (status.error?.code === 'interrupted') {
+            setInfo((prev) => ({ ...prev, [run.id]: { reason: INTERRUPTED_TEXT } }))
+          } else {
+            setInfo((prev) => ({ ...prev, [run.id]: 'error' }))
+          }
+        }
+      } catch (e) {
+        if (isAbortError(e)) {
+          started.current.delete(run.id)
+          return
+        }
+        setInfo((prev) => ({ ...prev, [run.id]: 'error' }))
+      }
+    }
+
+    // Простая очередь: MAX_PARALLEL «рабочих» берут строки по одной.
+    async function worker() {
+      for (let run = queue.shift(); run !== undefined; run = queue.shift()) await load(run)
+    }
+    for (let i = 0; i < MAX_PARALLEL; i++) void worker()
+
+    return () => controller.abort()
+  }, [runs])
+
+  return info
+}
 
 /** Список прогонов: первый экран приложения. Свежие сверху. */
 export function RunsListPage() {
   const [runs, setRuns] = useState<RunListItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
+  const info = useRowInfo(runs)
 
   const load = useCallback(async () => {
     try {
@@ -68,13 +129,22 @@ export function RunsListPage() {
                 <th scope="col">Конфигурация</th>
                 <th scope="col">Датасет</th>
                 <th scope="col">Создан</th>
+                <th scope="col">Сменили решение</th>
+                <th scope="col">FAIL</th>
               </tr>
             </thead>
             <tbody>
-              {runs.map((run) => (
+              {runs.map((run, index) => {
+                const row = info[run.id]
+                const interrupted = typeof row === 'object' && 'reason' in row
+                const loaded = typeof row === 'object' && 'changed' in row
+                // Для ready ждём ответ — «…», при ошибке — «—». Для остальных статусов итогов нет.
+                const placeholder = run.status === 'ready' && row === undefined ? '…' : '—'
+                return (
                 <tr
                   key={run.id}
-                  className="runs-table__row"
+                  className={index === 0 ? 'runs-table__row runs-table__row--latest' : 'runs-table__row'}
+                  title={interrupted ? row.reason : undefined}
                   onClick={() => navigate(`/runs/${encodeURIComponent(run.id)}`)}
                 >
                   <td>
@@ -90,12 +160,16 @@ export function RunsListPage() {
                   <td>
                     {/* В списке поля `error` нет, поэтому отмену от падения не отличить. */}
                     <StatusBadge status={run.status} errorKnown={false} />
+                    {interrupted && <div className="muted runs-table__reason">{row.reason}</div>}
                   </td>
                   <td>{run.name}</td>
                   <td className="mono">{run.dataset}</td>
                   <td>{formatDateTime(run.created_at)}</td>
+                  <td className="num">{loaded ? row.changed.toLocaleString('ru-RU') : placeholder}</td>
+                  <td className="num">{loaded ? row.fail === null ? '—' : row.fail.toLocaleString('ru-RU') : placeholder}</td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

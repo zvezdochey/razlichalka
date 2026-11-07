@@ -290,6 +290,11 @@ export function ProceduresPage() {
         </button>
       </div>
 
+      <p className="muted">
+        Процедура — это кусок логики: шаг обработки или проверка. Для обычной работы менять их не
+        нужно: можно прочитать встроенные или написать свою проверку.
+      </p>
+
       <div className="procs__layout">
         <nav className="procs__list panel" aria-label="Процедуры">
           {listError !== null && <ErrorBox message={listError} onRetry={() => setListKey((k) => k + 1)} />}

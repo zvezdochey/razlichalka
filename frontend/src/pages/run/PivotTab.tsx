@@ -1,8 +1,10 @@
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { getFacts } from '../../api'
+import { getFacts, getSummary } from '../../api'
+import type { Summary } from '../../api'
 import { EmptyState, ErrorBox, Spinner } from '../../components'
+import { formatNumber } from '../../lib/format'
 import { NotReadyNotice } from './NotReadyNotice'
 import { PivotFilters } from './PivotFilters'
 import { PivotGroupPanel } from './PivotGroupPanel'
@@ -94,10 +96,18 @@ export function PivotTab() {
 function ReadyPivot({ runId }: { runId: string }) {
   const [params, setParams] = useSearchParams()
   const layout = useMemo(() => readPivotLayout(params), [params])
-  const [filterField, setFilterField] = useState<PivotField>('DIFF_FLAG')
+  const [filterField, setFilterField] = useState<PivotField>('DECISION_CHANGED')
   const [filterReset, setFilterReset] = useState(0)
   const { group, page, setGroup, setPage } = useFactGroup()
   const trigger = useRef<HTMLButtonElement>(null)
+
+  // Итог прогона для строки над таблицей; не загрузился — строку просто не показываем.
+  const [summary, setSummary] = useState<Summary | null>(null)
+  useEffect(() => {
+    const controller = new AbortController()
+    getSummary(runId, { signal: controller.signal }).then(setSummary, () => setSummary(null))
+    return () => controller.abort()
+  }, [runId])
 
   const load = useCallback((signal: AbortSignal) => getFacts(runId, {
     dims: layout.column === null ? layout.rows : [...layout.rows, layout.column],
@@ -150,15 +160,15 @@ function ReadyPivot({ runId }: { runId: string }) {
         <div className="pivot-editor-head">
           <h2 id="pivot-title">Сводная</h2>
           <div className="pivot-presets" role="group" aria-label="Готовые представления">
-            {PIVOT_PRESETS.map(({ label, axes }) => {
-              const selected = axes.rows.join(',') === layout.rows.join(',') && axes.column === layout.column && axes.measure === layout.measure
+            {PIVOT_PRESETS.map(({ label, axes, filters }) => {
+              const selected = axes.rows.join(',') === layout.rows.join(',') && axes.column === layout.column && axes.measure === layout.measure && JSON.stringify(filters) === JSON.stringify(layout.filters)
               return (
                 <button
                   key={label}
                   type="button"
                   className="btn"
                   aria-pressed={selected}
-                  onClick={() => update({ ...layout, ...axes })}
+                  onClick={() => update({ ...layout, ...axes, filters })}
                 >
                   {label}
                 </button>
@@ -166,7 +176,7 @@ function ReadyPivot({ runId }: { runId: string }) {
             })}
           </div>
           <button type="button" className="btn" onClick={() => {
-            setFilterField('DIFF_FLAG')
+            setFilterField('DECISION_CHANGED')
             setFilterReset((value) => value + 1)
             update(readPivotLayout(new URLSearchParams()), true)
           }}>Сбросить раскладку</button>
@@ -187,7 +197,7 @@ function ReadyPivot({ runId }: { runId: string }) {
             <legend>Колонки</legend>
             <Axis label="Поле колонок" slot="column" value={layout.column} unavailable={layout.rows} allowEmpty onDropField={dropOnAxis} onChange={(column) => update({ ...layout, column })} />
             <button type="button" className="btn pivot-swap" disabled={layout.column === null} title="Меняет первое поле строк и поле колонок" onClick={swapAxes}>
-              Поменять строки и колонки местами
+              Поменять местами (⇄)
             </button>
           </fieldset>
           <fieldset className="pivot-measure">
@@ -218,6 +228,11 @@ function ReadyPivot({ runId }: { runId: string }) {
 
       <div className={group ? 'pivot-results pivot-results--with-group' : 'pivot-results'}>
         <section className="panel pivot-data" aria-label="Результаты сводной" aria-busy={result.status === 'loading'}>
+          {summary && (
+            <p className="pivot-summary">
+              Заявок с различиями: <strong>{formatNumber(summary.applications_changed)}</strong>, из них сменили решение: <strong>{formatNumber(summary.decision_changed)}</strong>.
+            </p>
+          )}
           {result.status === 'loading' && <Spinner label="Загружаем сводную" />}
           {result.status === 'error' && <ErrorBox message={result.message} onRetry={retry} />}
           {result.status === 'ready' && (

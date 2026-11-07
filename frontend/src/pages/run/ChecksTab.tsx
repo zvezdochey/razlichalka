@@ -9,14 +9,17 @@ import './ChecksTab.css'
 import {
   checksCount,
   countOf,
-  examplesLabel,
+  appsLinkLabel,
   failedChecks,
+  groupRows,
   formatMetric,
   formatShare,
   isErrorRow,
   isShareMetric,
   plural,
+  shortPath,
   sortByVerdict,
+  sourceLabel,
   verdictOf,
 } from './checksRows'
 import { NotReadyNotice } from './NotReadyNotice'
@@ -62,6 +65,15 @@ export function ChecksTab() {
   const onlyFail = params.get('result') === 'FAIL'
 
   // Открытая строка: её список заявок справа. Кнопку запоминаем, чтобы вернуть на неё фокус.
+  // Развёрнутые группы строк (по умолчанию все свёрнуты).
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const toggleGroup = (key: string) =>
+    setExpandedGroups((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(key)) next.add(key)
+      return next
+    })
+
   const [opened, setOpened] = useState<CheckRow | null>(null)
   const opener = useRef<HTMLButtonElement | null>(null)
 
@@ -201,10 +213,12 @@ export function ChecksTab() {
       )}
 
       <p className="checks-summary">
-        <b className="num">{formatNumber(fails)} FAIL</b> — это строки результатов{' '}
-        {formatNumber(checksCount(rows))} {plural(checksCount(rows), ['проверки', 'проверок', 'проверок'])}, а не
-        заявки. Одна проверка может дать несколько строк — по срезу и аргументу.
-        {rows.some(isShareMetric) && ' Метрика в процентах — доля «кол-во / база».'}
+        <b className="num">
+          {formatNumber(fails)} из {formatNumber(rows.length)}
+        </b>{' '}
+        строк результатов не пройдены
+        (проверок: {formatNumber(checksCount(rows))}). Это строки результатов, а не заявки: одна проверка
+        может дать несколько строк — по версии и по тому, что проверяли.
       </p>
 
       <div className="checks-bar">
@@ -251,9 +265,9 @@ export function ChecksTab() {
               <thead>
                 <tr>
                   <th scope="col">Проверка</th>
-                  <th scope="col">Срез</th>
-                  <th scope="col">Аргумент</th>
-                  <th scope="col" className="num">Кол-во / база</th>
+                  <th scope="col">Версия</th>
+                  <th scope="col">Что проверяли</th>
+                  <th scope="col" className="num">Затронуто / из</th>
                   <th scope="col" className="num">Метрика</th>
                   <th scope="col">Результат</th>
                   <th scope="col">Уверенность</th>
@@ -261,19 +275,49 @@ export function ChecksTab() {
                 </tr>
               </thead>
               <tbody>
-                {shown.map((row, index) => (
-                  <CheckTableRow
-                    key={`${row.check_name}-${row.argument ?? ''}-${row.source ?? ''}-${index}`}
-                    row={row}
-                    isError={isErrorRow(row, failed)}
-                    isOpened={opened === row}
-                    samples={row.apps_ref === null ? undefined : samples[row.apps_ref]}
-                    onOpen={(button) => {
-                      opener.current = button
-                      setOpened(row)
-                    }}
-                  />
-                ))}
+                {groupRows(shown).map((item) => {
+                  const rowsToShow =
+                    item.kind === 'row'
+                      ? [item.row]
+                      : expandedGroups.has(item.key)
+                        ? item.rows
+                        : []
+                  return (
+                    <Fragment key={item.kind === 'row' ? `row-${item.row.check_name}-${item.row.argument ?? ''}-${item.row.source ?? ''}` : `group-${item.key}`}>
+                      {item.kind === 'group' && (
+                        <tr className="checks-group">
+                          <td colSpan={8}>
+                            <button
+                              type="button"
+                              className="checks-group__toggle"
+                              aria-expanded={expandedGroups.has(item.key)}
+                              onClick={() => toggleGroup(item.key)}
+                            >
+                              <span aria-hidden="true">{expandedGroups.has(item.key) ? '▾' : '▸'}</span>{' '}
+                              <b>{item.title}</b> — {formatNumber(item.rows.length)}{' '}
+                              {plural(item.rows.length, ['строка', 'строки', 'строк'])}
+                              {item.fails > 0 && `, не пройдено (FAIL): ${formatNumber(item.fails)}`}
+                              {expandedGroups.has(item.key) ? ', свернуть' : ', развернуть'}
+                            </button>
+                          </td>
+                        </tr>
+                      )}
+                      {rowsToShow.map((row, index) => (
+                        <CheckTableRow
+                          key={`${row.check_name}-${row.argument ?? ''}-${row.source ?? ''}-${index}`}
+                          row={row}
+                          isError={isErrorRow(row, failed)}
+                          isOpened={opened === row}
+                          samples={row.apps_ref === null ? undefined : samples[row.apps_ref]}
+                          onOpen={(button) => {
+                            opener.current = button
+                            setOpened(row)
+                          }}
+                        />
+                      ))}
+                    </Fragment>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -311,20 +355,25 @@ function CheckTableRow({ row, samples, isError, isOpened, onOpen }: CheckTableRo
   return (
     <tr className={`checks-row checks-row--${verdict}${isOpened ? ' checks-row--opened' : ''}`}>
       <td>
-        <div className="checks-name">{row.check_name}</div>
-        {row.check_id !== null && <div className="checks-id mono">{row.check_id}</div>}
+        {/* Внутренний id — только в подсказке */}
+        <div className="checks-name" title={row.check_id !== null ? `Код проверки: ${row.check_id}` : undefined}>
+          {row.check_name}
+        </div>
       </td>
-      <td>{row.source ?? DASH}</td>
-      <td className={isError ? 'checks-arg checks-arg--error mono' : 'checks-arg'}>
-        {row.argument === null ? DASH : isError ? row.argument : <BreakableAt text={row.argument} />}
+      <td>{sourceLabel(row.source) ?? DASH}</td>
+      <td
+        className={isError ? 'checks-arg checks-arg--error mono' : 'checks-arg'}
+        title={row.argument ?? undefined}
+      >
+        {row.argument === null ? DASH : isError ? row.argument : <BreakableAt text={shortPath(row.argument)} />}
       </td>
       <td className="num">{isError || row.numbers === null ? DASH : row.numbers}</td>
       <td className="num">
         {isError || row.metric === null ? (
           DASH
         ) : isShareMetric(row) ? (
-          // Доля CNT / TOTAL — показываем процентом, исходное число по наведению.
-          <span title={`Доля ${formatMetric(row.metric)} = ${row.numbers ?? ''}`}>
+          // Доля 0..1 — показываем процентом, исходное число по наведению.
+          <span title={`Исходное значение: ${formatMetric(row.metric)}`}>
             {formatShare(row.metric)}
           </span>
         ) : (
@@ -353,12 +402,8 @@ function CheckTableRow({ row, samples, isError, isOpened, onOpen }: CheckTableRo
             aria-expanded={isOpened}
             onClick={(event) => onOpen(event.currentTarget)}
           >
-            {samples !== undefined
-              ? examplesLabel(samples, count)
-              : count === null
-                ? 'Открыть'
-                : formatNumber(count)}
-            <span className="visually-hidden"> — заявки проверки «{row.check_name}»</span>
+            {appsLinkLabel(samples, count)}
+            <span className="visually-hidden"> — проверка «{row.check_name}»</span>
           </button>
         )}
       </td>

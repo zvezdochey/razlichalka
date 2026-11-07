@@ -28,7 +28,7 @@ const FIELDS: { label: string; read: (product: AppProduct) => string | null }[] 
   { label: 'Решение', read: (product) => DECISION[product.decision] },
   { label: 'Причина отказа', read: (product) => formatParts(product.reject_reason, product.reject_reason_code) },
   { label: 'Модель', read: (product) => product.pd_model },
-  { label: 'PD', read: (product) => formatParts(product.pd) },
+  { label: 'Вероятность дефолта (PD)', read: (product) => formatParts(product.pd) },
   { label: 'Порог', read: (product) => formatParts(product.cutoff.name, product.cutoff.value) },
   {
     label: 'Сработавшие стоп-факторы',
@@ -47,7 +47,7 @@ function Products({ before, after }: { before: AppProduct[]; after: AppProduct[]
     <table className="table app-why-table">
       <caption className="visually-hidden">Детали продуктов до и после</caption>
       <thead>
-        <tr><th scope="col">Параметр</th><th scope="col">BEFORE</th><th scope="col" className="app-why-after">AFTER</th></tr>
+        <tr><th scope="col">Параметр</th><th scope="col">До</th><th scope="col" className="app-why-after">После</th></tr>
       </thead>
       {Array.from(ids, (id) => {
         const beforeProduct = left.get(id)
@@ -63,7 +63,7 @@ function Products({ before, after }: { before: AppProduct[]; after: AppProduct[]
               const oldValue = beforeProduct ? read(beforeProduct) : null
               const newValue = afterProduct ? read(afterProduct) : null
               const changed = oldValue !== newValue
-              const valueClass = [label === 'PD' && 'num', changed && 'app-why-changed'].filter(Boolean).join(' ')
+              const valueClass = [label === 'Вероятность дефолта (PD)' && 'num', changed && 'app-why-changed'].filter(Boolean).join(' ')
               return (
                 <tr key={label}>
                   <th scope="row">{label}</th>
@@ -111,13 +111,13 @@ export function AppWhy({ runId, appId }: { runId: string; appId: string }) {
         <span className="axis"><span aria-hidden="true">→ </span><span className="visually-hidden">после </span>{DECISION[after.decision]}</span>
       </p>
       <section aria-label="Объяснения решения">
-        <h3>Причины и связанные изменения</h3>
+        <h3>Почему изменилось решение</h3>
         {reasons.length === 0 ? <p className="muted">Объяснения для заявки отсутствуют.</p> : (
           <ul className="app-why-reasons">
             {reasons.map(({ text, source, confidence }) => (
               <li key={`${source}:${text}`} className={confidence === 'low' ? 'muted' : undefined}>
                 <p>{text}</p>
-                <small className="muted">{SOURCE[source]}{confidence === 'low' && ' · низкая уверенность'}</small>
+                <small className="muted">{SOURCE[source]}{confidence === 'low' && ' · предположение'}</small>
               </li>
             ))}
           </ul>

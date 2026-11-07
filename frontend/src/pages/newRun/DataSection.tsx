@@ -2,6 +2,16 @@ import type { Dataset, UploadResponse } from '../../api'
 import { IgnorePathsField } from './IgnorePathsField'
 import { UploadDataset } from './UploadDataset'
 
+/** «1 заявка», «2 заявки», «5 заявок» — склонение по последним цифрам числа. */
+function applicationsWord(count: number): string {
+  const lastTwo = count % 100
+  const last = count % 10
+  if (lastTwo >= 11 && lastTwo <= 14) return 'заявок'
+  if (last === 1) return 'заявка'
+  if (last >= 2 && last <= 4) return 'заявки'
+  return 'заявок'
+}
+
 type DataSectionProps = {
   name: string
   onNameChange: (name: string) => void
@@ -58,7 +68,7 @@ export function DataSection({
           <option value="">Выберите датасет</option>
           {datasets.map((dataset) => (
             <option key={dataset.id} value={dataset.id}>
-              {dataset.id}
+              {dataset.id} — {dataset.applications.toLocaleString('ru-RU')} {applicationsWord(dataset.applications)},{dataset.sources.BEFORE} → {dataset.sources.AFTER}
             </option>
           ))}
         </select>

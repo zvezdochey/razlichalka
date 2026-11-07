@@ -11,7 +11,7 @@ export const STAGE_ORDER: readonly StageName[] = ['normalize', 'compare', 'aggre
 export const STAGE_TITLES: Record<StageName, string> = {
   normalize: 'Приведение ответов',
   compare: 'Сравнение срезов',
-  aggregate: 'Факты counts',
+  aggregate: 'Факты (подсчёты)',
   checks: 'Проверки',
 }
 
@@ -19,6 +19,6 @@ export const STAGE_TITLES: Record<StageName, string> = {
 export const STAGE_ACTIVE_TEXT: Record<StageName, string> = {
   normalize: 'Нормализуем ответы обоих срезов…',
   compare: 'Сравниваем срезы между собой…',
-  aggregate: 'Собираем факты counts…',
+  aggregate: 'Считаем факты (подсчёты)…',
   checks: 'Выполняем проверки…',
 }

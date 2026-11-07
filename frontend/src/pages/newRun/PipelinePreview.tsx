@@ -26,10 +26,9 @@ const SOURCE_LABEL = { inline: 'Рабочая область', file: 'Файл 
 function ProcedureChips({ procedure }: { procedure: Procedure }) {
   return (
     <>
-      <span className={procedure.builtin ? 'chip' : 'chip chip--info'}>
-        {procedure.builtin ? 'встроенная' : 'своя'}
-      </span>
-      <span className="chip">{SOURCE_LABEL[procedure.source]}</span>
+      {/* Источник кода («Файл .py», «встроенная») скрыт из текста, остался в подсказке. */}
+      {!procedure.builtin && <span className="chip chip--info">своя</span>}
+      <span className="visually-hidden">{SOURCE_LABEL[procedure.source]}</span>
     </>
   )
 }
@@ -120,10 +119,11 @@ export function PipelinePreview({ procedures, error, onReload, value, onChange }
   return (
     <>
       <section className="panel section" aria-labelledby="section-pipeline">
-        <h2 id="section-pipeline">Обработка</h2>
+        <h2 id="section-pipeline">Как считаем (можно не менять)</h2>
         <p className="section__note muted">
-          Процедура этапа — встроенная или своя. Свою можно написать в рабочей области или
-          подключить файлом <code>.py</code> на странице <Link to="/procedures">«Процедуры»</Link>.
+          Приведение ответов — разбирает ответ СПР на отдельные атрибуты; Сравнение — сопоставляет
+          до и после; Факты (подсчёты) — считает итоги для Обзора и Сводной. Свою процедуру можно
+          написать на странице <Link to="/procedures">«Процедуры»</Link>.
         </p>
 
         <ul className="steps">
@@ -146,7 +146,7 @@ export function PipelinePreview({ procedures, error, onReload, value, onChange }
           </li>
           <StepSelect
             kind="aggregate"
-            title="Факты"
+            title="Факты (подсчёты)"
             description="Считает агрегаты для обзора и сводной."
             procedures={procedures}
             selected={value.aggregate}

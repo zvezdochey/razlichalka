@@ -74,9 +74,6 @@ function OverviewBody({ runId }: { runId: string }) {
         <DecisionTransitions summary={summary} />
         <AttributeBars summary={summary} />
       </div>
-      <p className="overview__unit-note muted">
-        Топ причин считается по строкам продуктов, не по заявкам.
-      </p>
       <ReasonsBlock key={`reasons-${runId}`} runId={runId} />
       <AiReviewBlock key={`ai-${runId}`} runId={runId} />
     </div>
@@ -121,11 +118,13 @@ type Extras = {
   sources: ReasonsResponse['by_source'] | null
   /** Сколько разных проверок реально выполнено в прогоне (уникальные `check_id`). `null` — не получили. */
   checksCount: number | null
+  /** Сколько из них хотя бы с одним FAIL. */
+  checksFailed: number | null
 }
 
 /** Источник смен берём из ручки причин, число проверок — из фактических результатов прогона (не из текущей конфигурации: её могли изменить после запуска). Ошибка не ломает обзор: просто прочерк. */
 function useExtras(runId: string): Extras {
-  const [extras, setExtras] = useState<Extras>({ sources: null, checksCount: null })
+  const [extras, setExtras] = useState<Extras>({ sources: null, checksCount: null, checksFailed: null })
 
   useEffect(() => {
     const controller = new AbortController()
@@ -142,6 +141,10 @@ function useExtras(runId: string): Extras {
           // Если строки не уместились на одной странице, точно не посчитать — лучше без числа, чем с заниженным.
           checks.status === 'fulfilled' && checks.value.total <= checks.value.rows.length
             ? new Set(checks.value.rows.map((row) => row.check_id ?? row.check_name)).size
+            : null,
+        checksFailed:
+          checks.status === 'fulfilled' && checks.value.total <= checks.value.rows.length
+            ? new Set(checks.value.rows.filter((row) => row.result === 'FAIL').map((row) => row.check_id ?? row.check_name)).size
             : null,
       })
     }
@@ -251,8 +254,8 @@ function Verdict({ runId, summary }: { runId: string; summary: Summary }) {
         {showSources && extras.sources && (
           <StripItem label="Источник смены решения" hint="заявки со сменой решения">
             <span className="num">
-              логика {formatNumber(extras.sources.logic)} · данные {formatNumber(extras.sources.data)}
-              {extras.sources.both > 0 && <> · оба {formatNumber(extras.sources.both)}</>}
+              из-за логики {formatNumber(extras.sources.logic)} · из-за входных данных {formatNumber(extras.sources.data)}
+              {extras.sources.both > 0 && <> (вместе {formatNumber(extras.sources.logic + extras.sources.data + extras.sources.both)})</>}
             </span>
           </StripItem>
         )}
@@ -264,15 +267,13 @@ function Verdict({ runId, summary }: { runId: string; summary: Summary }) {
           </StripItem>
         ) : (
           <StripItem
-            label="Проверки с FAIL"
-            hint={
-              extras.checksCount === null
-                ? 'строки результатов проверок'
-                : `строки результатов ${formatNumber(extras.checksCount)} ${plural(extras.checksCount, 'проверка', 'проверки', 'проверок')}`
-            }
+            label="Проверки не пройдены"
+            hint={`${formatNumber(summary.checks_fail)} ${plural(summary.checks_fail, 'строка', 'строки', 'строк')} результатов`}
           >
             <Link className="strip__link num" to={{ pathname: '../checks', search: '?result=FAIL' }}>
-              {formatNumber(summary.checks_fail)}
+              {extras.checksCount === null || extras.checksFailed === null
+                ? formatNumber(summary.checks_fail)
+                : `${formatNumber(extras.checksFailed)} из ${formatNumber(extras.checksCount)}`}
             </Link>
           </StripItem>
         )}
@@ -341,6 +342,8 @@ function DecisionTransitions({ summary }: { summary: Summary }) {
         <tbody>
           {TRANSITIONS.map(({ key, before, after }) => {
             const value = decision_changes[key]
+            // Нулевую строку «любое → другое решение» не показываем.
+            if (key === 'decision_other' && value === 0) return null
             return (
               <tr key={key}>
                 <th scope="row">
@@ -352,13 +355,15 @@ function DecisionTransitions({ summary }: { summary: Summary }) {
                     >
                       <span>{before}</span>
                       <span className="visually-hidden"> сменилось на </span>
-                      <span className="axis">{after}</span>
+                      <span aria-hidden="true">→</span>
+                      <span>{after}</span>
                     </Link>
                   ) : (
                     <span className="transitions__pair muted">
                       <span>{before}</span>
                       <span className="visually-hidden"> сменилось на </span>
-                      <span className="axis">{after}</span>
+                      <span aria-hidden="true">→</span>
+                      <span>{after}</span>
                     </span>
                   )}
                 </th>
@@ -429,7 +434,9 @@ function AttributeBars({ summary }: { summary: Summary }) {
           return (
             <li className="attrs__row" key={key}>
               <span className="attrs__title">{title}</span>
-              <span className="attrs__value num">{formatNumber(value)}</span>
+              <span className="attrs__value num">
+                {formatNumber(value)} <span className="muted">{plural(value, 'строка', 'строки', 'строк')} атрибутов</span>
+              </span>
               <span className="attrs__track">
                 <span
                   className={`attrs__bar attrs__bar--${shape}`}
@@ -442,7 +449,7 @@ function AttributeBars({ summary }: { summary: Summary }) {
       </ul>
 
       <p className="attrs__note muted">
-        Строки атрибутов, не уникальные заявки: одна заявка входит во многие строки.
+        Считаем строки атрибутов, а не заявки: одна заявка входит во многие строки.
       </p>
     </section>
   )

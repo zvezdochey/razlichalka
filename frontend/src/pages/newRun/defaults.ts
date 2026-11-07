@@ -20,9 +20,11 @@ export const DEFAULT_ARRAY_MODES: Record<string, ArrayMode> = {
 /** Границы бакетов в MVP не настраиваем: отправляем пусто, бэк берёт свои. */
 export const DEFAULT_BUCKETS: Record<string, number[]> = {}
 
-/** Название по умолчанию — «Прогон на 07.11». */
+/** Название по умолчанию — «Прогон 07.11 10:06»: дата и время создания. */
 export function defaultConfigName(now: Date = new Date()): string {
   const day = String(now.getDate()).padStart(2, '0')
   const month = String(now.getMonth() + 1).padStart(2, '0')
-  return `Прогон на ${day}.${month}`
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  return `Прогон ${day}.${month} ${hours}:${minutes}`
 }

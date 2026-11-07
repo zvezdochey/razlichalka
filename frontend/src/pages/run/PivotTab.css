@@ -280,3 +280,20 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Строка-итог над таблицей */
+.pivot-summary {
+  margin: 0 0 var(--s-2);
+  font-size: var(--fs-table);
+}
+
+/* Пустая ячейка: группы нет, значит заявок 0 */
+.pivot-zero {
+  color: var(--text-muted, #8a8f98);
+}
+
+/* Длинные пути не рвём посреди слова */
+.pivot-table tbody th.mono {
+  overflow-wrap: break-word;
+  word-break: normal;
+}

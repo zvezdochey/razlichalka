@@ -133,7 +133,7 @@
    поэтому граница над строкой заметнее обычной (но без цвета-оценки). */
 .transitions__quiet th,
 .transitions__quiet td {
-  border-top: 1px solid var(--border-strong);
+  border-top: 2px solid var(--border-strong);
 }
 
 .transitions__quiet th[scope='row'] a {

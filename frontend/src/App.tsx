@@ -31,6 +31,7 @@ export function App() {
           <Route path="checks" element={<ChecksTab />} />
           <Route path="log" element={<LogTab />} />
         </Route>
+        <Route path="configs" element={<Navigate to="/configurations" replace />} />
         <Route path="configurations" element={<ConfigurationsPage />} />
         <Route path="procedures" element={<ProceduresPage />} />
         <Route path="*" element={<NotFoundPage />} />

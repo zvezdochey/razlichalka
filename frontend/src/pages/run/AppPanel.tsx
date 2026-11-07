@@ -13,8 +13,8 @@ const SEARCH_DELAY_MS = 300
 
 const CHANGE_LABELS: Record<ChangeType, string> = {
   VALUE_CHANGED: 'Значение изменилось',
-  ATTRIBUTE_NEW: 'Появился',
-  ATTRIBUTE_LOST: 'Исчез',
+  ATTRIBUTE_NEW: 'Атрибут появился',
+  ATTRIBUTE_LOST: 'Атрибут исчез',
   SAME: 'Без изменений',
 }
 
@@ -25,15 +25,25 @@ type ValueProps = {
   sameBucket: boolean
 }
 
-/** Значение атрибута: null — это «Отсутствует», а не пустая строка и не ноль. */
-function Value({ value, bucket, sameBucket }: ValueProps) {
-  const text = value === null ? 'Отсутствует' : value === '' ? 'Пустая строка' : value
+/** Атрибут решения (путь кончается на `.decision`) — его значение показываем словами. */
+const isDecisionPath = (path: string) => /(^|\.)decision$/i.test(path)
+
+/** Путь с мягкими переносами после точек: длинный путь рвётся по точкам, а не посреди слова. */
+function PathText({ path }: { path: string }) {
+  const parts = path.split('.')
+  return <>{parts.map((part, i) => <span key={i}>{part}{i < parts.length - 1 && <>.<wbr /></>}</span>)}</>
+}
+
+/** Значение атрибута: null — это «нет значения», а не пустая строка и не ноль. */
+function Value({ value, bucket, sameBucket, isDecision }: ValueProps & { isDecision: boolean }) {
+  const shown = isDecision ? decisionLabel(value) : value
+  const text = shown === null ? 'нет значения' : shown === '' ? 'Пустая строка' : shown
   // Для нечисловых атрибутов (даты, ID, массивы) бэк отдаёт adjusted_* равным самому значению —
   // это не бакет, а отсутствие бакетинга для этого пути. Подпись «Диапазон» тут только путает.
   const showBucket = bucket !== null && bucket !== value
   return (
     <div className="app-panel-value">
-      <span className={value === null ? 'app-panel-absent' : undefined}>{text}</span>
+      <span className={value === null ? 'app-panel-absent' : undefined} title={isDecision && value !== null ? value : undefined}>{text}</span>
       {showBucket && <small>Диапазон: {bucket}</small>}
       {sameBucket && <small>В пределах того же диапазона</small>}
     </div>
@@ -42,7 +52,7 @@ function Value({ value, bucket, sameBucket }: ValueProps) {
 
 /** Текст, когда строк нет: объясняем, почему именно пусто. */
 function emptyMessage(total: number, onlyDiff: boolean, search: string, type: ChangeType | ''): string {
-  if (type !== '' && total > 0) return 'Среди загруженных строк такого типа нет. Нажмите «Загрузить ещё» или смените фильтр.'
+  if (type !== '' && total > 0) return 'Среди загруженных строк такого типа нет. Нажмите «Загрузить ещё» или выберите другой тип.'
   if (search !== '') return 'Атрибуты не найдены. Измените поиск или фильтры.'
   if (onlyDiff) return 'Различий нет'
   return 'У заявки нет атрибутов.'
@@ -112,7 +122,7 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
     return () => controller.abort()
   }, [runId, appId, header])
 
-  // Фильтр по типу в API нет, поэтому он работает только по уже загруженным строкам
+  // Фильтра по типу в API нет: он работает по уже загруженным строкам (подгружаются кнопкой «Загрузить ещё»)
   const visible = rows.filter((row) => type === '' || row.change_type === type)
   const total = result.status === 'ready' ? result.data.total : 0
   const hasMore = result.status === 'ready' && rows.length < total
@@ -143,7 +153,7 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
               Атрибуты
             </button>
             <button type="button" className="btn" aria-pressed={section === 'why'} onClick={() => setSection('why')}>
-              Причины
+              Почему изменилось решение
             </button>
           </div>
 
@@ -162,9 +172,9 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
               {' '}Только различия
             </label>
             <label>
-              Тип изменения (в загруженных строках)
+              Показать: все / только изменённые
               <select className="select" value={type} onChange={(event) => setType(event.target.value as ChangeType | '')}>
-                <option value="">Все типы</option>
+                <option value="">Все</option>
                 {Object.entries(CHANGE_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
               </select>
             </label>
@@ -178,21 +188,22 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
             <div className="table-scroll app-panel-table-scroll" tabIndex={0} aria-label="Таблица атрибутов, прокручиваемая область">
               <table className="table app-panel-table">
                 <thead>
-                  <tr><th>Атрибут</th><th>Элемент массива</th><th>BEFORE</th><th>AFTER</th><th>Тип</th></tr>
+                  <tr><th>Атрибут</th><th>Элемент массива (продукт / оффер)</th><th>До</th><th>После</th><th>Тип</th></tr>
                 </thead>
                 <tbody>
                   {visible.map((row, index) => (
                     <tr key={`${row.path}:${row.array_key}:${index}`} className={row.diff_flag ? 'app-panel-diff' : undefined}>
-                      <td className="app-panel-path mono" data-label="Атрибут">{row.path}</td>
-                      <td data-label="Элемент массива">{row.array_key === null ? '—' : <span className="chip mono">{row.array_key}</span>}</td>
-                      <td data-label="BEFORE">
+                      <td className="app-panel-path mono" data-label="Атрибут"><PathText path={row.path} /></td>
+                      <td data-label="Элемент массива (продукт / оффер)">{row.array_key === null ? '—' : <span className="chip mono">{row.array_key}</span>}</td>
+                      <td data-label="До">
                         <Value
                           value={row.value_before}
                           bucket={row.adjusted_before}
                           sameBucket={row.change_type === 'VALUE_CHANGED' && row.adjusted_before !== null && row.adjusted_before === row.adjusted_after}
+                          isDecision={isDecisionPath(row.path)}
                         />
                       </td>
-                      <td data-label="AFTER"><Value value={row.value_after} bucket={row.adjusted_after} sameBucket={false} /></td>
+                      <td data-label="После"><Value value={row.value_after} bucket={row.adjusted_after} sameBucket={false} isDecision={isDecisionPath(row.path)} /></td>
                       <td data-label="Тип"><span className="app-panel-type">{CHANGE_LABELS[row.change_type]}</span></td>
                     </tr>
                   ))}
