@@ -22,8 +22,12 @@ MAX_APPS = 50_000
 MAX_LABEL = 40
 
 
-def _read_source(source: str, uploads: list[tuple[str, bytes]], array_paths: set[str], budget: list[int]):
-    """Все файлы среза -> ({app_id: ответ}, {формат: сколько файлов})."""
+def _read_source(source: str, uploads: list[tuple[str, bytes]], array_paths: set[str], budget: list[int],
+                 lists: set[str], xml_ids: set[str]):
+    """Все файлы среза -> ({app_id: ответ}, {формат: сколько файлов}).
+
+    По ходу собираем в `lists` пути всех списков и в `xml_ids` заявки из XML (их потом дополним списками).
+    """
     apps: dict[str, dict] = {}
     origin: dict[str, str] = {}
     formats = {"json": 0, "xml": 0, "csv": 0}
@@ -38,6 +42,9 @@ def _read_source(source: str, uploads: list[tuple[str, bytes]], array_paths: set
                 if len(apps) >= MAX_APPS:
                     raise BadFile(f"в срезе {source} больше {MAX_APPS} заявок")
                 apps[app_id], origin[app_id] = doc, name
+                _list_paths(doc, out=lists)
+                if ext == ".xml":
+                    xml_ids.add(app_id)
             formats[ext[1:]] += 1
     if not apps:
         raise BadFile(f"в срезе {source} нет ни одной заявки: нужны файлы .json, .xml или .csv")
@@ -68,6 +75,35 @@ def detect_technical_fields(before: dict[str, dict], after: dict[str, dict]) -> 
     return sorted(p for p, n in seen.items() if n == len(pairs) and differ[p] == len(pairs))
 
 
+def _list_paths(node, path: str = "", out: set[str] | None = None) -> set[str]:
+    """Пути всех списков заявки в виде, как их видит разбор: `a.b[]`, а внутри списка — `a[].c[]`."""
+    out = set() if out is None else out
+    if isinstance(node, dict):
+        for key, value in node.items():
+            _list_paths(value, f"{path}.{key}" if path else key, out)
+    elif isinstance(node, list):
+        arr = path + "[]"
+        out.add(arr)
+        for item in node:
+            _list_paths(item, arr, out)
+    return out
+
+
+def _as_lists(node, lists: set[str], path: str = ""):
+    """Заявка из XML: там где в датасете путь — список, одиночный тег (или пустой) делаем списком."""
+    if isinstance(node, dict):
+        out = {}
+        for key, value in node.items():
+            child = f"{path}.{key}" if path else key
+            if child + "[]" in lists and not isinstance(value, list):
+                value = [] if value is None else [value]
+            out[key] = _as_lists(value, lists, child)
+        return out
+    if isinstance(node, list):
+        return [_as_lists(item, lists, path + "[]") for item in node]
+    return node
+
+
 def _label(raw: str | None, default: str) -> str:
     label = (raw or "").strip() or default
     if len(label) > MAX_LABEL:
@@ -85,10 +121,16 @@ def create_dataset(before: list[tuple[str, bytes]], after: list[tuple[str, bytes
         raise ApiError("bad_request", "Названия срезов «до» и «после» должны различаться")
     array_paths = set(default_array_rules(settings.PROCEDURES_DIR))
     budget = [MAX_UNPACKED]
-    apps, received = {}, {}
+    lists: set[str] = set()
+    apps, received, xml_ids = {}, {}, {}
     for source, uploads in zip(SOURCES, (before, after)):
-        apps[source], formats = _read_source(source, uploads, array_paths, budget)
+        xml_ids[source] = set()
+        apps[source], formats = _read_source(source, uploads, array_paths, budget, lists, xml_ids[source])
         received[source] = {"applications": len(apps[source]), **formats}
+    # В XML одиночный тег неотличим от поля: дополняем списками пути, которые где-то в датасете списки
+    for source in SOURCES:
+        for app_id in xml_ids[source]:
+            apps[source][app_id] = _as_lists(apps[source][app_id], array_paths | lists)
 
     technical = [t.strip() for t in technical_fields or [] if t.strip()]
     try:

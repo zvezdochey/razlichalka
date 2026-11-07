@@ -87,6 +87,44 @@ def _key_part(value, arr_path: str) -> str:
     return text
 
 
+def default_rule(items: list, arr_path: str) -> dict:
+    """Правило для массива, которого нет ни в процедуре, ни в конфигурации — чтобы любой датасет запускался.
+
+    Список скаляров сопоставляем по значению (порядок не важен), если значения уникальны и годны в ключе.
+    Иначе — по позиции: своего ключа у неизвестного списка объектов нет, а позиция всегда уникальна.
+    """
+    if all(_is_scalar(e) for e in items):
+        try:
+            values = [_key_part(e, arr_path) for e in items]
+        except BadFile:
+            return {"mode": "index"}
+        if len(set(values)) == len(values):
+            return {"mode": "value"}
+    return {"mode": "index"}
+
+
+def _rule_fits(items: list, rule: dict) -> bool:
+    """Подходит ли правило к элементам: есть ли у каждого поля ключа (или нужный тип)."""
+    mode = rule.get("mode")
+    if mode == "index":
+        return True
+    if mode == "value":
+        return all(_is_scalar(e) for e in items)
+    if mode == "key":
+        fields = rule.get("key") or []
+        fields = [fields] if isinstance(fields, str) else fields
+        for element in items:
+            if not isinstance(element, dict):
+                return False
+            for field in fields:
+                try:
+                    _get_by_dotted(element, field)
+                except KeyError:
+                    return False
+        return True
+    return False
+
+
 def flatten_response(
     doc: dict,
     app_id: str,
@@ -94,9 +132,17 @@ def flatten_response(
     array_rules: dict,
     ignore_paths: Iterable[str] = (),
     adjust: Optional[Callable[[str, str], str]] = None,
+    soft_paths: Iterable[str] = (),
+    on_fallback: Optional[Callable[[str], None]] = None,
 ) -> list[dict]:
-    """Возвращает строки с ключами COLUMNS. `adjust(path, value_str)` — бакетизация (E4)."""
+    """Возвращает строки с ключами COLUMNS. `adjust(path, value_str)` — бакетизация (E4).
+
+    `soft_paths` — массивы, чьи правила взяты из встроенной процедуры и не переопределены конфигурацией.
+    Если такое правило не подходит к данным (нет поля ключа), берётся умолчание, а не ошибка.
+    `on_fallback(путь)` вызывается каждый раз, когда для массива взято умолчание (для журнала этапа).
+    """
     ignore_paths = list(ignore_paths)
+    soft_paths = set(soft_paths)
     rows: list[dict] = []
 
     def emit(path: str, array_keys: list[str], value) -> None:
@@ -139,8 +185,10 @@ def flatten_response(
             emit(plain_path, array_keys, "[]")
             return
         rule = array_rules.get(arr_path)
-        if rule is None:
-            raise BadFile(f"нет правила для массива {arr_path}")
+        if rule is None or (arr_path in soft_paths and not _rule_fits(items, rule)):
+            if on_fallback:
+                on_fallback(arr_path)
+            rule = default_rule(items, arr_path)
         mode = rule.get("mode")
         key_fields = rule.get("key") or []
         if isinstance(key_fields, str):

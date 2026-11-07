@@ -31,8 +31,11 @@ def normalize_dataset(dataset_dir: Path, source: str, out_csv: Path, parse_cfg: 
     parse_cfg = parse_cfg or {}
     files = list_source_files(dataset_dir, source)
     total = len(files)
-    rules = merge_array_rules(default_array_rules(parse_cfg.get("procedures_dir")),
-                             parse_cfg.get("array_modes") or {}, parse_cfg.get("array_rules") or {})
+    builtin = default_array_rules(parse_cfg.get("procedures_dir"))
+    rules = merge_array_rules(builtin, parse_cfg.get("array_modes") or {}, parse_cfg.get("array_rules") or {})
+    # встроенные правила, которые конфигурация не трогала: к чужому формату они могут не подойти — тогда умолчание
+    overridden = {p.removesuffix("[]") for p in (*(parse_cfg.get("array_modes") or {}), *(parse_cfg.get("array_rules") or {}))}
+    soft = [p for p in builtin if p.removesuffix("[]") not in overridden]
     ignore_paths = parse_cfg.get("ignore_paths") or []
     adjust = None
     if parse_cfg.get("buckets"):
@@ -46,6 +49,7 @@ def normalize_dataset(dataset_dir: Path, source: str, out_csv: Path, parse_cfg: 
             log(level, message)
 
     broken: list[str] = []  # файлы, которые не разобрались; в журнал — одним сообщением
+    fallbacks: set[str] = set()  # массивы, для которых взято умолчание; в журнал — одним сообщением
 
     def rows():
         for done, file in enumerate(files, start=1):
@@ -63,7 +67,8 @@ def normalize_dataset(dataset_dir: Path, source: str, out_csv: Path, parse_cfg: 
                 if app_id != file.stem:
                     raise BadFile(f"в файле {file.name} appData.application_id = {app_id!r}, а имя файла говорит {file.stem!r}")
                 try:
-                    yield from flatten_response(doc, file.stem, source, rules, ignore_paths, adjust)
+                    yield from flatten_response(doc, file.stem, source, rules, ignore_paths, adjust,
+                                                  soft_paths=soft, on_fallback=fallbacks.add)
                 except BadFile as e:
                     raise BadFile(f"файл {file.name}: {e.message}") from None
             if done % PROGRESS_EVERY == 0 or done == total:
@@ -73,6 +78,9 @@ def normalize_dataset(dataset_dir: Path, source: str, out_csv: Path, parse_cfg: 
 
     say("info", f"Срез {source}: {total} файлов")
     n = write_csv(Path(out_csv), COLUMNS, rows())
+    if fallbacks:
+        say("warn", f"Срез {source}: для массивов {', '.join(sorted(fallbacks)[:5])} нет подходящего правила — "
+                    "взято умолчание (скаляры по значению, объекты по позиции)")
     if broken:
         say("warn", f"Срез {source}: не разобрались {len(broken)} файлов — заявки пропущены: "
                     + ", ".join(broken[:5]) + (f" и ещё {len(broken) - 5}" if len(broken) > 5 else ""))
