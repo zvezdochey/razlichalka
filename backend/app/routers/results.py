@@ -6,7 +6,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Query, Response
 
 from app.deps import current_user
-from app.services import facts, results, runs
+from app.services import app_card, facts, reasons, results, runs
 
 router = APIRouter(prefix="/runs/{run_id}")
 
@@ -19,6 +19,13 @@ def _ready_dir(run_id: str, user: str = Depends(current_user)) -> Path:
 
 
 RunDir = Annotated[Path, Depends(_ready_dir)]
+
+
+def _dataset_path(run_id: str, user: str = Depends(current_user)) -> Path:
+    return runs.dataset_path(runs.get_own(run_id, user))
+
+
+RunDataset = Annotated[Path, Depends(_dataset_path)]
 
 
 @router.get("/summary")
@@ -35,6 +42,16 @@ def get_apps(
         run_dir, decision_change=decision_change, has_attr_change=has_attr_change,
         search=search, sort=sort, page=page, size=size, change_source=change_source,
     )
+
+
+@router.get("/apps/{app_id}")
+def get_app_card(run_dir: RunDir, dataset_dir: RunDataset, app_id: str):
+    return app_card.app_card(run_dir, dataset_dir, app_id)
+
+
+@router.get("/reasons")
+def get_reasons(run_dir: RunDir, dataset_dir: RunDataset):
+    return reasons.reasons(run_dir, dataset_dir)
 
 
 @router.get("/apps/{app_id}/attributes")

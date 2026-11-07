@@ -497,7 +497,7 @@
 
 `GET /api/runs/{id}/apps/{app_id}`
 
-Для окна «почему»: решение, офферы, стоп-факторы, модели и пороги в каждом срезе. Пример — `I32554354` (reject → approve):
+Для окна «почему»: решение, офферы, стоп-факторы, модели и пороги в каждом срезе. Сокращённый пример для `I32554354` (reject → approve):
 
 ```json
 {
@@ -515,17 +515,18 @@
     "decision": "approve",
     "offers": [ { "product_id": 15210, "type": "standard" }, { "product_id": 5123, "type": "standard" }, { "product_id": 15210, "type": "manual" } ],
     "products": [
-      { "product_id": 15210, "decision": "approve", "reject_reason": null, "pd_model": "ML_MICRO_LOAN_V1", "pd": 0.637, "cutoff": { "name": "MFO_ZAIMER_2026", "value": 0.55 }, "rules": [ { "name": "AGELOW@21", "hit": false } ] },
-      { "product_id": 5123, "decision": "approve", "reject_reason": null, "pd_model": "ML_MICRO_LOAN_V1", "pd": 0.637, "cutoff": { "name": "MFO_ZAIMER_2026", "value": 0.55 }, "rules": [ { "name": "AGELOW@21", "hit": false } ] }
+      { "product_id": 15210, "decision": "approve", "reject_reason": null, "reject_reason_code": null, "pd_model": "ML_MICRO_LOAN_V1", "pd": 0.637, "cutoff": { "name": "MFO_ZAIMER_2026", "value": 0.55 }, "rules": [] },
+      { "product_id": 5123, "decision": "approve", "reject_reason": null, "reject_reason_code": null, "pd_model": "ML_MICRO_LOAN_V1", "pd": 0.637, "cutoff": { "name": "MFO_ZAIMER_2026", "value": 0.55 }, "rules": [] }
     ]
   },
-  "reasons": [ { "text": "Сработал стоп-фактор AGELOW@21 в BEFORE, в AFTER не сработал", "source": "rule", "confidence": "high" } ]
+  "reasons": [ { "text": "Стоп-фактор AGELOW@21 сработал в BEFORE, в AFTER правило отсутствует", "source": "rule", "confidence": "high" } ]
 }
 ```
 
-- В `after.offers` у продукта `15210` два оффера: `standard` и `manual`. Ключ оффера — пара `product_id` + `type`, по одному `product_id` они склеятся.
-- `reasons[].source`: `rule` (стоп-фактор), `score` (сдвиг балла), `cutoff` (сдвиг порога), `product` (сменился продукт), `unknown`.
+- В `after.offers` у продукта `15210` два оффера: `standard` и `manual`. Ключ оффера — пара `product_id` + `type`, по одному `product_id` они склеятся. Идентификатор продукта сохраняет исходное представление, число или строку.
+- `reasons[].source`: `rule` (стоп-фактор), `score` (смена модели или пересечение порога), `cutoff` (сдвиг порога), `product` (сменился продукт), `data` (возможное влияние входных данных), `unknown`.
 - `confidence`: `high` — причина видна в данных, `low` — наша догадка.
+- Пустое решение приводится к `other`. Отсутствующие `reject_reason`, `reject_reason_code`, `pd_model`, `pd` и отдельные поля `cutoff` возвращаются как `null`. `rules[].hit = null` означает, что правило не вычислялось. Если заявки нет в запуске или отсутствует её файл в одном из доступных срезов, ответ — `404 not_found`. Отсутствующий манифест или каталог среза даёт `400 bad_file`.
 
 ---
 
@@ -538,16 +539,20 @@
 ```json
 {
   "reasons": [
-    { "text": "Отсечка MFO_ZAIMER_2026_LOW (порог 0.7)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_LOW", "affected": 274, "share": 0.425 },
-    { "text": "Стоп-фактор DOCS_EXPIRED", "source": "rule", "rule": "DOCS_EXPIRED", "affected": 134, "share": 0.208 },
-    { "text": "Отсечка MFO_ZAIMER_2026_V3 (порог 0.62)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_V3", "affected": 119, "share": 0.184 },
-    { "text": "Отсечка MFO_ZAIMER_2026_MID (порог 0.62)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_MID", "affected": 118, "share": 0.183 }
+    { "text": "Отсечка MFO_ZAIMER_2026_LOW (порог 0.7)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_LOW", "affected": 274, "share": 0.425, "app_ids_ref": "f_000000000001" },
+    { "text": "Стоп-фактор DOCS_EXPIRED", "source": "rule", "rule": "DOCS_EXPIRED", "affected": 134, "share": 0.208, "app_ids_ref": "f_000000000002" },
+    { "text": "Отсечка MFO_ZAIMER_2026_V3 (порог 0.62)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_V3", "affected": 119, "share": 0.184, "app_ids_ref": "f_000000000003" },
+    { "text": "Отсечка MFO_ZAIMER_2026_MID (порог 0.62)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_MID", "affected": 118, "share": 0.183, "app_ids_ref": "f_000000000004" }
   ],
-  "unexplained": null
+  "unexplained": 0,
+  "by_source": { "logic": 218, "data": 167, "both": 0 }
 }
 ```
 
-`share` — доля от строк продуктов с причиной отказа в заявках, где решение изменилось на `reject` (всего 645 строк). Это не доля от заявок. `unexplained` пока `null`: мы не считали заявки без причины, правило для этого ещё не написано.
+- `affected` — число строк продуктов для причины. `share` — доля от строк продуктов с определённой причиной отказа в заявках, где решение изменилось на `reject` (645 строк в примере), округлённая до трёх знаков.
+- `app_ids_ref` ведёт к уникальным заявкам причины через ручку 7.3.
+- `unexplained` — число заявок с переходом `approve_to_reject`, у которых не определена ни одна продуктовая причина.
+- `by_source` — число заявок каждого источника E10 среди всех заявок со сменой решения. В примере технические поля исключены из сравнения. Для старых запусков без классификации счётчики равны нулю.
 
 ---
 

@@ -40,9 +40,16 @@ def summary(run_dir: Path) -> bytes:
 # Путь включает id запуска и различает хранилища. В кэше только файлы готовых запусков.
 @lru_cache(maxsize=16)
 def _apps(run_dir: Path) -> pd.DataFrame:
-    rows = read_csv(result_file(run_dir, "apps.csv"))[APP_FIELDS]
+    rows = read_csv(result_file(run_dir, "apps.csv"))
+    if "change_source" not in rows:
+        rows["change_source"] = ""  # запуски, созданные до E10
+    rows = rows[APP_FIELDS]
     rows["attributes_changed"] = pd.to_numeric(rows["attributes_changed"]).astype("Int64")
     return rows.set_index("app_id", drop=False).rename_axis(None)
+
+
+def app_decisions(run_dir: Path) -> pd.DataFrame:
+    return _apps(run_dir)[["decision_change", "change_source"]]
 
 
 @lru_cache(maxsize=16)
