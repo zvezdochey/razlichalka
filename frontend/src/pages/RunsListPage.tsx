@@ -175,7 +175,7 @@ export function RunsListPage() {
                   </td>
                   <td>{run.name}</td>
                   <td className="mono">{run.dataset}</td>
-                  <td>{formatDateTime(run.created_at)}</td>
+                  <td className="runs-table__date">{formatDateTime(run.created_at)}</td>
                   <td className="num">{loaded ? row.changed.toLocaleString('ru-RU') : placeholder}</td>
                   <td className="num">{loaded ? row.fail === null ? '—' : row.fail.toLocaleString('ru-RU') : placeholder}</td>
                 </tr>
