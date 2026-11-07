@@ -133,11 +133,13 @@ def flatten_response(
     ignore_paths: Iterable[str] = (),
     adjust: Optional[Callable[[str, str], str]] = None,
     soft_paths: Iterable[str] = (),
+    on_fallback: Optional[Callable[[str], None]] = None,
 ) -> list[dict]:
     """Возвращает строки с ключами COLUMNS. `adjust(path, value_str)` — бакетизация (E4).
 
     `soft_paths` — массивы, чьи правила взяты из встроенной процедуры и не переопределены конфигурацией.
     Если такое правило не подходит к данным (нет поля ключа), берётся умолчание, а не ошибка.
+    `on_fallback(путь)` вызывается каждый раз, когда для массива взято умолчание (для журнала этапа).
     """
     ignore_paths = list(ignore_paths)
     soft_paths = set(soft_paths)
@@ -184,6 +186,8 @@ def flatten_response(
             return
         rule = array_rules.get(arr_path)
         if rule is None or (arr_path in soft_paths and not _rule_fits(items, rule)):
+            if on_fallback:
+                on_fallback(arr_path)
             rule = default_rule(items, arr_path)
         mode = rule.get("mode")
         key_fields = rule.get("key") or []

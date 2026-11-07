@@ -1,5 +1,6 @@
 """Тесты приведения среза в CSV. Мини-датасет в tests/fixtures/dataset_mini — выдуманный."""
 
+import json
 import shutil
 from pathlib import Path
 
@@ -142,3 +143,17 @@ def test_not_an_object_is_skipped(tmp_path, text):
     _, df = run(tmp_path, dataset=ds, log=lambda lvl, m: msgs.append((lvl, m)))
     assert set(df["APP_ID"]) == {"A1", "A3"}
     assert any(lvl == "warn" and "A2.json" in m for lvl, m in msgs)
+
+
+def test_builtin_rule_fallback_is_logged(tmp_path):
+    # ext_data[] из встроенной процедуры ждёт body.action; в этом срезе его нет — откат на умолчание, и это видно в журнале
+    dataset = tmp_path / "ds"
+    shutil.copytree(MINI, dataset)
+    file = next(p for p in list_source_files(dataset, "BEFORE") if p.stem == "A1")
+    doc = json.loads(file.read_text(encoding="utf-8"))
+    doc["ext_data"] = [{"source": "BKI"}, {"source": "FNS"}]
+    file.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+    logs = []
+    _, df = run(tmp_path, dataset=dataset, log=lambda lvl, msg: logs.append((lvl, msg)))
+    assert any(lvl == "warn" and "ext_data[]" in msg for lvl, msg in logs)
+    assert set(df[(df.APP_ID == "A1") & df.PATH.str.startswith("ext_data")].ARRAY_KEY) == {"0", "1"}

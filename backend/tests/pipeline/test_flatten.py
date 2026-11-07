@@ -152,3 +152,16 @@ def test_configured_rule_stays_strict_when_key_missing():
         flatten_response({"ext_data": [{"source": "BKI"}]}, "A1", "BEFORE",
                          {"ext_data[]": {"mode": "key", "key": ["body.action"]}})
     assert "нет поля ключа" in e.value.message
+
+
+def test_scalar_default_with_equal_text_falls_back_to_index():
+    # 1 и "1" — разные значения, но ключ у обоих "1": по значению их не свести, берём позицию
+    rows = flat({"extra": [1, "1"]})
+    assert {r["ARRAY_KEY"] for r in rows} == {"0", "1"}
+
+
+def test_fallback_callback_reports_each_defaulted_array():
+    seen = []
+    flatten_response({"ext_data": [{"source": "BKI"}]}, "A1", "BEFORE", {"ext_data[]": {"mode": "key", "key": ["body.action"]}},
+                     soft_paths=["ext_data[]"], on_fallback=seen.append)
+    assert seen == ["ext_data[]"]
