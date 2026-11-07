@@ -2,7 +2,7 @@ import { useState, useSyncExternalStore } from 'react'
 import type { FormEvent, MouseEvent } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { confirmLeave } from '../lib/leaveGuard'
-import { getCurrentUser, setCurrentUser, subscribeUser } from '../lib/user'
+import { getCurrentUser, isValidUser, setCurrentUser, subscribeUser } from '../lib/user'
 import './AppLayout.css'
 
 /** Ссылка меню не ведёт дальше, если человек отказался терять несохранённое. */
@@ -17,12 +17,26 @@ function guardLeave(event: MouseEvent<HTMLAnchorElement>) {
  */
 function UserSwitcher({ user }: { user: string }) {
   const [draft, setDraft] = useState<string | null>(null)
+  const [invalid, setInvalid] = useState(false)
+
+  function close() {
+    setDraft(null)
+    setInvalid(false)
+  }
 
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const next = (draft ?? '').trim()
-    setDraft(null)
-    if (next === '' || next === user) return
+    if (next === '' || next === user) {
+      close()
+      return
+    }
+    // Кириллица в заголовке X-User роняет запросы — не даём сохранить, а объясняем почему.
+    if (!isValidUser(next)) {
+      setInvalid(true)
+      return
+    }
+    close()
     // Смена имени перерисует страницу заново — несохранённое на ней пропадёт.
     if (!confirmLeave()) return
     setCurrentUser(next)
@@ -52,15 +66,25 @@ function UserSwitcher({ user }: { user: string }) {
         value={draft}
         autoFocus
         maxLength={64}
-        onChange={(event) => setDraft(event.target.value)}
+        aria-invalid={invalid}
+        aria-describedby={invalid ? 'app-user-hint' : undefined}
+        onChange={(event) => {
+          setDraft(event.target.value)
+          setInvalid(false)
+        }}
         onKeyDown={(event) => {
-          if (event.key === 'Escape') setDraft(null)
+          if (event.key === 'Escape') close()
         }}
       />
+      {invalid && (
+        <span id="app-user-hint" className="app__user-hint" role="alert">
+          Только латиница, цифры, точка, «_» и «-»
+        </span>
+      )}
       <button type="submit" className="btn app__user-btn">
         Сохранить
       </button>
-      <button type="button" className="btn app__user-btn" onClick={() => setDraft(null)}>
+      <button type="button" className="btn app__user-btn" onClick={close}>
         Отмена
       </button>
     </form>

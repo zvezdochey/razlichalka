@@ -13,9 +13,9 @@ import {
   failedChecks,
   formatMetric,
   formatShare,
+  isErrorRow,
   isShareMetric,
   plural,
-  isErrorRow,
   sortByVerdict,
   verdictOf,
 } from './checksRows'
@@ -24,6 +24,9 @@ import { useRunContext } from './runContext'
 
 /** Максимум договора (п. 10.1). Строк проверок обычно десятки, хватает одной страницы. */
 const PAGE_SIZE = 500
+
+/** Сколько запросов «сколько заявок за ссылкой» идёт параллельно. */
+const SAMPLE_WORKERS = 4
 
 type Loaded = {
   rows: CheckRow[]
@@ -102,13 +105,21 @@ export function ChecksTab() {
   useEffect(() => {
     if (loadedRows === null) return
     const controller = new AbortController()
-    const refs = [...new Set(loadedRows.map((row) => row.apps_ref).filter((ref): ref is string => ref !== null))]
-    for (const ref of refs) {
-      getFactApps(runId, ref, 1, 1, { signal: controller.signal })
-        .then((data) => setSamples((prev) => ({ ...prev, [ref]: data.total })))
-        // Не узнали — на кнопке останется число из строки, как раньше.
-        .catch(() => undefined)
+    const queue = [...new Set(loadedRows.map((row) => row.apps_ref).filter((ref): ref is string => ref !== null))]
+    // Не больше SAMPLE_WORKERS запросов одновременно: строк проверок десятки, бэк заваливать незачем.
+    const worker = async () => {
+      for (let ref = queue.shift(); ref !== undefined; ref = queue.shift()) {
+        if (controller.signal.aborted) return
+        const key = ref
+        try {
+          const data = await getFactApps(runId, key, 1, 1, { signal: controller.signal })
+          setSamples((prev) => ({ ...prev, [key]: data.total }))
+        } catch {
+          // Не узнали — на кнопке останется число из строки, как раньше.
+        }
+      }
     }
+    for (let i = 0; i < SAMPLE_WORKERS; i += 1) void worker()
     return () => controller.abort()
   }, [runId, loadedRows])
 

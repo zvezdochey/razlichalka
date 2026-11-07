@@ -50,6 +50,11 @@
   padding: 2px var(--s-2);
 }
 
+.app__user-hint {
+  font-size: var(--fs-caption);
+  color: #ffd2cc;
+}
+
 .app__user-btn {
   font-size: var(--fs-caption);
   padding: 2px var(--s-2);
