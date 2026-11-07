@@ -260,6 +260,20 @@ export const handlers = [
     return isReady(run) ? HttpResponse.json(REASONS) : notReady()
   }),
 
+  http.get('/api/runs/:id/ai-review', async ({ params }) => {
+    await delay(RESPONSE_DELAY_MS)
+    const run = findMockRun(String(params.id))
+    if (run === undefined) return notFound('такой запуск')
+    if (!isReady(run)) return notReady()
+    return HttpResponse.json({
+      status: 'ready',
+      text: 'Итог: решение изменилось у части заявок.\nЧто выглядит подозрительно:\n- пример из мока\nНа что посмотреть:\n- пример из мока',
+      generated_at: new Date().toISOString(),
+      model: 'mock',
+      inputs: ['summary', 'reasons'],
+    })
+  }),
+
   http.get('/api/runs/:id/facts/:ref/apps', async ({ params, request }) => {
     await delay(RESPONSE_DELAY_MS)
     const run = findMockRun(String(params.id))

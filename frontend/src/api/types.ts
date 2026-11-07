@@ -505,3 +505,15 @@ export type ReasonsResponse = {
   unexplained: number
   by_source?: Record<Exclude<ChangeSource, 'none'>, number>
 }
+
+/** Мнение ИИ по прогону (api.md п. 12). `text` — обычный текст с переносами строк. */
+export type AiReview =
+  | { status: 'pending' }
+  | {
+      status: 'ready'
+      text: string
+      generated_at: string
+      model: string
+      inputs: string[]
+    }
+  | { status: 'error'; error: { code: string; message: string } }

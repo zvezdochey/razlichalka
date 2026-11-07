@@ -6,6 +6,7 @@ import { getSummary, isAbortError } from '../../api'
 import { ErrorBox, Spinner } from '../../components'
 import { DASH, formatNumber } from '../../lib/format'
 import { NotReadyNotice } from './NotReadyNotice'
+import { AiReviewBlock } from './AiReviewBlock'
 import { ReasonsBlock } from './ReasonsBlock'
 import './OverviewTab.css'
 import { useRunContext } from './runContext'
@@ -74,6 +75,7 @@ function OverviewBody({ runId }: { runId: string }) {
         <AttributeBars summary={summary} />
       </div>
       <ReasonsBlock key={runId} runId={runId} />
+      <AiReviewBlock key={`ai-${runId}`} runId={runId} />
     </div>
   )
 }
