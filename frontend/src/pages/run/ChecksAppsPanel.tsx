@@ -4,7 +4,7 @@ import type { CheckRow, FactAppsResponse } from '../../api'
 import { getFactApps, isAbortError } from '../../api'
 import { EmptyState, ErrorBox, Spinner } from '../../components'
 import { formatNumber } from '../../lib/format'
-import { countOf } from './checksRows'
+import { countOf, examplesLabel } from './checksRows'
 
 const PAGE_SIZE = 50
 
@@ -80,7 +80,9 @@ export function ChecksAppsPanel({ runId, row, appsRef, onClose }: ChecksAppsPane
   return (
     <aside className="panel checks-apps" aria-labelledby="checks-apps-title">
       <div className="checks-apps-head">
-        <h3 id="checks-apps-title">Заявки проверки</h3>
+        <h3 id="checks-apps-title">
+          {limited ? `Заявки проверки: ${examplesLabel(data.total, count)}` : 'Заявки проверки'}
+        </h3>
         <button
           ref={closeButton}
           type="button"
@@ -107,7 +109,7 @@ export function ChecksAppsPanel({ runId, row, appsRef, onClose }: ChecksAppsPane
           <>
             <p className="muted">
               {limited
-                ? `Доступны ${formatNumber(data.total)} из ${formatNumber(count)} — проверка ограничивает список`
+                ? `${examplesLabel(data.total, count)} — проверка сохраняет не все заявки, а только примеры`
                 : `Всего заявок ${formatNumber(data.total)}`}
             </p>
             <ul className="checks-apps-list">

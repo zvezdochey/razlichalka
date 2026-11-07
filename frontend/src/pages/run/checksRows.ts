@@ -1,6 +1,7 @@
 // Чистая логика вкладки «Проверки»: сортировка, разбор чисел и ошибок из журнала.
 // Отдельно от разметки, чтобы её было легко прочитать и объяснить.
 import type { CheckRow, StageLogEntry } from '../../api'
+import { formatNumber } from '../../lib/format'
 
 /** Вердикт строки: от него зависят цвет, подпись и место в таблице. */
 export type Verdict = 'fail' | 'low' | 'pass'
@@ -61,4 +62,54 @@ const METRIC = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 4 })
 /** Метрика — доля, разница или значение: до четырёх знаков, с разделителями разрядов. */
 export function formatMetric(value: number): string {
   return METRIC.format(value)
+}
+
+/** `"CNT / TOTAL"` → `TOTAL`: база, от которой считается доля; `null`, если не число. */
+export function baseOf(row: CheckRow): number | null {
+  if (row.numbers === null) return null
+  const parts = row.numbers.split('/')
+  if (parts.length < 2) return null
+  const total = Number.parseFloat(parts[1])
+  return Number.isFinite(total) ? total : null
+}
+
+/**
+ * Метрика — это доля CNT / TOTAL? Так пишут встроенные проверки и шаг 7 демо
+ * (`round(share, 4)`). Узнаём по совпадению с числами строки, а не по названию:
+ * у других проверок метрика бывает разницей или значением, и процентом её показывать нельзя.
+ */
+export function isShareMetric(row: CheckRow): boolean {
+  const cnt = countOf(row)
+  const total = baseOf(row)
+  if (row.metric === null || cnt === null || total === null || total <= 0) return false
+  return row.metric >= 0 && row.metric <= 1 && Math.abs(row.metric - cnt / total) < 0.0005
+}
+
+const PERCENT = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 })
+
+/** Доля 0,2508 → «25,08 %». */
+export function formatShare(value: number): string {
+  return `${PERCENT.format(value * 100)} %`
+}
+
+/** Сколько разных проверок дали строки: по id, а у строк без id — по названию. */
+export function checksCount(rows: CheckRow[]): number {
+  return new Set(rows.map((row) => row.check_id ?? row.check_name)).size
+}
+
+/** Русское множественное число: plural(5, ['пример', 'примера', 'примеров']) → «примеров». */
+export function plural(n: number, forms: [string, string, string]): string {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return forms[0]
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms[1]
+  return forms[2]
+}
+
+const EXAMPLES: [string, string, string] = ['пример', 'примера', 'примеров']
+
+/** «20 примеров из 273» — когда проверка сохранила не все заявки, иначе просто число. */
+export function examplesLabel(shown: number, count: number | null): string {
+  if (count === null || shown >= count) return formatNumber(shown)
+  return `${formatNumber(shown)} ${plural(shown, EXAMPLES)} из ${formatNumber(count)}`
 }
