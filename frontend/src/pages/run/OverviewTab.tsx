@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { DecisionChange, Summary } from '../../api'
-import { getSummary, isAbortError } from '../../api'
+import type { DecisionChange, ReasonsResponse, Summary } from '../../api'
+import { getChecks, getReasons, getSummary, isAbortError } from '../../api'
 import { ErrorBox, Spinner } from '../../components'
 import { DASH, formatNumber } from '../../lib/format'
 import { NotReadyNotice } from './NotReadyNotice'
@@ -69,11 +69,14 @@ function OverviewBody({ runId }: { runId: string }) {
 
   return (
     <div className="overview">
-      <Verdict summary={summary} />
+      <Verdict runId={runId} summary={summary} />
       <div className="overview__columns">
         <DecisionTransitions summary={summary} />
         <AttributeBars summary={summary} />
       </div>
+      <p className="overview__unit-note muted">
+        Топ причин считается по строкам продуктов, не по заявкам.
+      </p>
       <ReasonsBlock key={runId} runId={runId} />
       <AiReviewBlock key={`ai-${runId}`} runId={runId} />
     </div>
@@ -112,28 +115,104 @@ function appsLink(search: string) {
 
 // ─── Фраза-ответ и лента чисел ───────────────────────────────────────────────
 
-function Verdict({ summary }: { summary: Summary }) {
-  const { applications, applications_changed, applications_changed_share, decision_changed } =
-    summary
+/** Дополнительные данные для верхней ленты: источник смен и число проверок. */
+type Extras = {
+  /** Смены решения по источнику: логика / данные / оба. `null` — ещё не пришло или недоступно. */
+  sources: ReasonsResponse['by_source'] | null
+  /** Сколько разных проверок дали строки результатов. `null` — ещё не пришло. */
+  checksCount: number | null
+}
+
+/** Грузим источник смен (ручка причин) и список проверок. Ошибка не ломает обзор: просто прочерк. */
+function useExtras(runId: string, withChecks: boolean): Extras {
+  const [extras, setExtras] = useState<Extras>({ sources: null, checksCount: null })
+
+  useEffect(() => {
+    const controller = new AbortController()
+    const options = { signal: controller.signal }
+    const load = async () => {
+      const [reasons, checks] = await Promise.allSettled([
+        getReasons(runId, options),
+        withChecks ? getChecks(runId, { size: 500 }, options) : Promise.resolve(null),
+      ])
+      if (controller.signal.aborted) return
+      const ids = new Set<string>()
+      if (checks.status === 'fulfilled' && checks.value !== null) {
+        for (const row of checks.value.rows) ids.add(row.check_id ?? row.check_name)
+      }
+      setExtras({
+        sources: reasons.status === 'fulfilled' ? (reasons.value.by_source ?? null) : null,
+        checksCount: ids.size > 0 ? ids.size : null,
+      })
+    }
+    // eslint-disable-next-line react/set-state-in-effect -- загрузка данных эффектом и есть синхронизация с внешней системой
+    void load()
+    return () => controller.abort()
+  }, [runId, withChecks])
+
+  return extras
+}
+
+/** «Русское» согласование: 1 проверка, 2 проверки, 5 проверок. */
+function checksWord(n: number): string {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return 'проверки'
+  return 'проверок'
+}
+
+/**
+ * Одна фраза-итог целиком из `summary`: сколько заявок сменили решение, кто потерял и кто получил
+ * одобрение и в какую сторону чистый сдвиг. Ничего не хардкодим.
+ */
+function verdictText(summary: Summary): ReactNode {
+  const { applications, decision_changed, decision_changes } = summary
+  if (applications === 0) return 'В прогоне нет заявок с парой «до» и «после» — сравнивать нечего.'
+  if (decision_changed === 0) {
+    return (
+      <>
+        Решение не сменилось ни у одной из <Big value={applications} /> заявок.
+      </>
+    )
+  }
+
+  const lost = decision_changes.approve_to_reject
+  const gained = decision_changes.reject_to_approve
+  const shift = lost - gained
+  const other = decision_changes.decision_other
+
+  return (
+    <>
+      Решение сменили <Big value={decision_changed} /> из <Big value={applications} /> заявок (
+      {formatPercent(decision_changed / applications)}): <Big value={lost} /> потеряли одобрение,{' '}
+      <Big value={gained} /> получили
+      {other > 0 && (
+        <>
+          , у <Big value={other} /> другое решение
+        </>
+      )}
+      {' — '}
+      {shift === 0 ? (
+        'чистого сдвига нет'
+      ) : (
+        <>
+          чистый сдвиг <Big value={Math.abs(shift)} /> в сторону{' '}
+          {shift > 0 ? 'отказов' : 'одобрений'}
+        </>
+      )}
+      .
+    </>
+  )
+}
+
+function Verdict({ runId, summary }: { runId: string; summary: Summary }) {
+  const { applications, applications_changed, applications_changed_share } = summary
+  const extras = useExtras(runId, summary.checks_fail !== undefined)
 
   return (
     <section className="panel verdict" aria-labelledby="verdict-head">
       <p className="verdict__text" id="verdict-head">
-        {applications === 0 ? (
-          'В прогоне нет заявок с парой «до» и «после» — сравнивать нечего.'
-        ) : applications_changed === applications ? (
-          // На настоящем датасете различия пока у всех заявок (служебные поля), и фраза
-          // «из 2 002 изменились 2 002» читается как ошибка. Говорим то же самое прямо.
-          <>
-            Различия нашлись у всех <Big value={applications} /> заявок.
-            <br />У <Big value={decision_changed} /> сменилось решение.
-          </>
-        ) : (
-          <>
-            Из <Big value={applications} /> заявок изменились <Big value={applications_changed} />.
-            <br />У <Big value={decision_changed} /> сменилось решение.
-          </>
-        )}
+        {verdictText(summary)}
       </p>
 
       <dl className="strip">
@@ -145,7 +224,9 @@ function Verdict({ summary }: { summary: Summary }) {
           label="С различиями"
           hint={`доля от прогона — ${formatPercent(applications_changed_share)}`}
         >
-          <span className="num">{formatNumber(applications_changed)}</span>
+          <Link className="strip__link num" to={appsLink('?has_attr_change=1')}>
+            {formatNumber(applications_changed)}
+          </Link>
         </StripItem>
 
         <StripItem label="Сменили решение" hint="любая смена решения">
@@ -153,9 +234,19 @@ function Verdict({ summary }: { summary: Summary }) {
             className="strip__link num"
             to={appsLink(`?decision_change=${ANY_DECISION_CHANGE}`)}
           >
-            {formatNumber(decision_changed)}
+            {formatNumber(summary.decision_changed)}
           </Link>
         </StripItem>
+
+        {/* Источник смен: логика / данные. Без by_source (старый бэк) карточку не показываем. */}
+        {extras.sources !== null && extras.sources !== undefined && (
+          <StripItem label="Источник смены решения" hint="заявки со сменой решения">
+            <span className="num">
+              логика {formatNumber(extras.sources.logic)} · данные {formatNumber(extras.sources.data)}
+              {extras.sources.both > 0 && <> · оба {formatNumber(extras.sources.both)}</>}
+            </span>
+          </StripItem>
+        )}
 
         {/* checks_fail появляется после этапа checks (api.md п. 7.1); до него — прочерк. */}
         {summary.checks_fail === undefined ? (
@@ -163,7 +254,14 @@ function Verdict({ summary }: { summary: Summary }) {
             <span className="num faint">{DASH}</span>
           </StripItem>
         ) : (
-          <StripItem label="Проверки с FAIL" hint="строки проверок с FAIL">
+          <StripItem
+            label="Проверки с FAIL"
+            hint={
+              extras.checksCount === null
+                ? 'строки результатов проверок'
+                : `строки результатов ${formatNumber(extras.checksCount)} ${checksWord(extras.checksCount)}`
+            }
+          >
             <Link className="strip__link num" to={{ pathname: '../checks', search: '?result=FAIL' }}>
               {formatNumber(summary.checks_fail)}
             </Link>

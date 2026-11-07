@@ -15,9 +15,9 @@
 
 .verdict__text {
   margin: 0;
-  max-inline-size: 34ch;
-  font-size: var(--fs-metric);
-  line-height: 1.2;
+  max-inline-size: 60ch;
+  font-size: var(--fs-panel);
+  line-height: 1.35;
   letter-spacing: -0.01em;
 }
 
@@ -33,7 +33,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0;
-  margin: var(--s-6) 0 0;
+  margin: var(--s-4) 0 0;
   border-top: 1px solid var(--border);
 }
 
@@ -204,5 +204,11 @@
 
 .attrs__note {
   margin: var(--s-4) 0 0;
+  font-size: var(--fs-caption);
+}
+
+/* Подпись про единицу счёта у топа причин: стоит над блоком причин */
+.overview__unit-note {
+  margin: calc(var(--s-4) * -1) 0 0;
   font-size: var(--fs-caption);
 }
