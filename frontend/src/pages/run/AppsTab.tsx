@@ -13,7 +13,7 @@ import './AppsTab.css'
 
 const DECISIONS = DECISION_CHANGE_LABELS
 const SOURCES: Record<ChangeSource, string> = {
-  logic: 'Из-за логики', data: 'Из-за входных данных', both: 'Логика и данные', none: 'Без различий',
+  logic: 'Из-за правил', data: 'Из-за данных заявки', both: 'И правила, и данные', none: 'Ничего не поменялось',
 }
 const FILTER_KEYS = ['decision_change', 'change_source', 'has_attr_change', 'search']
 
@@ -157,7 +157,7 @@ function ReadyApps({ runId }: { runId: string }) {
         {Object.entries(SOURCES).map(([value, label]) => <label key={value}><input type="checkbox"
           checked={source.split(',').includes(value)} onChange={() => toggle('change_source', source, value)} />{label}</label>)}
       </fieldset>
-      <p className="muted apps-hint">Из-за логики — вход заявки тот же, различие в том, что посчитала СПР; из-за входных данных — у заявки другие данные или ответ внешнего источника.</p>
+      <p className="muted apps-hint">«До» — решение старой версии СПР, «после» — новой. Из-за правил — данные заявки те же, но новая версия посчитала иначе; из-за данных заявки — у заявки другие входные данные или ответ внешнего сервиса.</p>
       <div className="apps-search-row"><Search navigationKey={location.key} applied={search} onApply={applySearch} />
         <label><input type="checkbox" checked={hasAttr} onChange={() => update('has_attr_change', hasAttr ? '0' : '1')} />Только с различиями</label>
       </div>
@@ -182,13 +182,13 @@ function ReadyApps({ runId }: { runId: string }) {
           </colgroup>
           <thead>
             <tr>
-              {sortHeader('app_id', 'APP_ID')}
+              {sortHeader('app_id', 'Заявка')}
               {pairHead('Решение')}
-              {sortHeader('attributes_changed', 'Атрибутов изменено')}
-              {pairHead('Модель')}
-              {pairHead('Порог')}
+              {sortHeader('attributes_changed', 'Полей ответа изменилось')}
+              {pairHead('Модель оценки')}
+              {pairHead('Набор порогов')}
               {pairHead('Причина отказа')}
-              <th scope="col" rowSpan={2}>Источник</th>
+              <th scope="col" rowSpan={2} title="Почему у заявки что-то поменялось: из-за правил или из-за данных">Почему изменилось</th>
             </tr>
             <tr>
               <th scope="col">до</th><th scope="col">после</th>
@@ -210,7 +210,7 @@ function ReadyApps({ runId }: { runId: string }) {
           </tr>)}</tbody>
         </table>
       </div>)}
-    <p className="muted apps-hint">Нажмите на заявку, чтобы увидеть, что в ней изменилось.</p>
+    <p className="muted apps-hint">Нажмите на заявку, чтобы увидеть, что в ней изменилось. Причина отказа CUTOFF — оценка модели ниже порога; «—» — отказа не было.</p>
     <div className="apps-pagination">
       <span role="status">{data ? `Показано ${formatNumber(data.apps.length ? (page - 1) * size + 1 : 0)}–${formatNumber(data.apps.length ? (page - 1) * size + data.apps.length : 0)} из ${formatNumber(data.total)}` : result.status === 'error' ? 'Выборка не загружена' : 'Загрузка выборки…'}</span>
       <label>На странице <select className="select" value={size} onChange={(event) => update('size', event.target.value)}>
