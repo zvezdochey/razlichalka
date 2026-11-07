@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getApps, getAttributes } from '../../api'
 import type { AppRow, AttributeRow, ChangeType } from '../../api'
 import { ErrorBox } from '../../components'
+import { decisionLabel } from '../../lib/decisions'
 import { AppWhy } from './AppWhy'
 import { useDialogFocus } from './useDialogFocus'
 import { usePivotRequest } from './usePivotRequest'
@@ -125,7 +126,11 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
             <h2 className="mono">{appId}</h2>
             {header && (
               <p>
-                Решение: {header.decision_before ?? '—'} → {header.decision_after ?? '—'} · Изменено атрибутов: {header.attributes_changed}
+                Решение:{' '}
+                <span title={header.decision_before ?? undefined}>{decisionLabel(header.decision_before) ?? '—'}</span>
+                {' → '}
+                <span title={header.decision_after ?? undefined}>{decisionLabel(header.decision_after) ?? '—'}</span>
+                {' '}· Изменено атрибутов: {header.attributes_changed}
               </p>
             )}
           </div>
