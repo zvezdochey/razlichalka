@@ -202,6 +202,13 @@ def test_check_percents_keeps_correct_numbers():
     assert ai_review.check_percents(text, SHARES) == text
 
 
+def test_check_percents_accepts_rounded_integer_and_sentence_end():
+    assert ai_review.check_percents("Решение сменили 385 заявок (19 %).", SHARES) == "Решение сменили 385 заявок (19 %)."
+    assert ai_review.check_percents("Это около 19 % заявок, всего 385.", SHARES) != ""
+    assert ai_review.check_percents("Решение сменили 385 — 25,1 %.", SHARES) == ""
+    assert ai_review.check_percents("Сменили 385, это 25 %.", SHARES) == ""
+
+
 def test_check_percents_drops_only_bad_sentence_in_line():
     text = "Решение сменили 385 заявок (19,2%). Это 77% всех заявок."
     assert ai_review.check_percents(text, SHARES) == "Решение сменили 385 заявок (19,2%)."

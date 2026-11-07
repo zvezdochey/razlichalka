@@ -15,6 +15,7 @@ import builtins
 import multiprocessing as mp
 import os
 import queue
+import sys
 import shutil
 import tempfile
 import time
@@ -61,8 +62,9 @@ def _limit_resources() -> None:
             continue
         try:
             resource.setrlimit(limit, (value, value))
-        except (ValueError, OSError):
-            pass  # лимит не поставился (контейнер запретил) — работаем без него, а не падаем
+        except (ValueError, OSError) as exc:
+            # лимит не поставился (контейнер запретил) — работаем без него, а не падаем, но говорим об этом
+            print(f"Предупреждение: лимит {name} не поставился: {exc}", file=sys.stderr)
 
 
 def _enter_temp_dir() -> str:
@@ -123,6 +125,8 @@ def load_check(path_or_code, kind: str = "file", timeout: float = LOAD_TIMEOUT) 
     (в `run_checks` с настоящим `Mart` это тоже происходит в дочернем процессе).
     В CHECK добавляется `source` = (kind, значение) — по нему проверку грузит дочерний процесс запуска.
     """
+    if kind == "file":
+        path_or_code = str(Path(path_or_code).resolve())  # рабочий процесс уходит во временную папку: путь нужен абсолютный
     code, name = _read_code(path_or_code, kind)
     problems = validate_check_code(code)
     if problems:
@@ -150,7 +154,8 @@ def load_check(path_or_code, kind: str = "file", timeout: float = LOAD_TIMEOUT) 
 
 
 # Модули, которые пользовательскому коду не нужны: через них можно выйти за пределы проверки.
-FORBIDDEN_MODULES = ("os", "subprocess", "socket", "shutil", "ctypes")
+FORBIDDEN_MODULES = ("os", "subprocess", "socket", "shutil", "ctypes", "posix", "pathlib", "importlib", "sys",
+                     "builtins", "pty", "multiprocessing", "signal", "_socket")
 
 
 def forbidden_code_problems(tree: ast.AST) -> list[dict]:

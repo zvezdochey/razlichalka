@@ -73,9 +73,8 @@ def test_report_has_headline_and_russian_labels(client, ready_id):
     run_dir = settings.DATA_DIR / "runs" / ready_id
     summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
     page = client.get(f"/api/runs/{ready_id}/report").text
-    moves = summary["decision_changes"]
-    assert (f"Решение сменили {summary['decision_changed']} заявок: {moves['approve_to_reject']} потеряли одобрение, "
-            f"{moves['reject_to_approve']} получили") in page
+    assert report.headline(summary) in page
+    assert f"Решение сменили {summary['decision_changed']} заявки:" in page
     assert "Одобрение → отказ" in page and "Отказ → одобрение" in page and "Значение изменилось" in page
     for code in ("approve → reject", "reject → approve", "VALUE_CHANGED", "ATTRIBUTE_NEW", "ATTRIBUTE_LOST"):
         assert code not in page
@@ -91,6 +90,16 @@ def test_headline_uses_only_summary_numbers():
     assert report.headline({**summary, "decision_changed": 0}) == "Решение не сменила ни одна заявка; проверки: 33 FAIL"
     del summary["checks_fail"]
     assert "FAIL" not in report.headline(summary)
+
+
+def test_headline_plural_and_other_decisions():
+    base = {"decision_changes": {"approve_to_reject": 1, "reject_to_approve": 0}, "change_sources": {}}
+    assert report.headline({**base, "decision_changed": 1}).startswith("Решение сменила 1 заявка:")
+    assert report.headline({**base, "decision_changed": 2}).startswith("Решение сменили 2 заявки:")
+    assert report.headline({**base, "decision_changed": 12}).startswith("Решение сменили 12 заявок:")
+    other = {**base, "decision_changed": 5, "decision_changes": {"decision_other": 3}}
+    assert ", у 3 другое решение" in report.headline(other)
+    assert report.headline({}) == "Решение не сменила ни одна заявка"
 
 
 def test_report_links_use_forwarded_scheme_and_reject_malformed_host(client, ready_id):

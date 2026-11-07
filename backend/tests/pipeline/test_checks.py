@@ -125,6 +125,13 @@ CHECK = {"id": "good", "label": "Хорошая", "params": {"limit": 2}, "entry
 '''
 
 
+@pytest.fixture
+def allow_system_modules(monkeypatch):
+    """Снимает статический запрет: тесты проверяют именно лимиты ОС и процесс, а не отказ при сохранении."""
+    import pipeline.checks_runner as runner
+    monkeypatch.setattr(runner, "FORBIDDEN_MODULES", ())
+
+
 def test_load_check_from_code():
     check = load_check(GOOD, "code")
     assert check["id"] == "good" and callable(check["entrypoint"])
@@ -151,7 +158,7 @@ def test_load_check_infinite_loop_does_not_hang():
     assert time.time() - started < 30
 
 
-def test_load_check_runs_only_in_child_without_secrets(monkeypatch):
+def test_load_check_runs_only_in_child_without_secrets(monkeypatch, allow_system_modules):
     # код отработал при загрузке, но не в этом процессе и без секретов окружения
     monkeypatch.setenv("MY_LOAD_SECRET", "abc")
     code = ("import posix\nSECRET = posix.environ.get(b'MY_LOAD_SECRET')\n"
@@ -160,7 +167,7 @@ def test_load_check_runs_only_in_child_without_secrets(monkeypatch):
     assert load_check(code, "code")["label"] == "None"
 
 
-def test_load_check_side_effect_not_in_parent(tmp_path):
+def test_load_check_side_effect_not_in_parent(tmp_path, allow_system_modules):
     marker = tmp_path / "ran.txt"
     code = (f"import posix, pathlib\npathlib.Path({str(marker)!r}).write_text(str(posix.getpid()))\n"
             "CHECK = {'id': 'a', 'label': 'b', 'params': {}, 'entrypoint': print}")
@@ -256,7 +263,7 @@ def test_hanging_worker_start_waits_only_once(mart, monkeypatch):
     assert all("не запустился" in r["ARGUMENT"] for r in rows)
 
 
-def test_user_code_does_not_see_env_secrets(mart, monkeypatch):
+def test_user_code_does_not_see_env_secrets(mart, monkeypatch, allow_system_modules):
     monkeypatch.setenv("MY_SECRET_TOKEN", "abc")
     spy = load_check('import posix\ndef run(m, p):\n'
                      '    return [{"LABEL": "env", "ARGUMENT": str(posix.environ.get(b"MY_SECRET_TOKEN")), "RESULT": "PASS"}]\n'
@@ -271,7 +278,8 @@ def _check_with_body(body: str) -> str:
 
 @pytest.mark.parametrize("code", [
     "import os\n", "import subprocess\n", "import socket\n", "import shutil\n", "import ctypes\n",
-    "from os import system\n", "import os.path\n", "x = __import__('os')\n",
+    "from os import system\n", "import posix\n", "import pathlib\n", "import importlib\n", "import sys\n",
+    "import builtins\n", "import pty\n", "import multiprocessing\n", "import signal\n", "import _socket\n", "import os.path\n", "x = __import__('os')\n",
     "open('/etc/hostname')\n",
 ])
 def test_forbidden_code_is_rejected(code):
@@ -288,7 +296,7 @@ def test_forbidden_words_in_strings_and_relative_open_are_fine():
     assert validate_check_code("open('data.txt')\n" + code) == []
 
 
-def test_user_code_cannot_start_processes(mart, tmp_path):
+def test_user_code_cannot_start_processes(mart, tmp_path, allow_system_modules):
     # статическая проверка обойдена через posix: должны сработать лимиты ОС (для root NPROC не действует)
     import os
     if os.geteuid() == 0:
@@ -302,7 +310,14 @@ def test_user_code_cannot_start_processes(mart, tmp_path):
     assert row["RESULT"] == "FAIL" and "BlockingIOError" in row["ARGUMENT"]
 
 
-def test_user_code_runs_in_temp_dir(mart):
+def test_relative_check_path_still_works_after_chdir(mart, tmp_path, monkeypatch):
+    (tmp_path / "rel").mkdir()
+    (tmp_path / "rel" / "c.py").write_text(GOOD, encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    assert run_checks(mart, [load_check(Path("rel/c.py"), "file")])[0]["LABEL"] == "t"
+
+
+def test_user_code_runs_in_temp_dir(mart, allow_system_modules):
     code = _check_with_body("import pathlib\nreturn [{'ARGUMENT': str(pathlib.Path.cwd()), 'RESULT': 'PASS'}]")
     row = run_checks(mart, [load_check(code, "code")])[0]
     assert "razlichalka_check_" in row["ARGUMENT"]

@@ -30,16 +30,28 @@ LABELS = {
 templates.filters["ru"] = lambda code: LABELS.get(code, code)
 
 
+def _plural(n: int, one: str, few: str, many: str) -> str:
+    """1 заявка, 2 заявки, 5 заявок."""
+    if n % 100 in range(11, 15):
+        return many
+    return one if n % 10 == 1 else few if n % 10 in (2, 3, 4) else many
+
+
 def headline(summary: dict) -> str:
     """Итоговая фраза наверху отчёта. Все числа берём из summary, ничего не считаем сами."""
-    changed = summary["decision_changed"]
+    changed = summary.get("decision_changed", 0)
     if not changed:
         text = "Решение не сменила ни одна заявка"
     else:
-        moves = summary["decision_changes"]
+        moves = summary.get("decision_changes", {})
         sources = summary.get("change_sources", {})
-        text = (f"Решение сменили {changed} заявок: {moves['approve_to_reject']} потеряли одобрение, "
-                f"{moves['reject_to_approve']} получили; логика {sources.get('logic', 0)} / данные {sources.get('data', 0)}")
+        word = _plural(changed, "заявка", "заявки", "заявок")
+        verb = "сменила" if changed % 10 == 1 and changed % 100 != 11 else "сменили"
+        text = (f"Решение {verb} {changed} {word}: {moves.get('approve_to_reject', 0)} потеряли одобрение, "
+                f"{moves.get('reject_to_approve', 0)} получили")
+        if moves.get("decision_other"):
+            text += f", у {moves['decision_other']} другое решение"
+        text += f"; логика {sources.get('logic', 0)} / данные {sources.get('data', 0)}"
         if sources.get("both"):
             text += f" / вместе {sources['both']}"
     if "checks_fail" in summary:  # поля нет у запусков без этапа checks

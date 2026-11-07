@@ -168,17 +168,25 @@ def _count_shares(data: dict) -> dict[int, float]:
 
 
 def _percents_ok(text: str, allowed: list[float], pairs: dict[int, float]) -> bool:
-    numbers = [float(n.replace(",", ".")) for n in PERCENT.findall(text)]
-    if not numbers:
+    written = PERCENT.findall(text)
+    if not written:
         return True
     # Если в предложении назван один из главных счётчиков, процент должен быть именно его долей.
-    named = [pairs[int(n)] for n in re.findall(r"(?<![\d.,])\d+(?![\d.,%])", text) if int(n) in pairs]
+    # Числа с «%» счётчиками не считаем; число в конце предложения («385.», «385,») считаем.
+    counters = re.findall(r"(?<![\d.,])\d+(?!\d)(?![.,]\d)(?!\s*%)", text)
+    named = [pairs[int(n)] for n in counters if int(n) in pairs]
     pool = named or allowed
-    return all(any(abs(n - a) <= 0.1 for a in pool) for n in numbers)
+    for number in written:
+        # допуск зависит от записи: «19 %» — это округление до целого (±0,5), «19,2 %» — до десятых (±0,1)
+        tolerance = 0.5 if re.fullmatch(r"\d+", number) else 0.1
+        value = float(number.replace(",", "."))
+        if not any(abs(value - a) <= tolerance + 1e-9 for a in pool):
+            return False
+    return True
 
 
 def check_percents(text: str, data: dict) -> str:
-    """Убирает предложения с процентом, которого нет среди переданных долей (допуск 0,1). Остальное не трогаем."""
+    """Убирает предложения с процентом, которого нет среди переданных долей (допуск по точности записи). Остальное не трогаем."""
     allowed, pairs = _allowed_percents(data), _count_shares(data)
     kept = []
     for line in text.split("\n"):

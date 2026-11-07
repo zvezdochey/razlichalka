@@ -84,6 +84,7 @@ def recover() -> None:
                     run["finished_at"] = _now()
                     for st in run["stages"]:
                         if st["status"] == "running":
+                            st.setdefault("log", [])
                             st["status"], st["finished_at"], st["error"] = "error", _now(), dict(error)
                             st["log"].append({"at": _now(), "level": "error", "message": error["message"]})
             except Exception as exc:  # один битый запуск не должен мешать серверу стартовать
