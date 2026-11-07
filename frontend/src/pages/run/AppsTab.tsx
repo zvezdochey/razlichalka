@@ -129,7 +129,7 @@ function ReadyApps({ runId }: { runId: string }) {
   }
   const chips = [
     ...decision.split(',').filter(Boolean).map((value) => ({ key: 'decision_change', value, label: DECISIONS[value as DecisionChange] ?? value })),
-    ...source.split(',').filter(Boolean).map((value) => ({ key: 'change_source', value, label: `Источник: ${SOURCES[value as ChangeSource] ?? value}` })),
+    ...source.split(',').filter(Boolean).map((value) => ({ key: 'change_source', value, label: `Почему изменилось: ${SOURCES[value as ChangeSource] ?? value}` })),
     ...(hasAttr ? [{ key: 'has_attr_change', value: '1', label: 'Только с различиями' }] : []),
     ...(search ? [{ key: 'search', value: search, label: `Поиск: ${search}` }] : []),
   ]
@@ -153,7 +153,7 @@ function ReadyApps({ runId }: { runId: string }) {
         {Object.entries(DECISIONS).map(([value, label]) => <label key={value}><input type="checkbox"
           checked={decision.split(',').includes(value)} onChange={() => toggle('decision_change', decision, value)} />{label}</label>)}
       </fieldset>
-      <fieldset className="apps-filter"><legend>Источник</legend>
+      <fieldset className="apps-filter"><legend>Почему изменилось</legend>
         {Object.entries(SOURCES).map(([value, label]) => <label key={value}><input type="checkbox"
           checked={source.split(',').includes(value)} onChange={() => toggle('change_source', source, value)} />{label}</label>)}
       </fieldset>
