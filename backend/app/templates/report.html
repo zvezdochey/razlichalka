@@ -169,12 +169,13 @@
       {% if checks %}
       <table aria-labelledby="checks">
         <thead>
-          <tr><th scope="col">Проверка</th><th scope="col">Предмет</th><th scope="col" class="numeric">Метрика</th><th scope="col" class="numeric">Заявок</th><th scope="col">Результат</th><th scope="col">Заявки</th></tr>
+          <tr><th scope="col">Проверка</th><th scope="col">Срез</th><th scope="col">Предмет</th><th scope="col" class="numeric">Метрика</th><th scope="col" class="numeric">Заявок</th><th scope="col">Результат</th><th scope="col">Заявки</th></tr>
         </thead>
         <tbody>
           {% for c in checks %}
           <tr{% if c.faint %} class="muted"{% endif %}>
             <th scope="row">{{ c.check_name }}</th>
+            <td>{{ {"AFTER": "после (AFTER)", "BEFORE": "до (BEFORE)"}.get(c.source, c.source or "—") }}</td>
             <td>{{ c.argument or "—" }}</td>
             <td class="numeric">{% if c.metric is number %}{{ "%.4g" | format(c.metric) }}{% else %}{{ c.metric or "—" }}{% endif %}</td>
             <td class="numeric">{{ c.numbers or "—" }}</td>
@@ -207,7 +208,8 @@
       <a href="{{ app_url }}">обзор</a> ·
       <a href="{{ app_url }}/pivot">сводная</a> ·
       <a href="{{ app_url }}/checks">проверки</a> ·
-      <a href="{{ app_url }}/apps">заявки</a>
+      <a href="{{ app_url }}/apps">заявки</a> ·
+      <a href="{{ app_url }}/report">этот отчёт</a>
     </footer>
   </main>
 </body>

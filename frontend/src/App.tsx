@@ -4,6 +4,7 @@ import { AppLayout } from './layout/AppLayout'
 import { NewRunPage } from './pages/newRun/NewRunPage'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { ProceduresPage } from './pages/ProceduresPage'
+import { ReportPage } from './pages/ReportPage'
 import { RunPage } from './pages/RunPage'
 import { RunsListPage } from './pages/RunsListPage'
 import { AppsTab } from './pages/run/AppsTab'
@@ -22,6 +23,8 @@ export function App() {
         <Route index element={<Navigate to="/runs" replace />} />
         <Route path="runs" element={<RunsListPage />} />
         <Route path="runs/new" element={<NewRunPage />} />
+        {/* Постоянная ссылка на HTML-отчёт прогона (документ грузится от имени пользователя) */}
+        <Route path="runs/:id/report" element={<ReportPage />} />
         <Route path="runs/:id" element={<RunPage />}>
           {/* Куда вести без вкладки — решает статус прогона, см. RunIndexRedirect. */}
           <Route index element={<RunIndexRedirect />} />

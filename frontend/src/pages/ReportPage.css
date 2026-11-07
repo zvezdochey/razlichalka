@@ -1,0 +1,14 @@
+/* Отчёт на всю доступную высоту: рамка без собственной обводки, как панель */
+.report-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  height: calc(100vh - 7rem);
+}
+
+.report-page__frame {
+  flex: 1;
+  width: 100%;
+  border: 1px solid var(--border);
+  background: #fff;
+}

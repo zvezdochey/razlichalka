@@ -1,6 +1,6 @@
 // По функции на каждую ручку MVP из docs/api.md. Экраны зовут только это,
 // про fetch и адреса знает client.ts.
-import { apiUrl, downloadFile, openInNewTab, request } from './client'
+import { apiUrl, downloadFile, fetchText, openInNewTab, request } from './client'
 import type {
   AiReview,
   AppCard,
@@ -185,6 +185,11 @@ export function getAttributes(
 export function downloadReport(runId: string): Promise<void> {
   const url = apiUrl(`/runs/${encodeURIComponent(runId)}/report.html`)
   return downloadFile(url, `report-${runId}.html`)
+}
+
+/** HTML отчёта для страницы приложения `/runs/{id}/report` — постоянная ссылка на документ. */
+export function getReportHtml(runId: string, options?: Options): Promise<string> {
+  return fetchText(apiUrl(`/runs/${encodeURIComponent(runId)}/report`), options)
 }
 
 /** Открыть отчёт в новой вкладке (п. 11, `/report` без `Content-Disposition`). */

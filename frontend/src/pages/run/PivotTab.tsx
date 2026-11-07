@@ -135,7 +135,7 @@ function ReadyPivot({ runId }: { runId: string }) {
   // «Сдвиг значений»: матрица «бакет до × бакет после» для одного атрибута. Атрибут — из фильтра PATH,
   // а если его нет — самый часто меняющийся в этом прогоне (спрашиваем у фактов, путь в коде не зашит).
   const [shiftBusy, setShiftBusy] = useState(false)
-  const openValueShift = async () => {
+  const openValueShift = async (mode: 'shift' | 'sources') => {
     let path = layout.filters.PATH?.length === 1 ? layout.filters.PATH[0] : undefined
     if (path === undefined) {
       setShiftBusy(true)
@@ -150,7 +150,12 @@ function ReadyPivot({ runId }: { runId: string }) {
       }
     }
     if (path === undefined) return
-    update({ rows: ['ADJUSTED_BEFORE'], column: 'ADJUSTED_AFTER', measure: 'counts_distinct_apps', filters: { PATH: [path], CHANGE_TYPE: ['VALUE_CHANGED'] } })
+    if (mode === 'shift') {
+      update({ rows: ['ADJUSTED_BEFORE'], column: 'ADJUSTED_AFTER', measure: 'counts_distinct_apps', filters: { PATH: [path], CHANGE_TYPE: ['VALUE_CHANGED'] } })
+    } else {
+      // Вертикальная витрина: распределение значения (бакета) в каждом срезе — «было / стало» колонками
+      update({ rows: ['ADJUSTED_VALUE'], column: 'SOURCE', measure: 'counts_distinct_apps', filters: { PATH: [path] } })
+    }
   }
 
   const [manualOpen, setManualOpen] = useState(false)
@@ -222,9 +227,19 @@ function ReadyPivot({ runId }: { runId: string }) {
               aria-pressed={layout.rows.join(',') === 'ADJUSTED_BEFORE' && layout.column === 'ADJUSTED_AFTER'}
               disabled={shiftBusy}
               title="Строки — значение или диапазон (бакет) до, колонки — после, для одного атрибута. Атрибут — из фильтра, иначе тот, что меняется чаще всего"
-              onClick={() => void openValueShift()}
+              onClick={() => void openValueShift('shift')}
             >
               Сдвиг значений (до → после)
+            </button>
+            <button
+              type="button"
+              className="btn"
+              aria-pressed={layout.rows.join(',') === 'ADJUSTED_VALUE' && layout.column === 'SOURCE'}
+              disabled={shiftBusy}
+              title="Вертикальная витрина: строки — значение или диапазон, колонки — срез (до / после), для одного атрибута"
+              onClick={() => void openValueShift('sources')}
+            >
+              Значения по срезам
             </button>
           </div>
           <button type="button" className="btn" onClick={() => {

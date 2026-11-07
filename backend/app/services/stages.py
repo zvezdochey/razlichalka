@@ -15,6 +15,7 @@ from pipeline.errors import BadFile
 from pipeline.mart import Mart
 from pipeline.normalize import normalize_dataset
 from pipeline.procedures import load_builtin_value
+from pipeline.union import build_union
 from pipeline.user_procedures import load_constants, run_compare, write_data_procedure
 from pipeline.segments import build_segments, segment_field_map
 from pipeline.summary import build_summary
@@ -26,6 +27,7 @@ from app.services import app_card, procedures
 # Имена файлов запуска — CONTRACTS §3
 NORMALIZED = {"BEFORE": "normalized_BEFORE.csv", "AFTER": "normalized_AFTER.csv"}
 COMPARISON = "comparison.csv"
+UNION = "union.csv"  # вертикальная витрина BEFORE + AFTER с полем SOURCE (pipeline/union.py)
 SEGMENTS = "segments.csv"
 SUMMARY = "summary.json"
 UNPAIRED = "unpaired.json"  # заявки без пары (E15): пишет compare, читает summary
@@ -116,6 +118,9 @@ def stage_compare(ctx) -> None:
         compare_fn = lambda before, after: run_compare(code, before, after, proc["name"])  # noqa: E731
     compare_csv(ctx.run_dir / NORMALIZED["BEFORE"], ctx.run_dir / NORMALIZED["AFTER"],
                 ctx.run_dir / COMPARISON, log=ctx.log, unpaired_json=ctx.run_dir / UNPAIRED, compare_fn=compare_fn)
+    rows = build_union(ctx.run_dir / NORMALIZED["BEFORE"], ctx.run_dir / NORMALIZED["AFTER"],
+                       ctx.run_dir / COMPARISON, ctx.run_dir / UNION)
+    ctx.log("info", f"Вертикальная витрина union.csv (BEFORE + AFTER, срез в SOURCE): {rows} строк")
     ctx.progress(1, 1)
 
 

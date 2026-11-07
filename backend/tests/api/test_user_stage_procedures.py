@@ -150,3 +150,23 @@ def test_apps_filtered_by_group_ref(tmp_path, monkeypatch):
     apps = client.get(f"/api/runs/{rid}/apps?ref={row['app_ids_ref']}", headers=ANN).json()
     assert apps["total"] == row["counts"]
     assert client.get(f"/api/runs/{rid}/apps?ref=f_nope", headers=ANN).status_code == 404
+
+
+def test_vertical_union_and_source_facts(tmp_path, monkeypatch):
+    """Вертикальная витрина union.csv (срез в SOURCE) и сводная «значение × срез» по ней."""
+    client = make_client(tmp_path, monkeypatch, MINI)
+    rid, data = _run(client)
+    assert data["status"] == "ready", data["error"]
+    union = (settings.DATA_DIR / "runs" / rid / "union.csv").read_text(encoding="utf-8-sig").splitlines()
+    assert union[0].split(";")[:2] == ["APP_ID", "SOURCE"]
+    assert {line.split(";")[1] for line in union[1:]} == {"BEFORE", "AFTER"}
+
+    url = f"/api/runs/{rid}/facts"
+    facts = client.get(url, params={"dims": "SOURCE", "filter": "DIFF_FLAG:1", "measure": "counts_distinct_apps"},
+                       headers=ANN).json()
+    assert {row["SOURCE"] for row in facts["rows"]} == {"BEFORE", "AFTER"}
+    ref = facts["rows"][0]["app_ids_ref"]
+    assert client.get(f"/api/runs/{rid}/facts/{ref}/apps", headers=ANN).json()["total"] == facts["rows"][0]["counts"]
+
+    bad = client.get(url, params={"dims": "SOURCE,VALUE_BEFORE"}, headers=ANN)
+    assert bad.status_code == 400 and "вертикальной витрине" in bad.json()["error"]["message"]

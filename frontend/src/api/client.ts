@@ -132,6 +132,11 @@ export async function downloadFile(url: string, filename: string): Promise<void>
  * не годится — нужен X-User. Вкладку открываем сразу синхронно (иначе браузер считает
  * `window.open` после `await` попапом и блокирует), адрес подставляем, когда файл готов.
  */
+/** Текст ответа (HTML-отчёт) — с заголовком X-User, как у остальных запросов. */
+export async function fetchText(url: string, init?: RequestInit): Promise<string> {
+  return (await send(url, init)).text()
+}
+
 export async function openInNewTab(url: string, downloadName: string): Promise<void> {
   const tab = window.open('', '_blank')
   try {
