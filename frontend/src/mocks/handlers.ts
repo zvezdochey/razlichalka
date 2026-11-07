@@ -10,7 +10,7 @@ import type {
   DecisionChange,
   ErrorCode,
 } from '../api/types'
-import { APPS, DATASET, SUMMARY, buildAttributes } from './data'
+import { APPS, DATASET, REASONS, SUMMARY, buildAppCard, buildAttributes, mockReasonApps } from './data'
 import {
   cancelMockRun,
   createMockRun,
@@ -29,6 +29,12 @@ const DEFAULT_PAGE = 1
 const DEFAULT_APPS_SIZE = 50
 const DEFAULT_ATTRIBUTES_SIZE = 100
 const MAX_SIZE = 500
+
+const CSV_FIELDS = [
+  'app_id', 'decision_before', 'decision_after', 'decision_change', 'attributes_changed',
+  'pd_model_before', 'pd_model_after', 'cutoff_before', 'cutoff_after',
+  'reject_reason_before', 'reject_reason_after', 'change_source',
+] as const satisfies readonly (keyof AppRow)[]
 
 /** Ошибка в том же виде, что у бэка: `{ error: { code, message } }`. */
 function error(status: number, code: ErrorCode, message: string) {
@@ -237,6 +243,37 @@ export const handlers = [
     return HttpResponse.json(response)
   }),
 
+  http.get('/api/runs/:id/apps/:appId', async ({ params }) => {
+    await delay(RESPONSE_DELAY_MS)
+    const run = findMockRun(String(params.id))
+    if (run === undefined) return notFound('такой запуск')
+    if (!isReady(run)) return notReady()
+
+    const app = APPS.find((item) => item.app_id === params.appId)
+    return app ? HttpResponse.json(buildAppCard(app)) : notFound('такую заявку')
+  }),
+
+  http.get('/api/runs/:id/reasons', async ({ params }) => {
+    await delay(RESPONSE_DELAY_MS)
+    const run = findMockRun(String(params.id))
+    if (run === undefined) return notFound('такой запуск')
+    return isReady(run) ? HttpResponse.json(REASONS) : notReady()
+  }),
+
+  http.get('/api/runs/:id/facts/:ref/apps', async ({ params, request }) => {
+    await delay(RESPONSE_DELAY_MS)
+    const run = findMockRun(String(params.id))
+    if (run === undefined) return notFound('такой запуск')
+    if (!isReady(run)) return notReady()
+
+    const apps = mockReasonApps(String(params.ref))
+    if (apps === undefined) return notFound('такую группу')
+    const { searchParams } = new URL(request.url)
+    const page = readInt(searchParams, 'page', DEFAULT_PAGE)
+    const size = readInt(searchParams, 'size', DEFAULT_APPS_SIZE, MAX_SIZE)
+    return HttpResponse.json({ page, size, total: apps.length, apps: paginate(apps, page, size) })
+  }),
+
   // 7.4. Список заявок с различиями
   http.get('/api/runs/:id/apps', async ({ params, request }) => {
     await delay(RESPONSE_DELAY_MS)
@@ -258,6 +295,22 @@ export const handlers = [
       apps: paginate(rows, page, size),
     }
     return HttpResponse.json(response)
+  }),
+
+  http.get('/api/runs/:id/export.csv', async ({ params, request }) => {
+    await delay(RESPONSE_DELAY_MS)
+    const run = findMockRun(String(params.id))
+    if (run === undefined) return notFound('такой запуск')
+    if (!isReady(run)) return notReady()
+
+    const { searchParams } = new URL(request.url)
+    const sort = searchParams.get('sort') ?? ''
+    if (sort && !isSortable(sort.replace(/^-/, ''))) return error(400, 'bad_file', `Неизвестное поле сортировки: ${sort}`)
+    const rows = filterApps(searchParams).map((app) => CSV_FIELDS.map((field) => app[field] ?? '').join(';'))
+    const csv = ['\uFEFF' + CSV_FIELDS.join(';'), ...rows].join('\r\n') + '\r\n'
+    return new HttpResponse(csv, {
+      headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="apps-${run.id}.csv"` },
+    })
   }),
 
   // 5.2. Статус запуска

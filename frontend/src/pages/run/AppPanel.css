@@ -5,8 +5,8 @@
 .app-panel-header p { margin: 0; color: var(--muted); }
 .app-panel-close { font-size: 26px; line-height: 1; }
 .app-panel-body { padding: var(--s-4); overflow: auto; display: flex; flex-direction: column; gap: var(--s-3); }
-.app-panel-tabs { border-bottom: 1px solid var(--border); padding-bottom: var(--s-2); }
-.app-panel-tabs span { border-bottom: 2px solid var(--text); padding: var(--s-2); font-weight: 600; }
+.app-panel-tabs { display: flex; gap: var(--s-2); border-bottom: 1px solid var(--border); padding-bottom: var(--s-2); }
+.app-panel-tabs [aria-pressed='true'] { border-color: var(--text); background: var(--surface-sunken); font-weight: 600; }
 .app-panel-controls { display: flex; align-items: end; gap: var(--s-3); flex-wrap: wrap; }
 .app-panel-controls label { display: flex; flex-direction: column; gap: var(--s-1); font-size: var(--fs-caption); }
 .app-panel-controls label:has(input[type='checkbox']) { flex-direction: row; align-items: center; padding-bottom: var(--s-2); }

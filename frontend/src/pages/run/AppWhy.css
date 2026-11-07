@@ -1,0 +1,76 @@
+.app-why {
+  display: grid;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.app-why h3,
+.app-why h4,
+.app-why p {
+  margin: 0 0 var(--s-2);
+}
+
+.app-why-decision {
+  display: flex;
+  gap: var(--s-3);
+  font-weight: 600;
+}
+
+.app-why-decision .axis {
+  padding-inline-start: var(--s-3);
+}
+
+.app-why-reasons,
+.app-why-offers ul {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.app-why-reasons li {
+  padding-block: var(--s-2);
+  border-block-start: 1px solid var(--border);
+}
+
+.app-why-reasons p {
+  margin-bottom: 0;
+}
+
+.app-why-table {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.app-why-table th,
+.app-why-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+
+.app-why-table th[scope='rowgroup'] {
+  font-weight: 600;
+}
+
+.app-why-table tbody th {
+  position: static;
+}
+
+.app-why-table .app-why-after {
+  border-inline-start: 1px solid var(--border);
+}
+
+.app-why-changed {
+  font-weight: 600;
+}
+
+.app-why-offers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow-wrap: anywhere;
+}
+
+.app-why-offers > :last-child {
+  border-inline-start: 1px solid var(--border);
+  padding-inline-start: var(--s-3);
+}

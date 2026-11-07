@@ -6,6 +6,7 @@ import { getSummary, isAbortError } from '../../api'
 import { ErrorBox, Spinner } from '../../components'
 import { DASH, formatNumber } from '../../lib/format'
 import { NotReadyNotice } from './NotReadyNotice'
+import { ReasonsBlock } from './ReasonsBlock'
 import './OverviewTab.css'
 import { useRunContext } from './runContext'
 
@@ -72,7 +73,7 @@ function OverviewBody({ runId }: { runId: string }) {
         <DecisionTransitions summary={summary} />
         <AttributeBars summary={summary} />
       </div>
-      {/* Ниже встанут «Что ломает решение» (I4) и «Логика или входные данные» (E10) — чужие блоки. */}
+      <ReasonsBlock key={runId} runId={runId} />
     </div>
   )
 }

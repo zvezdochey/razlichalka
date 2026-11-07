@@ -461,3 +461,47 @@ export type ConfigDetail = ConfigUpdate & {
   id: string
   updated_at: string
 }
+
+export type Reason = {
+  text: string
+  source: 'rule' | 'score' | 'cutoff' | 'product' | 'data' | 'unknown'
+  confidence: 'high' | 'low'
+}
+
+export type AppProduct = {
+  product_id: number | string
+  decision: Decision
+  reject_reason: string | null
+  reject_reason_code: string | null
+  pd_model: string | null
+  pd: number | null
+  cutoff: { name: string | null; value: number | null }
+  rules: { name: string; hit: boolean | null }[]
+}
+
+type AppSlice = {
+  decision: Decision
+  offers: { product_id: number | string; type: string | null }[]
+  products: AppProduct[]
+}
+
+export type AppCard = {
+  app_id: string
+  decision_change: DecisionChange
+  before: AppSlice
+  after: AppSlice
+  reasons: Reason[]
+}
+
+export type ReasonsResponse = {
+  reasons: {
+    text: string
+    source: 'rule' | 'cutoff'
+    rule: string
+    affected: number
+    share: number
+    app_ids_ref: string
+  }[]
+  unexplained: number
+  by_source?: Record<Exclude<ChangeSource, 'none'>, number>
+}
