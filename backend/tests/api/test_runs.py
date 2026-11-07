@@ -164,7 +164,7 @@ def test_restart_keeps_run_when_save_fails(client, tmp_path, monkeypatch):
     monkeypatch.setattr(runs, "_write", broken_write)
     again = TestClient(create_app())
     data = again.get(f"/api/runs/{started['id']}", headers=ANN).json()
-    assert data["status"] == "error" and data["error"]["code"] == "internal"
+    assert data["status"] == "error" and data["error"]["code"] == "interrupted"
 
 
 def test_unfinished_run_becomes_error_after_restart(client, monkeypatch):
@@ -175,8 +175,30 @@ def test_unfinished_run_becomes_error_after_restart(client, monkeypatch):
     again = TestClient(create_app())
     data = again.get(f"/api/runs/{started['id']}", headers=ANN).json()
     assert data["status"] == "error"
-    assert data["error"] == {"code": "internal", "message": "Сервер перезапускали во время запуска"}
+    assert data["error"] == {
+        "code": "interrupted", "message": "Прогон прерван перезапуском сервера — запустите повторно"}
+    stages = again.get(f"/api/runs/{started['id']}/stages", headers=ANN).json()["stages"]
+    broken = [st for st in stages if st["status"] == "error"]
+    assert len(broken) == 1
+    assert broken[0]["log"][-1]["level"] == "error"
     old_flag.set()  # останавливаем старый фоновый поток, чтобы он не мешал другим тестам
+
+
+def test_ready_run_survives_restart(client):
+    _, started = new_run(client)
+    wait_for(client, started["id"], {"ready"})
+    again = TestClient(create_app())
+    assert again.get(f"/api/runs/{started['id']}", headers=ANN).json()["status"] == "ready"
+
+
+def test_start_during_shutdown_is_interrupted_not_internal(client, monkeypatch):
+    def refuse(*args, **kwargs):
+        raise RuntimeError("cannot schedule new futures after interpreter shutdown")
+
+    monkeypatch.setattr(runs._executor, "submit", refuse)
+    _, started = new_run(client)
+    data = client.get(f"/api/runs/{started['id']}", headers=ANN).json()
+    assert data["status"] == "error" and data["error"]["code"] == "interrupted"
 
 
 def test_stage_error(client, monkeypatch):

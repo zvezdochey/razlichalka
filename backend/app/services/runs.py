@@ -47,6 +47,7 @@ class Cancelled(Exception):
 
 CANCELLED = (Cancelled, PipelineCancelled)
 CANCELLED_ERROR = {"code": "cancelled", "message": "Остановлено пользователем"}
+INTERRUPTED_ERROR = {"code": "interrupted", "message": "Прогон прерван перезапуском сервера — запустите повторно"}
 
 
 def _now() -> str:
@@ -78,12 +79,13 @@ def recover() -> None:
                 rid = run["id"]
                 unfinished = run["status"] in ("pending", "running")
                 if unfinished:
-                    error = {"code": "internal", "message": "Сервер перезапускали во время запуска"}
+                    error = dict(INTERRUPTED_ERROR)
                     run["status"], run["error"], run["current_stage"] = "error", error, None
                     run["finished_at"] = _now()
                     for st in run["stages"]:
                         if st["status"] == "running":
-                            st["status"], st["finished_at"], st["error"] = "error", _now(), error
+                            st["status"], st["finished_at"], st["error"] = "error", _now(), dict(error)
+                            st["log"].append({"at": _now(), "level": "error", "message": error["message"]})
             except Exception as exc:  # один битый запуск не должен мешать серверу стартовать
                 log.warning("Запуск в %s пропущен — run.json не читается: %s", folder.name, exc)
                 continue
@@ -240,7 +242,11 @@ def create(config: dict, user: str) -> dict:
         _dirs[rid] = Path(settings.DATA_DIR) / "runs" / rid
         _cancel[rid], _done[rid] = threading.Event(), threading.Event()
         _save(run)
-    _executor.submit(execute, run)
+    try:
+        _executor.submit(execute, run)
+    except RuntimeError:  # "cannot schedule new futures after interpreter shutdown": сервер останавливается
+        _fail(run, None, INTERRUPTED_ERROR)
+        _done[rid].set()
     return run
 
 
