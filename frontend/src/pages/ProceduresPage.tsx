@@ -231,15 +231,18 @@ export function ProceduresPage() {
     setActionError(null)
     try {
       const input = toInput(draft)
+      // Запоминаем то, что реально ушло на сервер: правка, сделанная пока шёл запрос,
+      // не должна считаться сохранённой.
+      const sent = snapshot(draft)
       const proc = draft.id === null ? await createProcedure(input) : await updateProcedure(draft.id, input)
       setCodeErrors(null)
       setListKey((key) => key + 1)
       if (draft.id === null) {
         // Новую открываем по id: эффект перечитает её с бэка (для файла — уже с кодом).
-        setSaved(snapshot(draft))
+        setSaved(sent)
         setParams({ id: proc.id }, { replace: true })
       } else {
-        setSaved(snapshot(draft))
+        setSaved(sent)
       }
     } catch (e) {
       // Ошибка контракта показывается так же, как результат «Проверить».
@@ -257,7 +260,11 @@ export function ProceduresPage() {
 
   async function handleDelete() {
     if (draft === null || draft.id === null || draft.builtin || busy !== 'idle') return
-    if (!window.confirm(`Удалить «${draft.name}»? Прогоны, где она уже была, останутся.`)) return
+    const question =
+      `Удалить «${draft.name}»? Если проверка подключена к конфигурациям, в них останется ` +
+      'id несуществующей процедуры, и новые прогоны по ним не стартуют, пока её не уберут. ' +
+      'Уже посчитанные прогоны останутся.'
+    if (!window.confirm(question)) return
     setBusy('deleting')
     try {
       await deleteProcedure(draft.id)
@@ -405,7 +412,7 @@ function Workspace({
 }: WorkspaceProps) {
   const readOnly = draft.builtin
   // Файл на сервере правят на сервере: здесь его только читают и проверяют.
-  const codeReadOnly = readOnly || draft.source === 'file'
+  const codeReadOnly = readOnly || draft.source === 'file' || busy === 'saving'
   const locked = busy !== 'idle'
   const status = statusText(draft, dirty, busy, codeErrors)
 
@@ -418,7 +425,7 @@ function Workspace({
             <input
               className="input"
               value={draft.name}
-              readOnly={readOnly}
+              readOnly={readOnly || busy === 'saving'}
               onChange={(event) => onEdit({ name: event.target.value })}
             />
           </label>
