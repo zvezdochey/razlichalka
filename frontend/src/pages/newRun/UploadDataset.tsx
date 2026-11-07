@@ -1,4 +1,5 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import type { RefObject } from 'react'
 import { isAbortError, uploadDataset } from '../../api'
 import type { UploadResponse } from '../../api'
 import { ErrorBox, Spinner } from '../../components'
@@ -10,7 +11,7 @@ type UploadDatasetProps = {
 
 const ACCEPT = '.json,.xml,.csv,.zip'
 
-/** «3 файла», «1 файл», «2002 файла» — для подписи под выбором. */
+/** «3 файла», «1 файл», «5 файлов» — для подписи под выбором. */
 function filesLabel(count: number): string {
   const last = count % 10
   const lastTwo = count % 100
@@ -26,7 +27,10 @@ function receivedLine(result: UploadResponse): string {
     const formats = (['json', 'xml', 'csv'] as const)
       .filter((format) => r[format] > 0)
       .map((format) => `${format.toUpperCase()} ${r[format]}`)
-    return `${source}: ${r.applications.toLocaleString('ru-RU')} (${formats.join(', ')})`
+    const label = result.dataset.sources[source]
+    const name = label === source ? source : `${source} (${label})`
+    const count = r.applications.toLocaleString('ru-RU')
+    return formats.length === 0 ? `${name}: ${count}` : `${name}: ${count} (${formats.join(', ')})`
   })
   return parts.join(' · ')
 }
@@ -44,8 +48,19 @@ export function UploadDataset({ onUploaded }: UploadDatasetProps) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<UploadResponse | null>(null)
+  const controller = useRef<AbortController | null>(null)
   const beforeInput = useRef<HTMLInputElement>(null)
   const afterInput = useRef<HTMLInputElement>(null)
+
+  // Ушли со страницы — загрузку обрываем, иначе она потом молча сменит выбранный датасет.
+  useEffect(() => () => controller.current?.abort(), [])
+
+  function chooseFiles(set: (files: File[]) => void) {
+    return (files: File[]) => {
+      set(files)
+      setDone(null) // сообщение про прошлую загрузку устарело
+    }
+  }
 
   const canUpload = before.length > 0 && after.length > 0 && !busy
 
@@ -54,8 +69,10 @@ export function UploadDataset({ onUploaded }: UploadDatasetProps) {
     setBusy(true)
     setError(null)
     setDone(null)
+    const own = new AbortController()
+    controller.current = own
     try {
-      const result = await uploadDataset({ before, after, beforeLabel, afterLabel })
+      const result = await uploadDataset({ before, after, beforeLabel, afterLabel }, { signal: own.signal })
       setDone(result)
       // Файлы больше не нужны: освобождаем и поля выбора.
       setBefore([])
@@ -77,7 +94,7 @@ export function UploadDataset({ onUploaded }: UploadDatasetProps) {
       </h3>
       <p className="field__hint muted">
         Принимаем JSON, XML и CSV (по файлу на заявку) или .zip с такими файлами. Можно выбрать сразу
-        все файлы. Сервер приведёт их к одному виду, форматы срезов могут отличаться.
+        все файлы. До 20 МБ на файл и до 150 МБ за раз. Сервер приведёт их к одному виду, форматы срезов могут отличаться.
       </p>
 
       <div className="upload__grid">
@@ -88,7 +105,7 @@ export function UploadDataset({ onUploaded }: UploadDatasetProps) {
           files={before}
           label={beforeLabel}
           inputRef={beforeInput}
-          onFiles={setBefore}
+          onFiles={chooseFiles(setBefore)}
           onLabel={setBeforeLabel}
           disabled={busy}
         />
@@ -99,7 +116,7 @@ export function UploadDataset({ onUploaded }: UploadDatasetProps) {
           files={after}
           label={afterLabel}
           inputRef={afterInput}
-          onFiles={setAfter}
+          onFiles={chooseFiles(setAfter)}
           onLabel={setAfterLabel}
           disabled={busy}
         />
@@ -109,10 +126,10 @@ export function UploadDataset({ onUploaded }: UploadDatasetProps) {
         <button type="button" className="btn" onClick={handleUpload} disabled={!canUpload}>
           Загрузить
         </button>
-        <div aria-live="polite">
+        <div>
           {busy && <Spinner label="Загружаем и приводим к одному виду" />}
           {done !== null && !busy && (
-            <span className="muted">
+            <span className="muted" role="status">
               Готово: датасет {done.dataset.id}. {receivedLine(done)}
             </span>
           )}
@@ -137,7 +154,7 @@ type SourcePickerProps = {
   placeholder: string
   files: File[]
   label: string
-  inputRef: React.RefObject<HTMLInputElement | null>
+  inputRef: RefObject<HTMLInputElement | null>
   onFiles: (files: File[]) => void
   onLabel: (label: string) => void
   disabled: boolean
@@ -166,10 +183,11 @@ function SourcePicker({
         multiple
         accept={ACCEPT}
         className="input upload__file"
+        aria-describedby={`${idBase}-count`}
         disabled={disabled}
         onChange={(event) => onFiles(Array.from(event.target.files ?? []))}
       />
-      <p className="field__hint muted">{files.length === 0 ? 'Файлы не выбраны' : filesLabel(files.length)}</p>
+      <p className="field__hint muted" id={`${idBase}-count`}>{files.length === 0 ? 'Файлы не выбраны' : filesLabel(files.length)}</p>
 
       <label className="field__label upload__label-gap" htmlFor={`${idBase}-label`}>
         Название среза (необязательно)
