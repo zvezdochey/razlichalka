@@ -214,6 +214,8 @@ export type Summary = {
     ATTRIBUTE_NEW: number
     ATTRIBUTE_LOST: number
   }
+  /** Строк проверок с `FAIL`. Появляется после этапа `checks`, без проверок — `0`. */
+  checks_fail?: number
 }
 
 // ─── 7.4. Список заявок с различиями ─────────────────────────────────────────
@@ -325,4 +327,39 @@ export type FactAppsResponse = {
   size: number
   total: number
   apps: string[]
+}
+
+// ─── 10.1. Проверки ──────────────────────────────────────────────────────────
+
+export type CheckResult = 'PASS' | 'FAIL'
+
+/** Строка единой таблицы проверок. Проверка, упавшая с ошибкой, приходит строкой
+ *  `FAIL` с текстом ошибки в `argument` и `faint: true`. */
+export type CheckRow = {
+  /** id процедуры: `builtin_…` или `p_…`. */
+  check_id: string | null
+  check_name: string
+  source: Source | null
+  argument: string | null
+  /** `"CNT / TOTAL"` строкой. */
+  numbers: string | null
+  metric: number | null
+  result: CheckResult
+  /** Ссылка на список заявок (ручка 7.3). `null`, если заявок нет. */
+  apps_ref: string | null
+  /** Мало срабатываний — уверенности нет, строка бледная. */
+  faint: boolean
+}
+
+export type ChecksResponse = {
+  page: number
+  size: number
+  total: number
+  rows: CheckRow[]
+}
+
+export type ChecksParams = {
+  result?: CheckResult
+  page?: number
+  size?: number
 }

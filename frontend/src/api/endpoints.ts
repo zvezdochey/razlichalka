@@ -6,6 +6,8 @@ import type {
   AppsResponse,
   AttributesParams,
   AttributesResponse,
+  ChecksParams,
+  ChecksResponse,
   Config,
   ConfigInput,
   Dataset,
@@ -196,4 +198,15 @@ export function getFactApps(
   const query = toQuery({ page, size })
   const path = `/runs/${encodeURIComponent(runId)}/facts/${encodeURIComponent(ref)}/apps`
   return request<FactAppsResponse>(`${path}${query}`, options)
+}
+
+// ─── 10.1. Проверки ──────────────────────────────────────────────────────────
+
+export function getChecks(
+  runId: string,
+  params: ChecksParams = {},
+  options?: Options,
+): Promise<ChecksResponse> {
+  const query = toQuery({ result: params.result, page: params.page, size: params.size })
+  return request<ChecksResponse>(`/runs/${encodeURIComponent(runId)}/checks${query}`, options)
 }
