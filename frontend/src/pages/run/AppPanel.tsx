@@ -26,10 +26,13 @@ type ValueProps = {
 /** Значение атрибута: null — это «Отсутствует», а не пустая строка и не ноль. */
 function Value({ value, bucket, sameBucket }: ValueProps) {
   const text = value === null ? 'Отсутствует' : value === '' ? 'Пустая строка' : value
+  // Для нечисловых атрибутов (даты, ID, массивы) бэк отдаёт adjusted_* равным самому значению —
+  // это не бакет, а отсутствие бакетинга для этого пути. Подпись «Диапазон» тут только путает.
+  const showBucket = bucket !== null && bucket !== value
   return (
     <div className="app-panel-value">
       <span className={value === null ? 'app-panel-absent' : undefined}>{text}</span>
-      {bucket !== null && <small>Диапазон: {bucket}</small>}
+      {showBucket && <small>Диапазон: {bucket}</small>}
       {sameBucket && <small>В пределах того же диапазона</small>}
     </div>
   )
