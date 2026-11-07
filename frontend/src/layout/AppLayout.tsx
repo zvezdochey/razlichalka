@@ -110,11 +110,9 @@ export function AppLayout() {
           <NavLink to="/procedures" className="app__nav-item" onClick={guardLeave}>
             Процедуры
           </NavLink>
-          {/* Конфигурации как отдельный раздел — после MVP (PLAN п. 4) */}
-          <span className="app__nav-item app__nav-item--disabled" aria-disabled="true">
+          <NavLink to="/configurations" className="app__nav-item" onClick={guardLeave}>
             Конфигурации
-            <span className="chip">скоро</span>
-          </span>
+          </NavLink>
         </nav>
 
         <main className="app__content">

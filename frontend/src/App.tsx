@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
+import { ConfigurationsPage } from './pages/ConfigurationsPage'
 import { AppLayout } from './layout/AppLayout'
 import { NewRunPage } from './pages/newRun/NewRunPage'
 import { NotFoundPage } from './pages/NotFoundPage'
@@ -30,6 +31,7 @@ export function App() {
           <Route path="checks" element={<ChecksTab />} />
           <Route path="log" element={<LogTab />} />
         </Route>
+        <Route path="configurations" element={<ConfigurationsPage />} />
         <Route path="procedures" element={<ProceduresPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
