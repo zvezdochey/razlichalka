@@ -2,6 +2,7 @@
 // про fetch и адреса знает client.ts.
 import { apiUrl, downloadFile, request } from './client'
 import type {
+  AiReview,
   AppCard,
   AppsParams,
   AppsResponse,
@@ -331,4 +332,8 @@ export function getAppCard(runId: string, appId: string, options?: Options): Pro
 
 export function getReasons(runId: string, options?: Options): Promise<ReasonsResponse> {
   return request<ReasonsResponse>(`/runs/${encodeURIComponent(runId)}/reasons`, options)
+}
+
+export function getAiReview(runId: string, options?: Options): Promise<AiReview> {
+  return request<AiReview>(`/runs/${encodeURIComponent(runId)}/ai-review`, options)
 }
