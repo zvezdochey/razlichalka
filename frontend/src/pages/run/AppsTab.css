@@ -3,7 +3,7 @@
 .apps-heading, .apps-pagination, .apps-search-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--s-3); }
 .apps-filter { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); border: 0; padding: 0; margin: 0; }
 .apps-filter legend { float: left; width: 76px; color: var(--muted); }
-.apps-filter label, .apps-search-row > label { display: inline-flex; align-items: center; gap: var(--s-1); }
+.apps-filter label, .apps-search-row > label:not(.apps-search) { display: inline-flex; align-items: center; gap: var(--s-1); }
 .apps input[type='checkbox'] { accent-color: var(--text); }
 .apps-search { display: flex; flex-direction: column; gap: var(--s-1); flex: 1; max-width: 480px; min-width: 240px; align-items: stretch; font-size: var(--fs-caption); color: var(--muted); }
 .apps-search .input { font-size: var(--fs-body); }
