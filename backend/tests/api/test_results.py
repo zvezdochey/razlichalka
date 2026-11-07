@@ -58,6 +58,16 @@ def test_summary_serves_exact_artifact(client, ready_run):
     assert restarted.get(f"{ready_run}/summary").json() == response.json()
 
 
+def test_summary_of_old_run_gets_zero_unpaired(client, ready_run):
+    """Запуск до E15: в summary.json нет счётчиков заявок без пары — ручка отдаёт нули."""
+    run_dir = settings.DATA_DIR / "runs" / ready_run.rsplit("/", 1)[-1]
+    old = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+    old.pop("applications_only_before"), old.pop("applications_only_after")
+    (run_dir / "summary.json").write_text(json.dumps(old), encoding="utf-8")
+    body = client.get(f"{ready_run}/summary").json()
+    assert body["applications_only_before"] == 0 and body["applications_only_after"] == 0
+    assert body["applications"] == old["applications"]
+
 def test_fixture_matches_pipeline_contract(tmp_path):
     fixture = settings.STUB_RUN_DIR
     summary = build_summary(

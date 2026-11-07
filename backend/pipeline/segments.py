@@ -143,12 +143,20 @@ def is_input_path(path: str, prefixes: list[str]) -> bool:
     return any(plain == p or plain.startswith(p + ".") for p in prefixes)
 
 
-def change_sources(comparison_csv: Path, prefixes: list[str]) -> dict[str, str]:
-    """{APP_ID: "data" | "logic"} по витрине сравнения. Заявок без различий в ответе нет — у них `none`."""
+def _read_comparison(comparison_csv: Path):
     cmp_ = read_csv(Path(comparison_csv))
     missing = [c for c in ("APP_ID", "PATH", "DIFF_FLAG") if c not in cmp_.columns]
     if missing:
         raise BadFile(f"В файле {Path(comparison_csv).name} нет колонок: {', '.join(missing)}")
+    return cmp_
+
+
+def change_sources(comparison_csv: Path, prefixes: list[str]) -> dict[str, str]:
+    """{APP_ID: "data" | "logic"} по витрине сравнения. Заявок без различий в ответе нет — у них `none`."""
+    return _sources(_read_comparison(comparison_csv), prefixes)
+
+
+def _sources(cmp_, prefixes: list[str]) -> dict[str, str]:
     diff = cmp_[cmp_["DIFF_FLAG"] == "1"]
     # для каждого разного PATH один раз решаем, вход это или нет
     inputs = {path for path in diff["PATH"].unique() if is_input_path(path, prefixes)}
@@ -279,25 +287,31 @@ def build_segments(dataset_dir: Path, out_csv: Path, *, field_map: dict | None =
     `field_map` — пути, которые заменяют пути встроенной карты полей (`builtin_segments`);
     без неё — встроенная карта целиком. `procedures_dir` — папка встроенных процедур (из app/settings.py).
     `comparison_csv` — витрина сравнения для колонки CHANGE_SOURCE; без неё колонка пустая.
+
+    Заявки — только с парой (E15): с витриной — те, что есть в витрине (сравнение уже выкинуло заявки
+    без пары и посчитало их в unpaired.json); без витрины (CLI) — те, у которых есть файл в обоих срезах,
+    и битый файл тогда — ошибка BadFile (в запуске витрина есть всегда).
     """
     plan = _check_map(segment_field_map(field_map, procedures_dir))
-    sources = (change_sources(comparison_csv, input_prefixes(procedures_dir))
-               if comparison_csv is not None else None)
-    before_files = list_source_files(dataset_dir, "BEFORE")
     after_by_id = {f.stem: f for f in list_source_files(dataset_dir, "AFTER")}
+    all_before = list_source_files(dataset_dir, "BEFORE")
+    sources = None
+    if comparison_csv is not None:
+        cmp_ = _read_comparison(comparison_csv)
+        sources = _sources(cmp_, input_prefixes(procedures_dir))
+        paired = set(cmp_["APP_ID"])
+    else:
+        paired = {f.stem for f in all_before} & set(after_by_id)
+    before_files = [f for f in all_before if f.stem in paired and f.stem in after_by_id]
     total = len(before_files)
 
     def say(level: str, message: str) -> None:
         if log:
             log(level, message)
 
-    missing = [f.stem for f in before_files if f.stem not in after_by_id]
-    if missing:
-        raise BadFile(f"заявки есть в BEFORE, но нет в AFTER: {', '.join(missing[:5])}"
-                      + (f" и ещё {len(missing) - 5}" if len(missing) > 5 else ""))
-    extra = len(after_by_id) - total
-    if extra:
-        say("warn", f"В AFTER лишних заявок, которых нет в BEFORE: {extra} — в разрезы не попали")
+    skipped = len({f.stem for f in all_before} | set(after_by_id)) - total  # заявки, а не файлы
+    if skipped:
+        say("warn", f"Заявок без пары в срезах: {skipped} — в разрезы не попали")
 
     # заявки, где решение изменилось, а различий в витрине нет; заполняет rows(), в журнал — одним сообщением
     no_diffs: list[str] = []

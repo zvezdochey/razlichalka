@@ -88,8 +88,6 @@
     {
       "id": "RUN-20260827-0001",
       "applications": 2002,
-  "applications_only_before": 0,
-  "applications_only_after": 0,
       "sources": { "BEFORE": "MASTER", "AFTER": "BETA" },
       "technical_fields": ["appData.request_id", "appData.createDateTime"]
     }
@@ -323,6 +321,8 @@
 ```json
 {
   "applications": 2002,
+  "applications_only_before": 0,
+  "applications_only_after": 0,
   "applications_changed": 502,
   "applications_changed_share": 0.251,
   "decision_changed": 385,
@@ -346,7 +346,7 @@
 
 `checks_fail` — число строк проверок с `FAIL` (для карточки «Проверки с FAIL»). Поле появляется после этапа `checks`: пока этап не прошёл, его нет. Если проверок в конфигурации нет — `0`.
 
-`applications_only_before` / `applications_only_after` — заявки, которые есть только в одном срезе (сломанный JSON, нет ответа). В витрину, факты и список заявок они не попадают: по просьбе организаторов анализируем только заявки с парой before/after, остальные видны лишь этими счётчиками.
+`applications_only_before` / `applications_only_after` — заявки, которые есть только в одном срезе (сломанный JSON, нет ответа). В витрину, факты и список заявок они не попадают: по просьбе организаторов анализируем только заявки с парой before/after, остальные видны лишь этими счётчиками. `applications` и все остальные числа — по заявкам с парой. Оба поля есть всегда; у запусков до этой правки — `0`. Заявка, у которой ответ не разобрался **в обоих** срезах, не попадает ни в один счётчик — она видна только предупреждением в журнале этапа `normalize`. `applications` в списке датасетов (п. 2.1) — число файлов среза, а не заявок с парой.
 
 Решения (`decision_changes`) уже совпадают с тем, что видно в данных: `APPROVE → REJECT` 273, `REJECT → APPROVE` 112, остальные 1617 заявок с тем же решением.
 

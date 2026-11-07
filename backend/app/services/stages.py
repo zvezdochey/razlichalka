@@ -25,6 +25,7 @@ NORMALIZED = {"BEFORE": "normalized_BEFORE.csv", "AFTER": "normalized_AFTER.csv"
 COMPARISON = "comparison.csv"
 SEGMENTS = "segments.csv"
 SUMMARY = "summary.json"
+UNPAIRED = "unpaired.json"  # заявки без пары (E15): пишет compare, читает summary
 APPS = "apps.csv"
 CHECKS = "checks.csv"
 CHECKS_INDEX = "checks_index.json"  # название проверки -> id процедуры (в checks.csv есть только LABEL)
@@ -74,7 +75,7 @@ def stage_compare(ctx) -> None:
     for name in NORMALIZED.values():
         _need_file(ctx.run_dir / name, "Сравнение срезов", "Приведение ответов")
     compare_csv(ctx.run_dir / NORMALIZED["BEFORE"], ctx.run_dir / NORMALIZED["AFTER"],
-                ctx.run_dir / COMPARISON, log=ctx.log)
+                ctx.run_dir / COMPARISON, log=ctx.log, unpaired_json=ctx.run_dir / UNPAIRED)
     ctx.progress(1, 1)
 
 
@@ -93,7 +94,8 @@ def stage_aggregate(ctx) -> None:
         return
     ctx.log("info", "Считаю итоги (summary.json, apps.csv)")
     build_summary(ctx.run_dir / COMPARISON, ctx.run_dir / SEGMENTS,
-                  ctx.run_dir / SUMMARY, ctx.run_dir / APPS, log=ctx.log)
+                  ctx.run_dir / SUMMARY, ctx.run_dir / APPS, log=ctx.log,
+                  unpaired_json=ctx.run_dir / UNPAIRED)
     ctx.progress(1, 1)
 
 

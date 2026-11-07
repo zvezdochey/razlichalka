@@ -34,7 +34,14 @@ def result_file(run_dir: Path, filename: str) -> Path:
 
 
 def summary(run_dir: Path) -> bytes:
-    return result_file(run_dir, "summary.json").read_bytes()
+    raw = result_file(run_dir, "summary.json").read_bytes()
+    if b'"applications_only_before"' in raw:
+        return raw  # обычный случай: отдаём файл как есть, без разбора
+    # запуски, созданные до E15: счётчиков заявок без пары нет — по договору это нули
+    data = json.loads(raw)
+    data.setdefault("applications_only_before", 0)
+    data.setdefault("applications_only_after", 0)
+    return json.dumps(data, ensure_ascii=False).encode("utf-8")
 
 
 # Путь включает id запуска и различает хранилища. В кэше только файлы готовых запусков.

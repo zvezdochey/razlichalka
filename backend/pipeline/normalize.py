@@ -1,5 +1,11 @@
 """Приведение всего среза в один CSV: 2002 JSON-файла -> normalized_<СРЕЗ>.csv (CONTRACTS §2.1, §4).
 
+Ответ, который не разбирается как JSON-объект (битый текст, `null`, массив, строка), не валит весь запуск:
+заявку пропускаем с предупреждением
+в журнале (ответ организаторов, E15). Пары у неё не будет — сравнение исключит её и посчитает в
+`applications_only_before` / `_after`. Чужой application_id в файле — по-прежнему ошибка: это не битый
+ответ, а перепутанные файлы.
+
 CLI для себя (из папки backend/):
     python -m pipeline.normalize <папка_датасета> <BEFORE|AFTER> <out.csv>
 """
@@ -39,29 +45,38 @@ def normalize_dataset(dataset_dir: Path, source: str, out_csv: Path, parse_cfg: 
         if log:
             log(level, message)
 
+    broken: list[str] = []  # файлы, которые не разобрались; в журнал — одним сообщением
+
     def rows():
         for done, file in enumerate(files, start=1):
             if is_cancelled and is_cancelled():
                 raise Cancelled()
             try:
                 doc = json.loads(file.read_text(encoding="utf-8"))
-            except (OSError, ValueError) as e:
-                raise BadFile(f"файл {file.name} не разобрать: {e}") from None
-            app_data = doc.get("appData") if isinstance(doc, dict) else None
-            app_id = app_data.get("application_id") if isinstance(app_data, dict) else None
-            if app_id != file.stem:
-                raise BadFile(f"в файле {file.name} appData.application_id = {app_id!r}, а имя файла говорит {file.stem!r}")
-            try:
-                yield from flatten_response(doc, file.stem, source, rules, ignore_paths, adjust)
-            except BadFile as e:
-                raise BadFile(f"файл {file.name}: {e.message}") from None
+            except (OSError, ValueError):
+                doc = None
+            if not isinstance(doc, dict):  # не объект — ответ не разобрался
+                broken.append(file.name)
+            else:
+                app_data = doc.get("appData")
+                app_id = app_data.get("application_id") if isinstance(app_data, dict) else None
+                if app_id != file.stem:
+                    raise BadFile(f"в файле {file.name} appData.application_id = {app_id!r}, а имя файла говорит {file.stem!r}")
+                try:
+                    yield from flatten_response(doc, file.stem, source, rules, ignore_paths, adjust)
+                except BadFile as e:
+                    raise BadFile(f"файл {file.name}: {e.message}") from None
             if done % PROGRESS_EVERY == 0 or done == total:
                 if on_progress:
                     on_progress(done)
                 say("info", f"Обработано {done} из {total}")
 
     say("info", f"Срез {source}: {total} файлов")
-    return write_csv(Path(out_csv), COLUMNS, rows())
+    n = write_csv(Path(out_csv), COLUMNS, rows())
+    if broken:
+        say("warn", f"Срез {source}: не разобрались {len(broken)} файлов — заявки пропущены: "
+                    + ", ".join(broken[:5]) + (f" и ещё {len(broken) - 5}" if len(broken) > 5 else ""))
+    return n
 
 
 def main(argv: list[str]) -> int:
