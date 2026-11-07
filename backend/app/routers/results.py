@@ -6,7 +6,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Query, Response
 
 from app.deps import current_user
-from app.services import app_card, facts, reasons, results, runs
+from app.services import ai_review, app_card, facts, reasons, results, runs
 
 router = APIRouter(prefix="/runs/{run_id}")
 
@@ -52,6 +52,11 @@ def get_app_card(run_dir: RunDir, dataset_dir: RunDataset, app_id: str):
 @router.get("/reasons")
 def get_reasons(run_dir: RunDir, dataset_dir: RunDataset):
     return reasons.reasons(run_dir, dataset_dir)
+
+
+@router.get("/ai-review")
+def get_ai_review(run_dir: RunDir, dataset_dir: RunDataset):
+    return ai_review.get(run_dir, dataset_dir)
 
 
 @router.get("/apps/{app_id}/attributes")

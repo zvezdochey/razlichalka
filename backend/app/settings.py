@@ -29,3 +29,11 @@ CORS_ORIGINS = ["http://localhost:5173", "http://localhost:3000"]
 
 # По умолчанию считает настоящий пайплайн; USE_STUB_PIPELINE=1 — заглушки с sleep (тесты, разработка фронта)
 USE_STUB_PIPELINE = os.environ.get("USE_STUB_PIPELINE", "0") == "1"
+
+# «Мнение ИИ» (docs/api.md п. 12): облачная Gemma через Ollama Cloud, напрямую в ollama.com.
+# Ключ берём из .env (в git его нет); без ключа мнение сразу отвечает «недоступно», сеть не трогаем.
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "https://ollama.com").rstrip("/")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "gemma4:31b")
+OLLAMA_API_KEY = os.environ.get("OLLAMA_API_KEY", "")
+OLLAMA_TIMEOUT = float(os.environ.get("OLLAMA_TIMEOUT", "60"))
+OLLAMA_RETRIES = int(os.environ.get("OLLAMA_RETRIES", "2"))

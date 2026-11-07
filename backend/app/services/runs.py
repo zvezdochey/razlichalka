@@ -11,7 +11,7 @@ from pathlib import Path
 
 from app import pipeline_stub, settings, store
 from app.errors import ApiError
-from app.services import datasets, stages, warmup
+from app.services import ai_review, datasets, stages, warmup
 from pipeline.errors import Cancelled as PipelineCancelled
 
 log = logging.getLogger("razlichalka")
@@ -203,6 +203,11 @@ def execute(run: dict) -> None:
             run["status"], run["current_stage"], run["finished_at"] = "ready", None, _now()
             run["progress"]["done"] = run["progress"]["total"]
             _save(run)
+        # G3: мнение ИИ считается в фоне и прогон не задерживает; сбой модели статус запуска не меняет
+        try:
+            ai_review.start(_dirs[rid], dataset_path(run))
+        except Exception:
+            log.exception("Мнение ИИ для %s не запустилось", rid)  # готовый прогон из-за этого не падает
     except CANCELLED:
         _fail(run, None, CANCELLED_ERROR)
     except Exception as exc:
