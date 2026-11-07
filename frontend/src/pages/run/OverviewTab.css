@@ -30,15 +30,20 @@
 /* --- Лента чисел под фразой --- */
 
 .strip {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   gap: 0;
   margin: var(--s-4) 0 0;
   border-top: 1px solid var(--border);
 }
 
+/* Подпись, число и пояснение у всех карточек стоят в общих строках (subgrid):
+   если чья-то подпись переносится на две строки, числа соседей всё равно на одной линии. */
 .strip__item {
-  flex: 1 1 10rem;
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+  align-content: start;
   padding: var(--s-3) var(--s-4);
   border-inline-start: 1px solid var(--border);
 }
@@ -49,6 +54,7 @@
 }
 
 .strip__label {
+  align-self: end;
   font-size: var(--fs-caption);
   color: var(--muted);
 }
