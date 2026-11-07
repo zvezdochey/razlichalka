@@ -33,6 +33,13 @@ const BY_STATUS: Record<Exclude<Status, 'error'>, Look> = {
 
 const CANCELLED: Look = { label: 'Остановлен', icon: '■', tone: 'neutral' }
 const FAILED: Look = { label: 'Ошибка', icon: '!', tone: 'danger' }
+/* Прерван перезапуском сервера — сам прогон не упал, поэтому без красного (api.md, код `interrupted`). */
+const INTERRUPTED: Look = {
+  label: 'Прерван',
+  icon: '!',
+  tone: 'neutral',
+  title: 'Прерван перезапуском сервера — запустите повторно',
+}
 const UNFINISHED: Look = {
   label: 'Не завершён',
   icon: '!',
@@ -44,6 +51,7 @@ const UNFINISHED: Look = {
 function statusLook(status: Status, error?: ApiError | null, errorKnown = true): Look {
   if (status !== 'error') return BY_STATUS[status]
   if (!errorKnown) return UNFINISHED
+  if (error?.code === 'interrupted') return INTERRUPTED
   return isCancelled(error) ? CANCELLED : FAILED
 }
 
