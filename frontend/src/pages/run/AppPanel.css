@@ -1,0 +1,26 @@
+.app-panel-overlay { position: fixed; inset: 0; z-index: 100; background: rgb(16 27 32 / 48%); display: flex; justify-content: flex-end; }
+.app-panel { width: min(100%, 900px); height: 100dvh; background: var(--surface); box-shadow: -12px 0 40px rgb(0 0 0 / 18%); display: flex; flex-direction: column; min-width: 0; }
+.app-panel-header { display: flex; justify-content: space-between; gap: var(--s-3); align-items: flex-start; padding: var(--s-4); border-bottom: 1px solid var(--border); }
+.app-panel-header h2 { margin: var(--s-1) 0; overflow-wrap: anywhere; }
+.app-panel-header p { margin: 0; color: var(--muted); }
+.app-panel-close { font-size: 26px; line-height: 1; }
+.app-panel-body { padding: var(--s-4); overflow: auto; display: flex; flex-direction: column; gap: var(--s-3); }
+.app-panel-tabs { border-bottom: 1px solid var(--border); padding-bottom: var(--s-2); }
+.app-panel-tabs span { border-bottom: 2px solid var(--text); padding: var(--s-2); font-weight: 600; }
+.app-panel-controls { display: flex; align-items: end; gap: var(--s-3); flex-wrap: wrap; }
+.app-panel-controls label { display: flex; flex-direction: column; gap: var(--s-1); font-size: var(--fs-caption); }
+.app-panel-controls label:has(input[type='checkbox']) { flex-direction: row; align-items: center; padding-bottom: var(--s-2); }
+.app-panel-controls input[type='search'] { min-width: 240px; }
+.app-panel-table { min-width: 760px; table-layout: fixed; }
+.app-panel-table th:nth-child(1) { width: 30%; }
+.app-panel-table th:nth-child(2) { width: 14%; }
+.app-panel-table th:nth-child(3), .app-panel-table th:nth-child(4) { width: 19%; }
+.app-panel-table th:nth-child(5) { width: 18%; }
+.app-panel-table td { vertical-align: top; overflow-wrap: anywhere; }
+.app-panel-path { overflow-wrap: anywhere; white-space: normal; }
+.app-panel-value { display: flex; flex-direction: column; gap: 3px; }
+.app-panel-value small, .app-panel-absent { color: var(--muted); }
+.app-panel-absent { font-style: italic; }
+.app-panel-diff { background: var(--surface-sunken); }
+.app-panel-type { display: inline-block; border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: var(--fs-caption); }
+@media (max-width: 700px) { .app-panel { width: 100%; } .app-panel-header, .app-panel-body { padding: var(--s-3); } }

@@ -7,6 +7,7 @@ import { DASH, formatNumber } from '../../lib/format'
 import { NotReadyNotice } from './NotReadyNotice'
 import { useRunContext } from './runContext'
 import { usePivotRequest } from './usePivotRequest'
+import { AppPanel } from './AppPanel'
 import './AppsTab.css'
 
 const DECISIONS: Record<DecisionChange, string> = {
@@ -102,6 +103,7 @@ function ReadyApps({ runId }: { runId: string }) {
   </th>
   const data = result.status === 'ready' ? result.data : null
   const pages = data ? Math.max(1, Math.ceil(data.total / size)) : page
+  const appId = params.get('app')
 
   return <section className="apps" aria-labelledby="apps-title">
     <div className="panel apps-controls">
@@ -155,5 +157,8 @@ function ReadyApps({ runId }: { runId: string }) {
       <div className="apps-page-buttons"><button className="btn" disabled={!data || page <= 1} onClick={() => update('page', String(page - 1), false)}>Назад</button>
         <span>{page}{data ? ` / ${pages}` : ''}</span><button className="btn" disabled={!data || page >= pages} onClick={() => update('page', String(page + 1), false)}>Далее</button></div>
     </div>
+    {appId && <AppPanel key={appId} runId={runId} appId={appId}
+      app={data?.apps.find((item) => item.app_id === appId)}
+      onClose={() => update('app', '', false)} />}
   </section>
 }

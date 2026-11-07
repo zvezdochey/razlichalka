@@ -146,7 +146,7 @@ export function getAttributes(
   params: AttributesParams = {},
   options?: Options,
 ): Promise<AttributesResponse> {
-  const query = toQuery({ page: params.page, size: params.size })
+  const query = toQuery({ only_diff: params.only_diff ? 1 : undefined, search: params.search, page: params.page, size: params.size })
   const path = `/runs/${encodeURIComponent(runId)}/apps/${encodeURIComponent(appId)}/attributes`
   return request<AttributesResponse>(`${path}${query}`, options)
 }

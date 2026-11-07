@@ -203,7 +203,9 @@ export const handlers = [
     const url = new URL(request.url)
     const page = readInt(url.searchParams, 'page', DEFAULT_PAGE)
     const size = readInt(url.searchParams, 'size', DEFAULT_ATTRIBUTES_SIZE, MAX_SIZE)
-    const rows = buildAttributes(appId)
+    const search = url.searchParams.get('search')?.toLowerCase() ?? ''
+    const rows = buildAttributes(appId).filter((row) =>
+      (url.searchParams.get('only_diff') !== '1' || row.diff_flag === 1) && row.path.toLowerCase().includes(search))
 
     const response: AttributesResponse = {
       app_id: appId,
