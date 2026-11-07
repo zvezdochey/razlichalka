@@ -1,16 +1,21 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import type { CheckRow, Stage } from '../../api'
-import { getChecks, getStages, isAbortError } from '../../api'
+import { getChecks, getFactApps, getStages, isAbortError } from '../../api'
 import { EmptyState, ErrorBox, Spinner } from '../../components'
 import { DASH, formatDateTime, formatNumber } from '../../lib/format'
 import { ChecksAppsPanel } from './ChecksAppsPanel'
 import './ChecksTab.css'
 import {
+  checksCount,
   countOf,
+  examplesLabel,
   failedChecks,
   formatMetric,
+  formatShare,
   isErrorRow,
+  isShareMetric,
+  plural,
   sortByVerdict,
   verdictOf,
 } from './checksRows'
@@ -19,6 +24,9 @@ import { useRunContext } from './runContext'
 
 /** Максимум договора (п. 10.1). Строк проверок обычно десятки, хватает одной страницы. */
 const PAGE_SIZE = 500
+
+/** Сколько запросов «сколько заявок за ссылкой» идёт параллельно. */
+const SAMPLE_WORKERS = 4
 
 type Loaded = {
   rows: CheckRow[]
@@ -88,6 +96,32 @@ export function ChecksTab() {
     void load()
     return () => controller.abort()
   }, [runId, ready, attempt])
+
+  // Сколько заявок реально лежит за каждой ссылкой `apps_ref`. Проверка сохраняет не больше
+  // `app_ids_limit` идентификаторов, поэтому на кнопке честно пишем «20 примеров из 273».
+  // Грузим фоном по одной заявке на ссылку: таблица показывается сразу, подпись уточняется следом.
+  const [samples, setSamples] = useState<Record<string, number>>({})
+  const loadedRows = state.status === 'ready' ? state.data.rows : null
+  useEffect(() => {
+    if (loadedRows === null) return
+    const controller = new AbortController()
+    const queue = [...new Set(loadedRows.map((row) => row.apps_ref).filter((ref): ref is string => ref !== null))]
+    // Не больше SAMPLE_WORKERS запросов одновременно: строк проверок десятки, бэк заваливать незачем.
+    const worker = async () => {
+      for (let ref = queue.shift(); ref !== undefined; ref = queue.shift()) {
+        if (controller.signal.aborted) return
+        const key = ref
+        try {
+          const data = await getFactApps(runId, key, 1, 1, { signal: controller.signal })
+          setSamples((prev) => ({ ...prev, [key]: data.total }))
+        } catch {
+          // Не узнали — на кнопке останется число из строки, как раньше.
+        }
+      }
+    }
+    for (let i = 0; i < SAMPLE_WORKERS; i += 1) void worker()
+    return () => controller.abort()
+  }, [runId, loadedRows])
 
   const closePanel = useCallback(() => {
     setOpened(null)
@@ -166,6 +200,13 @@ export function ChecksTab() {
         </div>
       )}
 
+      <p className="checks-summary">
+        <b className="num">{formatNumber(fails)} FAIL</b> — это строки результатов{' '}
+        {formatNumber(checksCount(rows))} {plural(checksCount(rows), ['проверки', 'проверок', 'проверок'])}, а не
+        заявки. Одна проверка может дать несколько строк — по срезу и аргументу.
+        {rows.some(isShareMetric) && ' Метрика в процентах — доля «кол-во / база».'}
+      </p>
+
       <div className="checks-bar">
         <div className="checks-filter" role="group" aria-label="Какие строки показать">
           <button
@@ -226,6 +267,7 @@ export function ChecksTab() {
                     row={row}
                     isError={isErrorRow(row, failed)}
                     isOpened={opened === row}
+                    samples={row.apps_ref === null ? undefined : samples[row.apps_ref]}
                     onOpen={(button) => {
                       opener.current = button
                       setOpened(row)
@@ -253,6 +295,8 @@ export function ChecksTab() {
 
 type CheckTableRowProps = {
   row: CheckRow
+  /** Сколько заявок реально за ссылкой; `undefined` — ещё не узнали. */
+  samples?: number
   isError: boolean
   isOpened: boolean
   onOpen: (button: HTMLButtonElement) => void
@@ -260,7 +304,7 @@ type CheckTableRowProps = {
 
 const VERDICT_CHIP = { pass: 'chip--pass', fail: 'chip--fail', low: 'chip--low' } as const
 
-function CheckTableRow({ row, isError, isOpened, onOpen }: CheckTableRowProps) {
+function CheckTableRow({ row, samples, isError, isOpened, onOpen }: CheckTableRowProps) {
   const verdict = verdictOf(row)
   const count = countOf(row)
 
@@ -275,7 +319,18 @@ function CheckTableRow({ row, isError, isOpened, onOpen }: CheckTableRowProps) {
         {row.argument === null ? DASH : isError ? row.argument : <BreakableAt text={row.argument} />}
       </td>
       <td className="num">{isError || row.numbers === null ? DASH : row.numbers}</td>
-      <td className="num">{isError || row.metric === null ? DASH : formatMetric(row.metric)}</td>
+      <td className="num">
+        {isError || row.metric === null ? (
+          DASH
+        ) : isShareMetric(row) ? (
+          // Доля CNT / TOTAL — показываем процентом, исходное число по наведению.
+          <span title={`Доля ${formatMetric(row.metric)} = ${row.numbers ?? ''}`}>
+            {formatShare(row.metric)}
+          </span>
+        ) : (
+          formatMetric(row.metric)
+        )}
+      </td>
       <td>
         <span className={`chip ${VERDICT_CHIP[verdict]}`}>{row.result}</span>
       </td>
@@ -298,7 +353,11 @@ function CheckTableRow({ row, isError, isOpened, onOpen }: CheckTableRowProps) {
             aria-expanded={isOpened}
             onClick={(event) => onOpen(event.currentTarget)}
           >
-            {count === null ? 'Открыть' : formatNumber(count)}
+            {samples !== undefined
+              ? examplesLabel(samples, count)
+              : count === null
+                ? 'Открыть'
+                : formatNumber(count)}
             <span className="visually-hidden"> — заявки проверки «{row.check_name}»</span>
           </button>
         )}

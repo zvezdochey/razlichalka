@@ -22,8 +22,42 @@
 }
 
 .app__user {
+  font: inherit;
   font-size: var(--fs-table);
   color: #cfcfca;
+  /* Кнопка выглядит как текст в шапке: подчёркивание по наведению подсказывает, что она жмётся */
+  background: transparent;
+  border: 0;
+  padding: 2px var(--s-1);
+  border-radius: var(--r-control);
+  cursor: pointer;
+}
+
+.app__user:hover,
+.app__user:focus-visible {
+  text-decoration: underline;
+}
+
+.app__user-form {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.app__user-input {
+  width: 160px;
+  font-size: var(--fs-table);
+  padding: 2px var(--s-2);
+}
+
+.app__user-hint {
+  font-size: var(--fs-caption);
+  color: #ffd2cc;
+}
+
+.app__user-btn {
+  font-size: var(--fs-caption);
+  padding: 2px var(--s-2);
 }
 
 .app__body {

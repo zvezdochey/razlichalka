@@ -45,6 +45,11 @@
   font-weight: 600;
 }
 
+.checks-summary {
+  margin: 0;
+  font-size: var(--fs-table);
+}
+
 .checks-count {
   font-weight: 500;
 }
