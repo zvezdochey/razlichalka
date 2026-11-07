@@ -6,6 +6,7 @@ import { ErrorBox, Spinner, StatusBadge } from '../components'
 import { usePolling } from '../hooks/usePolling'
 import { DASH, formatDateTime } from '../lib/format'
 import './RunPage.css'
+import { RetryRunButton } from './run/RetryRunButton'
 import { ProgressBar } from './run/ProgressBar'
 import type { RunContext } from './run/runContext'
 import { STAGE_ACTIVE_TEXT } from './run/stages'
@@ -190,6 +191,14 @@ export function RunPage() {
         </div>
       )}
 
+      {/* Сервер перезапустили посреди расчёта: причина и «Повторить». В журнале то же самое
+          уже рисует LogTab, поэтому там верхний блок не показываем. */}
+      {run?.error?.code === 'interrupted' && !pathname.endsWith('/log') && (
+        <div className="run-notice">
+          <p>{run.error.message}</p>
+          <RetryRunButton configId={run.config_id} />
+        </div>
+      )}
       {loadError !== null && (
         <div className="run-notice">
           <ErrorBox message={loadError} onRetry={() => void load()} />
