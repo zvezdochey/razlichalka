@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { RunStatus } from '../api'
-import { cancelRun, downloadReport, getRun, isAbortError, openReport } from '../api'
+import { ApiRequestError, cancelRun, downloadReport, getRun, isAbortError, openReport } from '../api'
 import { ErrorBox, Spinner, StatusBadge } from '../components'
 import { usePolling } from '../hooks/usePolling'
 import { DASH, formatDateTime } from '../lib/format'
@@ -26,6 +26,8 @@ export function RunPage() {
   const { id = '' } = useParams<{ id: string }>()
   const [run, setRun] = useState<RunStatus | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  // Прогон не нашли: чаще всего он создан под другим именем пользователя (у каждого имени свои прогоны).
+  const [loadNotFound, setLoadNotFound] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [downloading, setDownloading] = useState(false)
@@ -47,9 +49,11 @@ export function RunPage() {
       if (currentId.current !== id) return
       setRun(next)
       setLoadError(null)
+      setLoadNotFound(false)
     } catch (e) {
       if (isAbortError(e) || currentId.current !== id) return
       setLoadError(e instanceof Error ? e.message : 'Не удалось получить статус запуска')
+      setLoadNotFound(e instanceof ApiRequestError && e.status === 404)
     }
   }, [id])
 
@@ -61,6 +65,7 @@ export function RunPage() {
     setShownRunId(id)
     setRun(null)
     setLoadError(null)
+    setLoadNotFound(false)
     setActionError(null)
   }
 
@@ -188,6 +193,12 @@ export function RunPage() {
       {loadError !== null && (
         <div className="run-notice">
           <ErrorBox message={loadError} onRetry={() => void load()} />
+          {loadNotFound && (
+            <p className="muted">
+              Возможно, запуск создан под другим пользователем — имя в правом верхнем углу
+              можно сменить (у каждого имени свои прогоны).
+            </p>
+          )}
         </div>
       )}
       {actionError !== null && (
