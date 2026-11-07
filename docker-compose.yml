@@ -16,12 +16,15 @@ services:
       - ${CHECKS_PATH:-./ПАКЕТ/ЗАДАНИЕ/checks}:/checks:ro
       # результаты запусков переживают перезапуск
       - razlichalka_var:/var/razlichalka
+    # на Linux без этого контейнер не видит Ollama, запущенную на хосте
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   frontend:
     build: ./frontend
     ports:
-      - "3000:80"
+      - "${FRONTEND_PORT:-3000}:80"
     depends_on:
       backend:
         condition: service_healthy

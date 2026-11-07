@@ -10,14 +10,28 @@
 
 ## Как запустить
 
-Нужен Docker. Датасет в Git не лежит: по умолчанию берётся из `ПАКЕТ/ЗАДАНИЕ/data`; если он в другом месте — `cp .env.example .env` и поправь `DATASETS_PATH`.
+Нужен Docker. Датасет и проверки организаторов в Git не лежат и в образ не попадают: подключаются томами только на чтение.
+
+### Запуск с нуля
 
 ```bash
-docker compose up --build
+cp .env.example .env
+docker compose up -d --build
+curl localhost:8000/api/health
 ```
 
-- интерфейс — `http://localhost:3000` (запросы `/api/...` nginx проксирует на бэк);
-- бэк напрямую — `http://localhost:8000`, Swagger — `/docs`, проверка — `curl localhost:8000/api/health`.
+В `.env` поправь, если нужно:
+
+| Переменная | По умолчанию | Что это |
+|---|---|---|
+| `DATASETS_PATH` | `./ПАКЕТ/ЗАДАНИЕ/data` | папка с датасетом (`master/`, `beta/`, манифест) |
+| `CHECKS_PATH` | `./ПАКЕТ/ЗАДАНИЕ/checks` | папка с проверками организаторов (`check_*.py`) |
+| `FRONTEND_PORT` | `3000` | порт интерфейса на хосте; если 3000 занят — поставь другой |
+
+- интерфейс — `http://localhost:3000` (или твой `FRONTEND_PORT`; запросы `/api/...` nginx проксирует на бэк);
+- бэк напрямую — `http://localhost:8000`, Swagger — `/docs`;
+- если проверки не нашлись (`404 Процедура не найдена`), проверь `CHECKS_PATH`: в папке должны лежать `check_*.py`;
+- Ollama для «Мнения ИИ» запускается на хосте, а не в compose; контейнер видит её по `host.docker.internal`.
 
 Остановить: `docker compose down`. Вместе с результатами запусков: `docker compose down -v`.
 
