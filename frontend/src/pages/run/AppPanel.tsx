@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { getApps, getAttributes } from '../../api'
 import type { AppRow, AttributeRow, ChangeType } from '../../api'
 import { ErrorBox } from '../../components'
+import { AppWhy } from './AppWhy'
 import { useDialogFocus } from './useDialogFocus'
 import { usePivotRequest } from './usePivotRequest'
 import './AppPanel.css'
@@ -54,6 +55,7 @@ type Props = {
 export function AppPanel({ runId, appId, app, onClose }: Props) {
   const dialog = useRef<HTMLElement>(null)
   useDialogFocus(dialog, onClose)
+  const [section, setSection] = useState<'attributes' | 'why'>('attributes')
 
   // Заявка для шапки: из таблицы или найденная запросом /apps?search=<id>
   const [found, setFound] = useState<AppRow | undefined>(app)
@@ -113,10 +115,10 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
 
   return (
     <div className="app-panel-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <aside ref={dialog} className="app-panel" role="dialog" aria-modal="true" aria-label={`Атрибуты заявки ${appId}`}>
+      <aside ref={dialog} className="app-panel" role="dialog" aria-modal="true" aria-label={`Заявка ${appId}`}>
         <header className="app-panel-header">
           <div>
-            <small>Заявка · сравнение атрибутов</small>
+            <small>Заявка</small>
             <h2 className="mono">{appId}</h2>
             {header && (
               <p>
@@ -128,11 +130,16 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
         </header>
 
         <div className="app-panel-body">
-          {/* Место под вкладку «Почему» (задача I4) */}
-          <nav className="app-panel-tabs" aria-label="Разделы заявки">
-            <span aria-current="page">Атрибуты</span>
-          </nav>
+          <div className="app-panel-tabs" role="group" aria-label="Разделы заявки">
+            <button type="button" className="btn" aria-pressed={section === 'attributes'} onClick={() => setSection('attributes')}>
+              Атрибуты
+            </button>
+            <button type="button" className="btn" aria-pressed={section === 'why'} onClick={() => setSection('why')}>
+              Почему
+            </button>
+          </div>
 
+          {section === 'why' ? <AppWhy runId={runId} appId={appId} /> : <>
           <div className="app-panel-controls">
             <label>
               Поиск по пути
@@ -187,6 +194,7 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
           )}
 
           {hasMore && <button className="btn" onClick={() => setPage((value) => value + 1)}>Загрузить ещё</button>}
+          </>}
         </div>
       </aside>
     </div>

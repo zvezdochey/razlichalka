@@ -6,6 +6,10 @@ import type { ApiError, ApiErrorResponse, ErrorCode } from './types'
 /** Все адреса относительные: в деве их проксирует vite.config.ts, в проде раздаёт тот же хост. */
 const API_BASE = '/api'
 
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`
+}
+
 /** Сеть не ответила вообще: бэк не поднят, нет интернета, запрос заблокировали. */
 const NETWORK_ERROR_MESSAGE = 'Нет связи с сервером'
 
@@ -66,7 +70,7 @@ async function readError(res: Response): Promise<ApiRequestError> {
  * Сам запрос: подставляет X-User и превращает неуспешный ответ в `ApiRequestError`.
  * Отмену (`AbortError`) пробрасывает как есть, чтобы вызывающий мог её не показывать.
  */
-async function send(path: string, init?: RequestInit): Promise<Response> {
+async function send(url: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers)
   // Авторизации нет: бэк различает людей по этому заголовку.
   headers.set('X-User', getCurrentUser())
@@ -77,7 +81,7 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
 
   let res: Response
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...init, headers })
+    res = await fetch(url, { ...init, headers })
   } catch (cause) {
     if (isAbortError(cause)) throw cause
     throw new ApiRequestError('internal', NETWORK_ERROR_MESSAGE)
@@ -93,7 +97,7 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
  * Бросает `ApiRequestError` на любой неуспешный ответ и на сетевую ошибку.
  */
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await send(path, init)
+  const res = await send(apiUrl(path), init)
 
   // 204 (например удаление) — тела нет, парсить нечего.
   if (res.status === 204) return undefined as T
@@ -110,17 +114,17 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
  * браузер не пришлёт X-User, и бэк ответит «не найдено» — запуск чужой.
  * Поэтому забираем файл через fetch и отдаём браузеру как blob.
  */
-export async function downloadFile(path: string, filename: string): Promise<void> {
-  const res = await send(path)
-  const url = URL.createObjectURL(await res.blob())
+export async function downloadFile(url: string, filename: string): Promise<void> {
+  const res = await send(url)
+  const objectUrl = URL.createObjectURL(await res.blob())
   const link = document.createElement('a')
-  link.href = url
+  link.href = objectUrl
   link.download = filename
   document.body.append(link)
   link.click()
   link.remove()
   // Даём браузеру начать скачивание, потом освобождаем память.
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
 }
 
 /**

@@ -5,6 +5,7 @@ import { EmptyState, ErrorBox, Spinner } from '../../components'
 import { formatNumber } from '../../lib/format'
 import type { PivotGroup } from './PivotTable'
 import { usePivotRequest } from './usePivotRequest'
+import './PivotTab.css'
 
 const PAGE_SIZE = 50
 
@@ -12,9 +13,12 @@ type PivotGroupPanelProps = {
   runId: string
   group: PivotGroup
   onClose: () => void
+  emptyHint?: string
 }
 
-export function PivotGroupPanel({ runId, group, onClose }: PivotGroupPanelProps) {
+export function PivotGroupPanel({
+  runId, group, onClose, emptyHint = 'Выберите другую ячейку сводной.',
+}: PivotGroupPanelProps) {
   const [{ page, knownPages }, setPagination] = useState({ page: 1, knownPages: 1 })
   const closeButton = useRef<HTMLButtonElement>(null)
   const load = useCallback(
@@ -63,7 +67,7 @@ export function PivotGroupPanel({ runId, group, onClose }: PivotGroupPanelProps)
               ))}
             </ul>
           </>
-        ) : <EmptyState title="В этой группе нет заявок" hint="Выберите другую ячейку сводной." />
+        ) : <EmptyState title="В этой группе нет заявок" hint={emptyHint} />
       )}
       {pages > 1 && (
         <nav className="pivot-pagination" aria-label="Страницы заявок группы">

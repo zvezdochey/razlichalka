@@ -1,7 +1,8 @@
 // По функции на каждую ручку MVP из docs/api.md. Экраны зовут только это,
 // про fetch и адреса знает client.ts.
-import { downloadFile, request } from './client'
+import { apiUrl, downloadFile, request } from './client'
 import type {
+  AppCard,
   AppsParams,
   AppsResponse,
   AttributesParams,
@@ -24,6 +25,7 @@ import type {
   ProcedureKind,
   ProceduresResponse,
   ProcedureWithCode,
+  ReasonsResponse,
   RunCancelled,
   RunCreated,
   RunListItem,
@@ -148,16 +150,18 @@ export function getApps(
   params: AppsParams = {},
   options?: Options,
 ): Promise<AppsResponse> {
-  const query = toQuery({
+  const query = toQuery({ ...appsFilters(params), page: params.page, size: params.size })
+  return request<AppsResponse>(`/runs/${encodeURIComponent(runId)}/apps${query}`, options)
+}
+
+function appsFilters(params: AppsParams) {
+  return {
     decision_change: params.decision_change,
     change_source: params.change_source,
     has_attr_change: params.has_attr_change,
     search: params.search,
     sort: params.sort,
-    page: params.page,
-    size: params.size,
-  })
-  return request<AppsResponse>(`/runs/${encodeURIComponent(runId)}/apps${query}`, options)
+  }
 }
 
 // ─── 8. Одна заявка ──────────────────────────────────────────────────────────
@@ -177,21 +181,20 @@ export function getAttributes(
 
 /** Скачать HTML-отчёт: через fetch, чтобы ушёл заголовок X-User. */
 export function downloadReport(runId: string): Promise<void> {
-  return downloadFile(`/runs/${encodeURIComponent(runId)}/report.html`, `report-${runId}.html`)
+  const url = apiUrl(`/runs/${encodeURIComponent(runId)}/report.html`)
+  return downloadFile(url, `report-${runId}.html`)
 }
 
 // ─── 13. Экспорт ─────────────────────────────────────────────────────────────
 
-/** Все заявки с теми же фильтрами и сортировкой, что в таблице (без пагинации) — CSV. */
+/** Адрес всех заявок с фильтрами и сортировкой таблицы, без пагинации. */
+export function exportCsvUrl(runId: string, params: Omit<AppsParams, 'page' | 'size'> = {}): string {
+  const query = toQuery(appsFilters(params))
+  return apiUrl(`/runs/${encodeURIComponent(runId)}/export.csv${query}`)
+}
+
 export function downloadAppsCsv(runId: string, params: Omit<AppsParams, 'page' | 'size'> = {}): Promise<void> {
-  const query = toQuery({
-    decision_change: params.decision_change,
-    change_source: params.change_source,
-    has_attr_change: params.has_attr_change,
-    search: params.search,
-    sort: params.sort,
-  })
-  return downloadFile(`/runs/${encodeURIComponent(runId)}/export.csv${query}`, `apps-${runId}.csv`)
+  return downloadFile(exportCsvUrl(runId, params), `apps-${runId}.csv`)
 }
 
 // ─── 7.2–7.3. Факты и заявки группы ──────────────────────────────────────────
@@ -317,4 +320,12 @@ export function validateProcedure(
     method: 'POST',
     body: JSON.stringify(input),
   })
+}
+
+export function getAppCard(runId: string, appId: string, options?: Options): Promise<AppCard> {
+  return request<AppCard>(`/runs/${encodeURIComponent(runId)}/apps/${encodeURIComponent(appId)}`, options)
+}
+
+export function getReasons(runId: string, options?: Options): Promise<ReasonsResponse> {
+  return request<ReasonsResponse>(`/runs/${encodeURIComponent(runId)}/reasons`, options)
 }

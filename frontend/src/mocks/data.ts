@@ -5,11 +5,14 @@
 // app_id всегда даёт те же атрибуты. Иначе пагинация и сортировка показывали бы
 // каждый раз разное, и проверять было бы нечего.
 import type {
+  AppCard,
   AppRow,
   AttributeRow,
   ChangeType,
   Dataset,
   DecisionChange,
+  Reason,
+  ReasonsResponse,
   Summary,
 } from '../api/types'
 
@@ -188,6 +191,86 @@ function buildApp(appId: string, change: DecisionChange, hasAttrChange: boolean)
 
 /** Все заявки датасета, отсортированы по app_id. */
 export const APPS: AppRow[] = buildApps()
+
+const MOCK_RULE = 'DOCS_EXPIRED'
+
+function buildSlice(app: AppRow, side: 'before' | 'after'): AppCard['before'] {
+  const decision = app[`decision_${side}`]
+  const reason = app[`reject_reason_${side}`]
+  const cutoff = app[`cutoff_${side}`]
+  const hit = reason === 'HARDCHECK'
+  const productId = PRODUCT_IDS[0]
+  return {
+    decision,
+    offers: decision === 'approve' ? [{ product_id: productId, type: 'standard' }] : [],
+    products: [{
+      product_id: productId,
+      decision,
+      reject_reason: reason,
+      reject_reason_code: hit ? MOCK_RULE : reason === 'CUTOFF' ? cutoff : null,
+      pd_model: app[`pd_model_${side}`],
+      pd: null,
+      cutoff: { name: cutoff, value: null },
+      rules: [{ name: MOCK_RULE, hit }],
+    }],
+  }
+}
+
+export function buildAppCard(app: AppRow): AppCard {
+  const before = buildSlice(app, 'before')
+  const after = buildSlice(app, 'after')
+  const reasons: Reason[] = []
+  const hitBefore = before.products[0]?.rules[0]?.hit
+  const hitAfter = after.products[0]?.rules[0]?.hit
+  if (hitBefore !== hitAfter) {
+    const side = hitBefore ? 'BEFORE' : 'AFTER'
+    reasons.push({ text: `Стоп-фактор ${MOCK_RULE} сработал в ${side}`, source: 'rule', confidence: 'high' })
+  }
+  if (app.cutoff_before !== app.cutoff_after) {
+    reasons.push({ text: `Порог ${app.cutoff_before} → ${app.cutoff_after}`, source: 'cutoff', confidence: 'high' })
+  }
+  if (reasons.length === 0) {
+    reasons.push({ text: 'Причина не найдена в решающих полях', source: 'unknown', confidence: 'low' })
+  }
+  return { app_id: app.app_id, decision_change: app.decision_change, before, after, reasons }
+}
+
+type MockReason = Omit<ReasonsResponse['reasons'][number], 'affected' | 'share'> & { apps: string[] }
+const reasonGroups = new Map<string, MockReason>()
+const bySource = { logic: 0, data: 0, both: 0 }
+let unexplained = 0
+for (const app of APPS) {
+  if (app.decision_change === 'same') continue
+  if (app.change_source !== 'none') bySource[app.change_source] += 1
+  if (app.decision_change !== 'approve_to_reject') continue
+
+  const reason = app.reject_reason_after
+  if (reason !== 'HARDCHECK' && reason !== 'CUTOFF') {
+    unexplained += 1
+    continue
+  }
+  const source = reason === 'HARDCHECK' ? 'rule' : 'cutoff'
+  const rule = source === 'rule' ? MOCK_RULE : app.cutoff_after
+  const ref = `mock-${rule}`
+  const group = reasonGroups.get(ref) ?? {
+    source, rule, app_ids_ref: ref, text: `${source === 'rule' ? 'Стоп-фактор' : 'Отсечка'} ${rule}`, apps: [],
+  }
+  group.apps.push(app.app_id)
+  reasonGroups.set(ref, group)
+}
+
+const knownReasons = APPROVE_TO_REJECT - unexplained
+export const REASONS: ReasonsResponse = {
+  reasons: Array.from(reasonGroups.values(), ({ apps, ...reason }) => ({
+    ...reason, affected: apps.length, share: Math.round(apps.length / knownReasons * 1000) / 1000,
+  })).sort((a, b) => b.affected - a.affected),
+  unexplained,
+  by_source: bySource,
+}
+
+export function mockReasonApps(ref: string): string[] | undefined {
+  return reasonGroups.get(ref)?.apps
+}
 
 // ─── Атрибуты одной заявки (п. 8.1) ──────────────────────────────────────────
 
