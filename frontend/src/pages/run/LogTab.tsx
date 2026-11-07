@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { Stage, StageLogEntry, StageName } from '../../api'
 import { getStages, isAbortError, isCancelled } from '../../api'
 import { ErrorBox, Spinner, StatusBadge } from '../../components'
@@ -24,6 +25,13 @@ function placeholderStage(name: StageName): Stage {
     code_ref: null,
     log: [],
   }
+}
+
+/** Ссылка в рабочую область процедур: `/procedures?id=<id>&line=<строка>`. */
+function codeLink(procedureId: string, line: number | undefined): string {
+  const search = new URLSearchParams({ id: procedureId })
+  if (line !== undefined && line > 0) search.set('line', String(line))
+  return `/procedures?${search.toString()}`
 }
 
 /** Четыре известных этапа в договорном порядке, плюс всё лишнее — в конец. */
@@ -162,8 +170,12 @@ export function LogTab() {
                 )}
 
                 {procedureId !== null && procedureId !== undefined && (
-                  // Переход в код процедуры появится, когда Семён сделает ручку (S10).
-                  <div className="stage__code faint mono">Код: {procedureId}</div>
+                  // Код этапа открывается в рабочей области процедур (E13), с прокруткой к строке.
+                  <div className="stage__code">
+                    <Link className="mono" to={codeLink(procedureId, stage.code_ref?.line)}>
+                      Код этапа: {procedureId}
+                    </Link>
+                  </div>
                 )}
 
                 {stage.log.length > 0 ? (

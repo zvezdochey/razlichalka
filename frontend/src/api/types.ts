@@ -365,3 +365,73 @@ export type ChecksParams = {
   page?: number
   size?: number
 }
+
+// ─── 3. Процедуры и проверки ─────────────────────────────────────────────────
+
+/** Вид процедуры: приведение ответов, факты для сводной или проверка. */
+export type ProcedureKind = 'normalize' | 'aggregate' | 'check'
+
+/** Процедура в списке (п. 3.1). `path` есть только у `source: 'file'`. */
+export type Procedure = {
+  id: string
+  kind: ProcedureKind
+  name: string
+  source: CodeSource
+  path?: string
+  /** Встроенную нельзя ни изменить, ни удалить — только открыть на чтение. */
+  builtin: boolean
+  /** У встроенных — `null`. */
+  updated_at: string | null
+}
+
+export type ProceduresResponse = {
+  procedures: Procedure[]
+}
+
+/** Процедура с кодом (п. 3.4): текст файла или код из рабочей области. */
+export type ProcedureWithCode = Procedure & {
+  code: string
+}
+
+/** Тело на создание и изменение (п. 3.2): для `inline` — `code`, для `file` — `path`. */
+export type ProcedureInput = {
+  kind: ProcedureKind
+  name: string
+  source: CodeSource
+  code?: string
+  path?: string
+}
+
+/** Тело проверки кода без запуска (п. 3.3). */
+export type ValidateInput = Omit<ProcedureInput, 'name'>
+
+/** Ошибка в коде: номер строки с 1 и текст. */
+export type CodeError = {
+  line: number
+  message: string
+}
+
+export type ValidateResponse = {
+  ok: boolean
+  errors: CodeError[]
+}
+
+// ─── 4.3. Конфигурация целиком ───────────────────────────────────────────────
+
+/** Правило массива: по ключу (с полями `key`), по значению или по позиции (п. 4.2). */
+export type ArrayRule = {
+  mode: ArrayMode
+  key?: string[]
+}
+
+/** Тело `PUT /configs/{id}`: как при создании, плюс необязательные `array_rules`.
+ *  Их надо вернуть как пришли, иначе при изменении конфигурации они сотрутся. */
+export type ConfigUpdate = ConfigInput & {
+  array_rules?: Record<string, ArrayRule>
+}
+
+/** Конфигурация целиком (п. 4.3): тело как в 4.2 плюс `id` и `updated_at`. */
+export type ConfigDetail = ConfigUpdate & {
+  id: string
+  updated_at: string
+}
