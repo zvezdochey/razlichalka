@@ -139,7 +139,8 @@ function useExtras(runId: string): Extras {
       setExtras({
         sources: reasons.status === 'fulfilled' ? (reasons.value.by_source ?? null) : null,
         checksCount:
-          checks.status === 'fulfilled'
+          // Если строки не уместились на одной странице, точно не посчитать — лучше без числа, чем с заниженным.
+          checks.status === 'fulfilled' && checks.value.total <= checks.value.rows.length
             ? new Set(checks.value.rows.map((row) => row.check_id ?? row.check_name)).size
             : null,
       })
