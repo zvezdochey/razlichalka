@@ -168,8 +168,7 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
                 <tbody>
                   {visible.map((row, index) => (
                     <tr key={`${row.path}:${row.array_key}:${index}`} className={row.diff_flag ? 'app-panel-diff' : undefined}>
-                      {/* нулевая ширина после точки даёт переносить длинный путь */}
-                      <td className="app-panel-path mono" data-label="Атрибут">{row.path.replaceAll('.', '.​')}</td>
+                      <td className="app-panel-path mono" data-label="Атрибут">{row.path}</td>
                       <td data-label="Элемент массива">{row.array_key === null ? '—' : <span className="chip mono">{row.array_key}</span>}</td>
                       <td data-label="BEFORE">
                         <Value
