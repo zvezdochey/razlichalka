@@ -27,3 +27,12 @@
 .runs-table__date {
   white-space: nowrap;
 }
+
+/* Код датасета — одной строкой: по дефисам он рвётся на 2–3 строки и раздувает таблицу.
+   Слишком длинный обрезаем многоточием, полный код — во всплывающей подсказке. */
+.runs-table__dataset {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
