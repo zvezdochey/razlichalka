@@ -148,6 +148,9 @@ export function LogTab() {
               <li key={stage.name} className={`stage stage--${tone}`}>
                 <div className="stage__head">
                   <span className="stage__title">{STAGE_TITLES[stage.name] ?? stage.title}</span>
+                  {stage.name === 'compare' && (
+                    <span className="stage__hint muted">срез — набор ответов одной версии СПР</span>
+                  )}
                   <StatusBadge status={stage.status} error={runError} />
                   <span className="stage__times muted">
                     {stage.started_at === null
@@ -172,8 +175,11 @@ export function LogTab() {
                 {procedureId !== null && procedureId !== undefined && (
                   // Код этапа открывается в рабочей области процедур (E13), с прокруткой к строке.
                   <div className="stage__code">
-                    <Link className="mono" to={codeLink(procedureId, stage.code_ref?.line)}>
-                      Код этапа: {procedureId}
+                    <Link
+                      to={codeLink(procedureId, stage.code_ref?.line)}
+                      title="Покажет, как этап считает (код встроенной процедуры)"
+                    >
+                      Открыть код этапа →
                     </Link>
                   </div>
                 )}
@@ -199,7 +205,7 @@ export function LogTab() {
         </ol>
       )}
 
-      {finished && (
+      {!finished && (
         <button type="button" className="btn log__refresh" onClick={reloadRun}>
           Обновить статус
         </button>

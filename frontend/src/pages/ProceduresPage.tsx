@@ -341,10 +341,10 @@ export function ProceduresPage() {
           )}
           {draft === null && busy !== 'loading' && loadError === null && (
             <EmptyState
-              title="Выберите процедуру слева"
+              title="Выберите процедуру в списке"
               hint="Встроенные открываются на чтение. Свою проверку можно написать с шаблона."
               action={
-                <button type="button" className="btn btn--primary" onClick={() => open({ new: 'check' })}>
+                <button type="button" className="btn" onClick={() => open({ new: 'check' })}>
                   Новая проверка
                 </button>
               }
@@ -451,7 +451,10 @@ function Workspace({
           </div>
         )}
 
-        <fieldset className="proc__source" disabled={readOnly || locked}>
+        {readOnly ? (
+          <p className="muted proc__hint">Встроенная, только чтение</p>
+        ) : (
+        <fieldset className="proc__source" disabled={locked}>
           <legend className="overline">Источник кода</legend>
           <label>
             <input
@@ -482,6 +485,7 @@ function Workspace({
             />
           )}
         </fieldset>
+        )}
 
         {draft.source === 'file' && !readOnly && (
           <p className="faint proc__hint">

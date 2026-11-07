@@ -297,3 +297,22 @@
   overflow-wrap: break-word;
   word-break: normal;
 }
+
+/* Надстрочная шапка с названием поля колонок: вторая строка шапки садится под неё.
+   Подписи не переносим, иначе высота первой строки отличится от 2.25rem. */
+.pivot-table thead tr:first-child th {
+  white-space: nowrap;
+}
+
+.pivot-table thead tr:nth-child(2) th {
+  top: 2.25rem;
+}
+
+.pivot-col-group {
+  text-align: center;
+}
+
+.pivot-group h3:focus-visible {
+  outline: 2px solid var(--accent, currentColor);
+  outline-offset: 2px;
+}

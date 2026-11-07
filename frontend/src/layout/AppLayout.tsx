@@ -47,10 +47,10 @@ function UserSwitcher({ user }: { user: string }) {
       <button
         type="button"
         className="app__user"
-        title="Сменить пользователя: у каждого имени свои прогоны и конфигурации"
+        title="Сменить пользователя"
         onClick={() => setDraft(user)}
       >
-        {user}
+        {user} ▾
       </button>
     )
   }
@@ -67,7 +67,7 @@ function UserSwitcher({ user }: { user: string }) {
         autoFocus
         maxLength={64}
         aria-invalid={invalid}
-        aria-describedby={invalid ? 'app-user-hint' : undefined}
+        aria-describedby="app-user-hint"
         onChange={(event) => {
           setDraft(event.target.value)
           setInvalid(false)
@@ -76,11 +76,9 @@ function UserSwitcher({ user }: { user: string }) {
           if (event.key === 'Escape') close()
         }}
       />
-      {invalid && (
-        <span id="app-user-hint" className="app__user-hint" role="alert">
-          Только латиница, цифры, точка, «_» и «-»
-        </span>
-      )}
+      <span id="app-user-hint" className="app__user-hint">
+        Только латиница, цифры и _ - . ; у каждого имени свои прогоны и конфигурации
+      </span>
       <button type="submit" className="btn app__user-btn">
         Сохранить
       </button>

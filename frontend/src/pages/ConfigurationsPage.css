@@ -1,9 +1,11 @@
-/* Кнопка удаления конфигурации — красная: действие необратимое. */
-.btn--danger {
-  color: var(--danger);
-  border-color: var(--danger);
+/* «Удалить» — спокойная текстовая кнопка: красный у нас только для оценок и ошибок. */
+.btn--text {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
 }
 
-.btn--danger:hover:not(:disabled) {
-  background: var(--danger-bg);
+.btn--text:hover:not(:disabled) {
+  background: transparent;
+  text-decoration: underline;
 }

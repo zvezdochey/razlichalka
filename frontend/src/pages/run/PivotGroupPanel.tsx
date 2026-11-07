@@ -21,7 +21,8 @@ type PivotGroupPanelProps = {
 export function PivotGroupPanel({
   runId, group, onClose, emptyHint = 'Выберите другую ячейку сводной.', page, onPageChange,
 }: PivotGroupPanelProps) {
-  const closeButton = useRef<HTMLButtonElement>(null)
+  const panel = useRef<HTMLElement>(null)
+  const title = useRef<HTMLHeadingElement>(null)
   const load = useCallback(
     (signal: AbortSignal) => getFactApps(runId, group.ref, page, PAGE_SIZE, { signal }),
     [runId, group.ref, page],
@@ -29,7 +30,10 @@ export function PivotGroupPanel({
   const { result, retry } = usePivotRequest(load)
 
   useEffect(() => {
-    closeButton.current?.focus()
+    // Панель может открыться за пределами экрана: показываем её и переводим фокус на заголовок.
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    panel.current?.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' })
+    title.current?.focus({ preventScroll: true })
   }, [])
 
   useEffect(() => {
@@ -46,12 +50,15 @@ export function PivotGroupPanel({
   const canGoForward = page < pages && result.status !== 'loading'
 
   return (
-    <aside className="panel pivot-group" aria-labelledby="pivot-group-title">
+    <aside ref={panel} className="panel pivot-group" aria-labelledby="pivot-group-title">
       <div className="pivot-group-head">
-        <h3 id="pivot-group-title">Заявки группы</h3>
-        <button ref={closeButton} type="button" className="btn" onClick={onClose} aria-label="Закрыть список заявок">×</button>
+        <h3 id="pivot-group-title" ref={title} tabIndex={-1}>Заявки группы</h3>
+        <button type="button" className="btn" onClick={onClose} aria-label="Закрыть список заявок">×</button>
       </div>
       <p className="pivot-group-label muted">{group.label}</p>
+      {group.measure === 'counts' && group.cellCount !== undefined && data && (
+        <p className="muted">В ячейке {formatNumber(group.cellCount)} строк витрины в {formatNumber(data.total)} заявках</p>
+      )}
       {result.status === 'loading' && <Spinner label="Загружаем заявки группы" />}
       {result.status === 'error' && <ErrorBox message={result.message} onRetry={retry} />}
       {data && (

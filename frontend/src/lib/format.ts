@@ -66,3 +66,24 @@ export function formatDuration(from: string | null, to: string | null, now: numb
   if (minutes > 0) return `${minutes} мин ${seconds} с`
   return `${seconds} с`
 }
+
+/** «07.11 10:06» — короткая дата для списков, где важно отличить версии друг от друга. */
+export function formatShortDateTime(iso: string | null): string {
+  const date = parse(iso)
+  if (date === null) return DASH
+  const two = (n: number) => String(n).padStart(2, '0')
+  return `${two(date.getDate())}.${two(date.getMonth() + 1)} ${two(date.getHours())}:${two(date.getMinutes())}`
+}
+
+/**
+ * Время загрузки из id вида `UP-20261107-052820-ab12` → «07.11 05:28».
+ * Не разобралось — `null`, и вызывающий покажет id как есть.
+ */
+export function uploadTimeFromId(id: string): string | null {
+  const m = /^UP-(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})\d{2}/.exec(id)
+  if (m === null) return null
+  // Цифры из id показываем как есть (время сервера), но только если это настоящие дата и время
+  const [month, day, hour, minute] = [m[2], m[3], m[4], m[5]].map(Number)
+  if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59) return null
+  return `${m[3]}.${m[2]} ${m[4]}:${m[5]}`
+}

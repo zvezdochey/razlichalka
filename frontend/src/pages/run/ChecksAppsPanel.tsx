@@ -4,7 +4,7 @@ import type { CheckRow, FactAppsResponse } from '../../api'
 import { getFactApps, isAbortError } from '../../api'
 import { EmptyState, ErrorBox, Spinner } from '../../components'
 import { formatNumber } from '../../lib/format'
-import { countOf, examplesLabel } from './checksRows'
+import { countOf, displayArgument, examplesLabel } from './checksRows'
 
 const PAGE_SIZE = 50
 
@@ -95,7 +95,7 @@ export function ChecksAppsPanel({ runId, row, appsRef, onClose }: ChecksAppsPane
       </div>
       <p className="checks-apps-label muted">
         {row.check_name}
-        {row.argument !== null && ` · ${row.argument}`}
+        {displayArgument(row) !== null && ` · ${displayArgument(row)}`}
       </p>
 
       {state.status === 'loading' && <Spinner label="Загружаем заявки" />}

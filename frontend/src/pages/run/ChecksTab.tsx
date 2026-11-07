@@ -10,6 +10,9 @@ import {
   checksCount,
   countOf,
   appsLinkLabel,
+  displayArgument,
+  isArDrop,
+  variantsOf,
   failedChecks,
   groupRows,
   formatMetric,
@@ -195,6 +198,7 @@ export function ChecksTab() {
   const failed = failedChecks(stage?.log ?? [])
   const fails = rows.filter((row) => row.result === 'FAIL').length
   const shown = sortByVerdict(onlyFail ? rows.filter((row) => row.result === 'FAIL') : rows)
+  const variants = variantsOf(rows) // номера считаем по всем строкам, чтобы фильтр «Только FAIL» их не менял
 
   return (
     <div className="checks">
@@ -240,10 +244,6 @@ export function ChecksTab() {
             Только FAIL
           </button>
         </div>
-        <p className="checks-count">
-          FAIL: <span className="num">{formatNumber(fails)}</span> из{' '}
-          <span className="num">{formatNumber(rows.length)}</span>
-        </p>
         {stage?.finished_at && (
           <p className="checks-updated muted">Проверено {formatDateTime(stage.finished_at)}</p>
         )}
@@ -266,9 +266,9 @@ export function ChecksTab() {
                 <tr>
                   <th scope="col">Проверка</th>
                   <th scope="col">Версия</th>
-                  <th scope="col">Что проверяли</th>
+                  <th scope="col">Объект проверки</th>
                   <th scope="col" className="num">Затронуто / из</th>
-                  <th scope="col" className="num">Метрика</th>
+                  <th scope="col" className="num">Метрика (значение)</th>
                   <th scope="col">Результат</th>
                   <th scope="col">Уверенность</th>
                   <th scope="col" className="num">Заявки</th>
@@ -306,6 +306,7 @@ export function ChecksTab() {
                         <CheckTableRow
                           key={`${row.check_name}-${row.argument ?? ''}-${row.source ?? ''}-${index}`}
                           row={row}
+                          variant={variants.get(row)}
                           isError={isErrorRow(row, failed)}
                           isOpened={opened === row}
                           samples={row.apps_ref === null ? undefined : samples[row.apps_ref]}
@@ -341,6 +342,8 @@ type CheckTableRowProps = {
   row: CheckRow
   /** Сколько заявок реально за ссылкой; `undefined` — ещё не узнали. */
   samples?: number
+  /** Номер варианта, если есть строка-близнец с другими заявками. */
+  variant?: number
   isError: boolean
   isOpened: boolean
   onOpen: (button: HTMLButtonElement) => void
@@ -348,9 +351,10 @@ type CheckTableRowProps = {
 
 const VERDICT_CHIP = { pass: 'chip--pass', fail: 'chip--fail', low: 'chip--low' } as const
 
-function CheckTableRow({ row, samples, isError, isOpened, onOpen }: CheckTableRowProps) {
+function CheckTableRow({ row, variant, samples, isError, isOpened, onOpen }: CheckTableRowProps) {
   const verdict = verdictOf(row)
   const count = countOf(row)
+  const argument = isError ? row.argument : displayArgument(row)
 
   return (
     <tr className={`checks-row checks-row--${verdict}${isOpened ? ' checks-row--opened' : ''}`}>
@@ -358,19 +362,36 @@ function CheckTableRow({ row, samples, isError, isOpened, onOpen }: CheckTableRo
         {/* Внутренний id — только в подсказке */}
         <div className="checks-name" title={row.check_id !== null ? `Код проверки: ${row.check_id}` : undefined}>
           {row.check_name}
+          {variant !== undefined && (
+            <span
+              className="muted"
+              title="Проверка вернула несколько строк с одним названием и одинаковыми числами, но для разных групп заявок (например, у стоп-фактора: правило удалено из стратегии и правило перестало срабатывать)"
+            >
+              {` · вариант ${variant}`}
+            </span>
+          )}
         </div>
       </td>
       <td>{sourceLabel(row.source) ?? DASH}</td>
       <td
         className={isError ? 'checks-arg checks-arg--error mono' : 'checks-arg'}
-        title={row.argument ?? undefined}
+        title={argument ?? undefined}
       >
-        {row.argument === null ? DASH : isError ? row.argument : <BreakableAt text={shortPath(row.argument)} />}
+        {argument === null ? DASH : isError ? argument : <BreakableAt text={shortPath(argument)} />}
       </td>
-      <td className="num">{isError || row.numbers === null ? DASH : row.numbers}</td>
+      <td
+        className="num"
+        title={isArDrop(row) ? 'потеряли одобрение / заявок по продукту' : undefined}
+      >
+        {isError || row.numbers === null ? DASH : row.numbers}
+      </td>
       <td className="num">
         {isError || row.metric === null ? (
           DASH
+        ) : isArDrop(row) ? (
+          <span title={`Относительное падение доли одобрений (Approval Rate) после изменения; FAIL, если больше 10 %. Исходное значение ${formatMetric(row.metric)}`}>
+            {`падение ${formatShare(row.metric)}`}
+          </span>
         ) : isShareMetric(row) ? (
           // Доля 0..1 — показываем процентом, исходное число по наведению.
           <span title={`Исходное значение: ${formatMetric(row.metric)}`}>

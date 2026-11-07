@@ -48,8 +48,8 @@ export function AiReviewBlock({ runId }: { runId: string }) {
       {failure === null && review?.status === 'ready' && (
         <>
           <p className="ai-review__text">{review.text}</p>
-          <p className="muted">
-            Модель {review.model} видела только агрегаты прогона. Это второе мнение, а не замена проверкам.
+          <p className="muted" title={`Модель: ${review.model}`}>
+            Модель видела только общие цифры прогона, без отдельных заявок. Это второе мнение, а не замена проверкам.
           </p>
         </>
       )}
