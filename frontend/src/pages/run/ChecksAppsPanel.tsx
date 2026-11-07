@@ -109,7 +109,7 @@ export function ChecksAppsPanel({ runId, row, appsRef, onClose }: ChecksAppsPane
           <>
             <p className="muted">
               {limited
-                ? `${examplesLabel(data.total, count)} — проверка сохраняет не все заявки, а только примеры`
+                ? `Показано ${examplesLabel(data.total, count)} — проверка сохраняет только часть заявок`
                 : `Всего заявок ${formatNumber(data.total)}`}
             </p>
             <ul className="checks-apps-list">

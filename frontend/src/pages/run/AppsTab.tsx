@@ -13,9 +13,17 @@ import './AppsTab.css'
 
 const DECISIONS = DECISION_CHANGE_LABELS
 const SOURCES: Record<ChangeSource, string> = {
-  logic: 'Логика', data: 'Данные', both: 'Логика и данные', none: 'Без различий',
+  logic: 'Из-за логики', data: 'Из-за входных данных', both: 'Логика и данные', none: 'Без различий',
 }
 const FILTER_KEYS = ['decision_change', 'change_source', 'has_attr_change', 'search']
+
+/**
+ * «Только с различиями» включена по умолчанию, но только когда в ссылке нет ни одного фильтра.
+ * Ссылки из Обзора и Сводной (?decision_change=…, ?has_attr_change=1) несут свои фильтры и
+ * открывают ровно ту выборку, по которой кликнули. Явное «выключено» хранится как has_attr_change=0
+ * (на бэк этот флаг не уходит — см. api/endpoints.ts).
+ */
+const hasDefaultFilters = (params: URLSearchParams) => FILTER_KEYS.every((key) => !params.has(key))
 
 /**
  * Пара значений — отдельная ячейка на «до» и отдельная на «после» (а не одна ячейка
@@ -48,8 +56,8 @@ function Search({ applied, navigationKey, onApply }: { applied: string; navigati
     const timer = window.setTimeout(() => onApply(value), 300)
     return () => window.clearTimeout(timer)
   }, [value, applied, onApply])
-  return <label className="apps-search">Поиск по APP_ID и разрезам
-    <input className="input" type="search" value={value} placeholder="ID, модель, порог, причина отказа"
+  return <label className="apps-search">Найти заявку (номер, модель, причина отказа)
+    <input className="input" type="search" value={value} placeholder="Например, номер заявки или модель"
       onChange={(event) => setDraft({ navigationKey, value: event.target.value })} />
   </label>
 }
@@ -65,7 +73,7 @@ function ReadyApps({ runId }: { runId: string }) {
   const location = useLocation()
   const decision = params.get('decision_change') ?? ''
   const source = params.get('change_source') ?? ''
-  const hasAttr = params.get('has_attr_change') === '1'
+  const hasAttr = params.get('has_attr_change') === '1' || hasDefaultFilters(params)
   const search = params.get('search') ?? ''
   const sort = params.get('sort') || '-attributes_changed'
   const rawPage = Number(params.get('page') ?? 1)
@@ -97,6 +105,9 @@ function ReadyApps({ runId }: { runId: string }) {
   const update = useCallback((key: string, value: string, resetPage = true) => {
     setParams((previous) => {
       const next = new URLSearchParams(previous)
+      // Меняем другой фильтр при включённом по умолчанию «Только с различиями» — закрепляем его в ссылке,
+      // иначе он пропадёт вместе с «отсутствием фильтров».
+      if (FILTER_KEYS.includes(key) && key !== 'has_attr_change' && hasDefaultFilters(previous)) next.set('has_attr_change', '1')
       if (value) next.set(key, value)
       else next.delete(key)
       if (resetPage) { next.set('page', '1'); next.delete('app') }
@@ -107,6 +118,7 @@ function ReadyApps({ runId }: { runId: string }) {
   const reset = () => setParams((previous) => {
     const next = new URLSearchParams(previous)
     FILTER_KEYS.forEach((key) => next.delete(key))
+    next.set('has_attr_change', '0') // «Сбросить» убирает все фильтры, в том числе умолчание «Только с различиями»
     next.delete('app')
     next.set('page', '1')
     return next
@@ -118,7 +130,7 @@ function ReadyApps({ runId }: { runId: string }) {
   const chips = [
     ...decision.split(',').filter(Boolean).map((value) => ({ key: 'decision_change', value, label: DECISIONS[value as DecisionChange] ?? value })),
     ...source.split(',').filter(Boolean).map((value) => ({ key: 'change_source', value, label: `Источник: ${SOURCES[value as ChangeSource] ?? value}` })),
-    ...(hasAttr ? [{ key: 'has_attr_change', value: '1', label: 'С различиями атрибутов' }] : []),
+    ...(hasAttr ? [{ key: 'has_attr_change', value: '1', label: 'Только с различиями' }] : []),
     ...(search ? [{ key: 'search', value: search, label: `Поиск: ${search}` }] : []),
   ]
   const sortHeader = (field: string, label: string) => <th scope="col" rowSpan={2}
@@ -145,12 +157,13 @@ function ReadyApps({ runId }: { runId: string }) {
         {Object.entries(SOURCES).map(([value, label]) => <label key={value}><input type="checkbox"
           checked={source.split(',').includes(value)} onChange={() => toggle('change_source', source, value)} />{label}</label>)}
       </fieldset>
+      <p className="muted apps-hint">Из-за логики — вход заявки тот же, различие в том, что посчитала СПР; из-за входных данных — у заявки другие данные или ответ внешнего источника.</p>
       <div className="apps-search-row"><Search navigationKey={location.key} applied={search} onApply={applySearch} />
-        <label><input type="checkbox" checked={hasAttr} onChange={() => update('has_attr_change', hasAttr ? '' : '1')} />Только с различиями атрибутов</label>
+        <label><input type="checkbox" checked={hasAttr} onChange={() => update('has_attr_change', hasAttr ? '0' : '1')} />Только с различиями</label>
       </div>
       {chips.length > 0 && <div className="apps-chips" aria-label="Активные фильтры">
         {chips.map(({ key, value, label }) => <button className="btn" key={`${key}:${value}`} aria-label={`Убрать фильтр ${label}`}
-          onClick={() => key === 'decision_change' || key === 'change_source' ? toggle(key, params.get(key) ?? '', value) : update(key, '')}>
+          onClick={() => key === 'decision_change' || key === 'change_source' ? toggle(key, params.get(key) ?? '', value) : update(key, key === 'has_attr_change' ? '0' : '')}>
           {label} <span aria-hidden="true">×</span></button>)}
         <button className="btn" onClick={reset}>Сбросить</button>
       </div>}
@@ -171,7 +184,7 @@ function ReadyApps({ runId }: { runId: string }) {
             <tr>
               {sortHeader('app_id', 'APP_ID')}
               {pairHead('Решение')}
-              {sortHeader('attributes_changed', 'Изменено атр.')}
+              {sortHeader('attributes_changed', 'Атрибутов изменено')}
               {pairHead('Модель')}
               {pairHead('Порог')}
               {pairHead('Причина отказа')}
@@ -197,6 +210,7 @@ function ReadyApps({ runId }: { runId: string }) {
           </tr>)}</tbody>
         </table>
       </div>)}
+    <p className="muted apps-hint">Нажмите на заявку, чтобы увидеть, что в ней изменилось.</p>
     <div className="apps-pagination">
       <span role="status">{data ? `Показано ${formatNumber(data.apps.length ? (page - 1) * size + 1 : 0)}–${formatNumber(data.apps.length ? (page - 1) * size + data.apps.length : 0)} из ${formatNumber(data.total)}` : result.status === 'error' ? 'Выборка не загружена' : 'Загрузка выборки…'}</span>
       <label>На странице <select className="select" value={size} onChange={(event) => update('size', event.target.value)}>

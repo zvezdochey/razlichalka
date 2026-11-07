@@ -61,6 +61,10 @@ export function NewRunPage() {
     }
   }, [])
 
+  // Текущий выбор и ссылка на конфигурацию — для эффекта загрузки датасетов (он не должен перезапускаться от них).
+  const datasetIdRef = useRef('')
+  const hasConfigInUrl = useRef(searchParams.get('config') !== null)
+
   // ─── Загрузка списка датасетов ────────────────────────────────────────────
   const [datasets, setDatasets] = useState<Dataset[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -78,7 +82,15 @@ export function NewRunPage() {
     const controller = new AbortController()
 
     getDatasets({ signal: controller.signal })
-      .then(setDatasets)
+      .then((list) => {
+        setDatasets(list)
+        // Единственный датасет выбираем сразу, если человек ещё ничего не выбирал
+        // и не открывает сохранённую конфигурацию (она подставит свой).
+        if (list.length === 1 && datasetIdRef.current === '' && !hasConfigInUrl.current) {
+          setDatasetId(list[0].id)
+          setIgnorePaths(list[0].technical_fields)
+        }
+      })
       .catch((error: unknown) => {
         // Отменённый запрос — штатная ситуация, показывать нечего.
         if (isAbortError(error)) return
@@ -144,6 +156,10 @@ export function NewRunPage() {
   const [savedConfig, setSavedConfig] = useState<Config | null>(null)
   /** Форму меняли после сохранения, значит сохранённая конфигурация устарела. */
   const [changedSinceSave, setChangedSinceSave] = useState(false)
+
+  useEffect(() => {
+    datasetIdRef.current = datasetId
+  }, [datasetId])
 
   const busy = phase !== 'idle'
   // Без списка процедур не знаем, какие проверки отмечены, — запуск «вслепую» дал бы 0 FAIL.
@@ -421,6 +437,11 @@ export function NewRunPage() {
           {willReuseConfig ? 'Запустить ещё раз' : 'Запустить'}
         </button>
       </div>
+
+      <p className="muted new-run__hint">
+        Запустить — начнёт прогон и откроет его страницу. Сохранить — запомнит настройки без
+        запуска.
+      </p>
     </form>
   )
 }

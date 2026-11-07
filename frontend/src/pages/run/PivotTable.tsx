@@ -1,7 +1,7 @@
 import type { FactsResponse, FactsRow, FactValue } from '../../api'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { DASH, formatNumber } from '../../lib/format'
-import { factLabel, PIVOT_FIELDS } from './pivotLayout'
+import { factLabel, isOneGroupLayout, PIVOT_FIELDS } from './pivotLayout'
 import type { PivotField, PivotLayout } from './pivotLayout'
 
 export type PivotGroup = { ref: string; label: string }
@@ -44,6 +44,12 @@ function makeMatrix(groups: FactsRow[], rowFields: PivotField[], columnField: Pi
   return { rows, columns, total }
 }
 
+/** Длинный путь атрибута: даём переносу место после каждой точки и скобок, чтобы слово не рвалось посередине. */
+function PathText({ path }: { path: string }) {
+  const parts = path.split(/(?<=[.\]])/)
+  return <>{parts.map((part, index) => <span key={index}>{part}<wbr /></span>)}</>
+}
+
 export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTableProps) {
   const { rows, columns, total } = makeMatrix(data.rows, layout.rows, layout.column)
   const location = useLocation()
@@ -55,9 +61,10 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
   })
   const visibleRows = [...rows].slice(rowPage * ROW_PAGE_SIZE, (rowPage + 1) * ROW_PAGE_SIZE)
   const visibleColumns = [...columns].slice(columnPage * COLUMN_PAGE_SIZE, (columnPage + 1) * COLUMN_PAGE_SIZE)
-  const additive = layout.measure === 'counts'
+  // Итоги суммируем, если показатель — строки витрины или заявка попадает ровно в одну группу.
+  const additive = layout.measure === 'counts' || isOneGroupLayout([...layout.rows, layout.column])
   const truncated = data.total_groups > data.rows.length
-  const metric = additive ? 'Строк витрины' : 'Заявок'
+  const metric = layout.measure === 'counts' ? 'Строк витрины' : 'Заявок'
   const totalLabel = truncated ? 'Итого по показанным группам' : 'Итого'
 
   return (
@@ -102,7 +109,9 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
               return (
                 <tr key={rowKey}>
                   {layout.rows.map((field, index) => (
-                    <th key={field} scope="row" className={field === 'PATH' ? 'mono' : undefined}>{rowLabels[index]}</th>
+                    <th key={field} scope="row" className={field === 'PATH' ? 'mono' : undefined} title={rowLabels[index]}>
+                      {field === 'PATH' ? <PathText path={rowLabels[index]} /> : rowLabels[index]}
+                    </th>
                   ))}
                   {visibleColumns.map(([key, column]) => {
                     const cell = row.cells.get(key)
@@ -121,7 +130,7 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
                           >
                             {formatNumber(cell.counts)}
                           </button>
-                        ) : DASH}
+                        ) : truncated ? DASH : <span className="pivot-zero">0</span>}
                       </td>
                     )
                   })}
@@ -141,7 +150,7 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
           </tfoot>
         </table>
       </div>
-      {!additive && <p className="pivot-note muted">Одна заявка может входить в несколько групп. Итоги для этого показателя не суммируются.</p>}
+      {!additive && <p className="pivot-note muted">Итого по заявкам не показываем: одна заявка может попасть в несколько групп.</p>}
     </>
   )
 }

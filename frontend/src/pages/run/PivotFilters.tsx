@@ -15,7 +15,7 @@ export function PivotFilters({ filters, field, onFieldChange, dragHandle, onChan
   const values = filters[field]
   const applied = values?.some((value) => /[;,]/.test(value))
     ? JSON.stringify(values)
-    : values?.join(', ') ?? (field === 'DIFF_FLAG' ? '1' : '')
+    : values?.join(', ') ?? (field === 'DIFF_FLAG' || field === 'DECISION_CHANGED' ? '1' : '')
   const [draft, setDraft] = useState({ field, applied, value: applied })
   const [error, setError] = useState('')
 
@@ -40,7 +40,7 @@ export function PivotFilters({ filters, field, onFieldChange, dragHandle, onChan
     } else {
       values = value.split(',').map((part) => part.trim())
     }
-    if (field === 'DIFF_FLAG' && values.some((item) => item !== '0' && item !== '1')) {
+    if ((field === 'DIFF_FLAG' || field === 'DECISION_CHANGED') && values.some((item) => item !== '0' && item !== '1')) {
       setError('Для этого поля введите 0 или 1.')
       return
     }

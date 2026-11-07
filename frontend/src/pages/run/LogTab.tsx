@@ -147,7 +147,7 @@ export function LogTab() {
             return (
               <li key={stage.name} className={`stage stage--${tone}`}>
                 <div className="stage__head">
-                  <span className="stage__title">{stage.title}</span>
+                  <span className="stage__title">{STAGE_TITLES[stage.name] ?? stage.title}</span>
                   <StatusBadge status={stage.status} error={runError} />
                   <span className="stage__times muted">
                     {stage.started_at === null

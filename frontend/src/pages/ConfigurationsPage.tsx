@@ -4,6 +4,7 @@ import type { Config } from '../api'
 import { createRun, deleteConfig, isAbortError, listConfigs } from '../api'
 import { EmptyState, ErrorBox, Spinner } from '../components'
 import { formatDateTime } from '../lib/format'
+import './ConfigurationsPage.css'
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'Запрос не удался'
@@ -68,6 +69,11 @@ export function ConfigurationsPage() {
         </Link>
       </div>
 
+      <p className="muted">
+        Конфигурация — сохранённый набор настроек прогона: датасет, этапы и проверки. «Запустить»
+        создаёт новый прогон с этими настройками.
+      </p>
+
       {error !== null && <ErrorBox message={error} onRetry={() => void load()} />}
       {actionError !== null && <ErrorBox message={actionError} />}
 
@@ -126,7 +132,7 @@ export function ConfigurationsPage() {
                       </Link>
                       <button
                         type="button"
-                        className="btn"
+                        className="btn btn--danger"
                         disabled={busyId !== null}
                         onClick={() => void handleDelete(config)}
                       >

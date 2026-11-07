@@ -1,0 +1,9 @@
+/* Кнопка удаления конфигурации — красная: действие необратимое. */
+.btn--danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: var(--danger-bg);
+}

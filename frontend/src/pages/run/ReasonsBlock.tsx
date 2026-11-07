@@ -9,6 +9,20 @@ import './ReasonsBlock.css'
 
 const PERCENT = new Intl.NumberFormat('ru-RU', { style: 'percent', maximumFractionDigits: 1 })
 
+/** Понятные подписи стоп-факторов. Незнакомый код показываем как есть. */
+const REASON_LABELS: Record<string, string> = {
+  DOCS_EXPIRED: 'Просрочены документы (DOCS_EXPIRED)',
+  'AGELOW@21': 'Возраст младше 21 (AGELOW@21)',
+}
+
+/** «Отсечка MODEL (порог 0.7)» → «Не прошёл порог модели MODEL (порог 0.7)». */
+function reasonLabel(text: string): string {
+  const known = REASON_LABELS[text.trim()]
+  if (known) return known
+  const cutoff = /^Отсечка\s+(.+)$/.exec(text.trim())
+  return cutoff ? `Не прошёл порог модели ${cutoff[1]}` : text
+}
+
 export function ReasonsBlock({ runId }: { runId: string }) {
   const load = useCallback((signal: AbortSignal) => getReasons(runId, { signal }), [runId])
   const { result, retry } = usePivotRequest(load)
@@ -32,7 +46,15 @@ export function ReasonsBlock({ runId }: { runId: string }) {
         {result.status === 'error' && <ErrorBox message={result.message} onRetry={retry} />}
         {data && <>
           {data.reasons.length > 0 ? <>
-            <p className="muted">Число строк продуктов и доля среди причин отказа.</p>
+            <p className="reasons-note">
+              Одна заявка может давать несколько причин, поэтому считаем строки продуктов, а не заявки.
+            </p>
+            <div className="reasons-head" aria-hidden="true">
+              <span>Причина</span>
+              <span className="num">Строк продукта</span>
+              <span />
+              <span className="num">Доля</span>
+            </div>
             <ul className="reasons-list">
               {data.reasons.slice(0, 5).map((reason) => {
                 const key = JSON.stringify([reason.source, reason.rule])
@@ -45,10 +67,10 @@ export function ReasonsBlock({ runId }: { runId: string }) {
                     aria-expanded={expanded}
                     onClick={(event) => {
                       opener.current = event.currentTarget
-                      setGroup(expanded ? null : { key, ref: reason.app_ids_ref, label: reason.text })
+                      setGroup(expanded ? null : { key, ref: reason.app_ids_ref, label: reasonLabel(reason.text) })
                     }}
                   >
-                    <span>{reason.text}</span>
+                    <span>{reasonLabel(reason.text)}</span>
                     <span className="num">{formatNumber(reason.affected)}</span>
                     <span className="reasons-track" aria-hidden="true">
                       <span style={{ inlineSize: `${reason.share * 100}%` }} />

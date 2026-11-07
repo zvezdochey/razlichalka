@@ -263,3 +263,8 @@
 .field__reload {
   margin-top: var(--s-2);
 }
+
+.new-run__hint {
+  margin: 0;
+  text-align: right;
+}

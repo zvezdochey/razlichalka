@@ -57,3 +57,17 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.reasons-note {
+  color: var(--text);
+}
+
+/* Шапка над списком причин: те же колонки, что у строки */
+.reasons-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(3ch, auto) minmax(2rem, 16%) minmax(6ch, auto);
+  gap: var(--s-3);
+  padding: 0 var(--s-2);
+  color: var(--muted);
+  font-size: var(--fs-caption);
+}

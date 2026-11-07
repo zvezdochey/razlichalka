@@ -11,3 +11,14 @@
 .runs-table__row:hover .runs-table__link {
   text-decoration: underline;
 }
+
+/* Самый свежий прогон — слегка выделен. */
+.runs-table__row--latest {
+  background: var(--surface-2, rgba(0, 0, 0, 0.03));
+  font-weight: 500;
+}
+
+.runs-table__reason {
+  margin-top: var(--s-1, 4px);
+  font-size: 12px;
+}

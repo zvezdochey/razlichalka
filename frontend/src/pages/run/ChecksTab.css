@@ -238,3 +238,26 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Свёрнутая группа строк одной проверки */
+.checks-group td {
+  padding: 0;
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.checks-group__toggle {
+  display: block;
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.checks-group__toggle:hover {
+  text-decoration: underline;
+}
