@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createConfig, createRun, getDatasets, isAbortError, updateConfig } from '../../api'
-import type { Config, ConfigDetail, ConfigUpdate, Dataset, UploadResponse } from '../../api'
+import {
+  createConfig,
+  createRun,
+  getDatasets,
+  isAbortError,
+  listProcedures,
+  updateConfig,
+} from '../../api'
+import type { Config, ConfigDetail, ConfigUpdate, Dataset, Procedure, UploadResponse } from '../../api'
 import { ErrorBox, Spinner } from '../../components'
 import { DataSection } from './DataSection'
 import { PipelinePreview } from './PipelinePreview'
+import type { PipelineChoice } from './PipelinePreview'
 import { SavedConfigs } from './SavedConfigs'
 import {
   BUILTIN_AGGREGATE,
@@ -78,6 +86,43 @@ export function NewRunPage() {
     return () => controller.abort()
   }, [reloadKey])
 
+  // ─── Процедуры и проверки ─────────────────────────────────────────────────
+  const [procedures, setProcedures] = useState<Procedure[] | null>(null)
+  const [proceduresError, setProceduresError] = useState<string | null>(null)
+  const [proceduresKey, setProceduresKey] = useState(0)
+  /** `checks: null` — список процедур ещё не пришёл, умолчание подставится после загрузки. */
+  const [pipeline, setPipeline] = useState<Omit<PipelineChoice, 'checks'> & { checks: string[] | null }>({
+    normalize: BUILTIN_NORMALIZE,
+    aggregate: BUILTIN_AGGREGATE,
+    checks: null,
+  })
+
+  function reloadProcedures() {
+    setProcedures(null)
+    setProceduresError(null)
+    setProceduresKey((key) => key + 1)
+  }
+
+  useEffect(() => {
+    const controller = new AbortController()
+    listProcedures(undefined, { signal: controller.signal })
+      .then((list) => {
+        setProcedures(list)
+        // Пока проверки не выбирали руками и не брали из конфигурации — отмечаем все встроенные:
+        // «просто запустить» должно давать полный отчёт PASS / FAIL.
+        setPipeline((prev) =>
+          prev.checks !== null
+            ? prev
+            : { ...prev, checks: list.filter((p) => p.kind === 'check' && p.builtin).map((p) => p.id) },
+        )
+      })
+      .catch((error: unknown) => {
+        if (isAbortError(error)) return
+        setProceduresError(errorMessage(error))
+      })
+    return () => controller.abort()
+  }, [proceduresKey])
+
   // ─── Поля формы ───────────────────────────────────────────────────────────
   const [name, setName] = useState(defaultConfigName)
   const [datasetId, setDatasetId] = useState('')
@@ -99,7 +144,8 @@ export function NewRunPage() {
   const [changedSinceSave, setChangedSinceSave] = useState(false)
 
   const busy = phase !== 'idle'
-  const canSubmit = datasetId !== '' && !busy
+  // Без списка процедур не знаем, какие проверки отмечены, — запуск «вслепую» дал бы 0 FAIL.
+  const canSubmit = datasetId !== '' && !busy && pipeline.checks !== null
   const savedAndUnchanged = savedConfig !== null && !changedSinceSave
   /**
    * Прошлый запуск упал на втором шаге и форму с тех пор не меняли — значит
@@ -133,6 +179,11 @@ export function NewRunPage() {
     selectDataset(dataset.id, dataset.technical_fields)
   }
 
+  function handlePipelineChange(value: PipelineChoice) {
+    setPipeline(value)
+    setChangedSinceSave(true)
+  }
+
   function handleIgnorePathsChange(paths: string[]) {
     setIgnorePaths(paths)
     setChangedSinceSave(true)
@@ -149,6 +200,7 @@ export function NewRunPage() {
     setName(config.name)
     setDatasetId(config.dataset)
     setIgnorePaths(config.ignore_paths)
+    setPipeline({ normalize: config.normalize, aggregate: config.aggregate, checks: config.checks })
     // Пока форму не тронули, «Запустить» берёт эту конфигурацию, а не плодит копию.
     setSavedConfig(config)
     setRunNotStarted(false)
@@ -186,9 +238,9 @@ export function NewRunPage() {
     return {
       name: name.trim() === '' ? defaultConfigName() : name.trim(),
       dataset: datasetId,
-      normalize: base?.normalize ?? BUILTIN_NORMALIZE,
-      aggregate: base?.aggregate ?? BUILTIN_AGGREGATE,
-      checks: base?.checks ?? [], // в новой конфигурации проверки не подключаем
+      normalize: pipeline.normalize,
+      aggregate: pipeline.aggregate,
+      checks: pipeline.checks ?? [],
       ignore_paths: ignorePaths,
       array_modes: { ...(base?.array_modes ?? DEFAULT_ARRAY_MODES) },
       ...(base?.array_rules !== undefined && { array_rules: base.array_rules }),
@@ -310,7 +362,13 @@ export function NewRunPage() {
           ignorePaths={ignorePaths}
           onIgnorePathsChange={handleIgnorePathsChange}
         />
-        <PipelinePreview />
+        <PipelinePreview
+          procedures={procedures}
+          error={proceduresError}
+          onReload={reloadProcedures}
+          value={{ ...pipeline, checks: pipeline.checks ?? [] }}
+          onChange={handlePipelineChange}
+        />
       </fieldset>
 
       {submitError !== null && (
