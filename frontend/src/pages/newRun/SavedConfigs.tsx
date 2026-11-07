@@ -66,6 +66,9 @@ export function SavedConfigs({ refreshKey, activeId, onDeleted, onLoad }: SavedC
   return (
     <section className="panel section" aria-labelledby="section-saved">
       <h2 id="section-saved">Сохранённые конфигурации</h2>
+      <p className="field__hint muted new-run__lead">
+        Необязательно. Выберите прошлый запуск, чтобы заполнить форму его настройками; для нового сравнения пропустите.
+      </p>
       <div className="field">
         <label className="field__label" htmlFor="saved-config">
           Взять за основу

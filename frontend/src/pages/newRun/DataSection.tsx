@@ -52,6 +52,12 @@ export function DataSection({
   return (
     <section className="panel section" aria-labelledby="section-data">
       <h2 id="section-data">Данные</h2>
+      {/* Новичок не знает, что такое датасет и срез: одна фраза перед полями. */}
+      <p className="field__hint muted new-run__lead">
+        Датасет — набор заявок с ответами двух версий СПР: старой («до», первый срез) и новой («после», второй срез).
+        Выберите готовый в списке — в нём видно число заявок и названия версий, например «MASTER → BETA», — или загрузите
+        свои файлы ниже. Название конфигурации нужно, чтобы потом найти и повторить этот запуск.
+      </p>
 
       <div className="field">
         <label className="field__label" htmlFor="config-name">

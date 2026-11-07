@@ -275,3 +275,9 @@
   margin: 0;
   text-align: right;
 }
+
+/* Вводная фраза под заголовком «Данные»: что такое датасет и срезы. */
+.new-run__lead {
+  max-width: 72ch;
+  margin: 0 0 var(--s-4);
+}
