@@ -65,7 +65,12 @@ export function ChecksTab() {
       try {
         const [rows, stages] = await Promise.all([
           loadAllChecks(runId, controller.signal),
-          getStages(runId, { signal: controller.signal }),
+          // Журнал нужен только для плашки об ошибках и времени проверки:
+          // если он не пришёл, таблицу всё равно показываем.
+          getStages(runId, { signal: controller.signal }).catch((e: unknown) => {
+            if (isAbortError(e)) throw e
+            return []
+          }),
         ])
         setState({
           status: 'ready',

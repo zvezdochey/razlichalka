@@ -28,23 +28,32 @@ export function countOf(row: CheckRow): number | null {
 }
 
 /**
- * Какие проверки не выполнились. Бэк пишет в журнал этапа `checks` строку `error`
- * вида «Проверка «X» не выполнена: …» (или «не загружена: …»), а в таблицу — строку
- * FAIL с текстом ошибки. Имя берём из кавычек-ёлочек; нет их — показываем запись целиком.
+ * Ровно две формы записи, которые бэк пишет в журнал этапа `checks`, когда проверка
+ * упала (`backend/app/services/stages.py` и `backend/pipeline/checks_runner.py`):
+ * «Проверка «X» не выполнена: …» и «Проверка «X» не загружена: …».
+ * Другие ошибки этапа сюда не попадают: это не «проверка не выполнилась».
+ */
+const CHECK_FAILED = /^Проверка «(.+)» не (?:выполнена|загружена):/
+
+/**
+ * Какие проверки не выполнились — имена из журнала этапа `checks`.
+ * В таблицу бэк при этом пишет строку FAIL с текстом ошибки и `faint: true`.
  */
 export function failedChecks(log: StageLogEntry[]): string[] {
   const names = log
     .filter((entry) => entry.level === 'error')
-    .map((entry) => /«(.+?)»/.exec(entry.message)?.[1] ?? entry.message)
+    .map((entry) => CHECK_FAILED.exec(entry.message)?.[1])
+    .filter((name): name is string => name !== undefined)
   return [...new Set(names)]
 }
 
-/** Строка ошибки выполнения, а не результат проверки: ищем её по имени или id. */
+/**
+ * Строка ошибки выполнения, а не вердикт проверки. Такая строка всегда FAIL и бледная;
+ * ищем её по названию (упала при запуске) или по id (не загрузилась — названия ещё нет).
+ */
 export function isErrorRow(row: CheckRow, failed: string[]): boolean {
-  return (
-    row.result === 'FAIL' &&
-    (failed.includes(row.check_name) || (row.check_id !== null && failed.includes(row.check_id)))
-  )
+  if (row.result !== 'FAIL' || !row.faint) return false
+  return failed.includes(row.check_name) || (row.check_id !== null && failed.includes(row.check_id))
 }
 
 const METRIC = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 4 })
