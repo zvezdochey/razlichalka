@@ -25,10 +25,15 @@ function useRowInfo(runs: RunListItem[] | null): Record<string, RowInfo> {
   useEffect(() => {
     if (runs === null) return
     const controller = new AbortController()
+    const startedIds = started.current
     const queue = runs
       .slice(0, PAGE_SIZE)
-      .filter((run) => (run.status === 'ready' || run.status === 'error') && !started.current.has(run.id))
-    queue.forEach((run) => started.current.add(run.id))
+      .filter((run) => (run.status === 'ready' || run.status === 'error') && !startedIds.has(run.id))
+    queue.forEach((run) => startedIds.add(run.id))
+    // Строки этого запуска, по которым ответа ещё нет. Если эффект перезапустится
+    // (StrictMode в dev, повторная загрузка списка), их надо снять с отметки сразу,
+    // иначе новый запуск их пропустит и в колонках навсегда останется «…».
+    const pending = new Set(queue.map((run) => run.id))
 
     async function load(run: RunListItem) {
       try {
@@ -46,11 +51,12 @@ function useRowInfo(runs: RunListItem[] | null): Record<string, RowInfo> {
             setInfo((prev) => ({ ...prev, [run.id]: 'error' }))
           }
         }
+        pending.delete(run.id)
       } catch (e) {
-        if (isAbortError(e)) {
-          started.current.delete(run.id)
-          return
-        }
+        // Отмена может прийти, пока читается тело ответа, — тогда клиент вернёт
+        // не AbortError, а свою ошибку. Поэтому смотрим ещё и на сам сигнал.
+        if (isAbortError(e) || controller.signal.aborted) return
+        pending.delete(run.id)
         setInfo((prev) => ({ ...prev, [run.id]: 'error' }))
       }
     }
@@ -61,7 +67,10 @@ function useRowInfo(runs: RunListItem[] | null): Record<string, RowInfo> {
     }
     for (let i = 0; i < MAX_PARALLEL; i++) void worker()
 
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      pending.forEach((id) => startedIds.delete(id))
+    }
   }, [runs])
 
   return info
