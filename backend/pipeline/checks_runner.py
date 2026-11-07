@@ -24,6 +24,7 @@ RESULT_COLUMNS = ["LABEL", "SOURCE", "ARGUMENT", "CNT", "TOTAL", "METRIC", "APP_
 CHECK_KEYS = ("id", "label", "params", "entrypoint")
 DEFAULT_TIMEOUT = 60  # секунд на одну проверку
 LOAD_TIMEOUT = 15  # секунд на загрузку кода проверки
+START_TIMEOUT = 120  # секунд на запуск процесса проверок (он один раз читает витрину ~290 тыс. строк)
 
 
 # --- загрузка -----------------------------------------------------------------
@@ -193,6 +194,10 @@ def _worker(comparison_csv, segments_csv, tasks, results):
             results.put(("err", i, f"{type(e).__name__}: {e}"))
 
 
+# Что исполняет дочерний процесс. Переменная модуля, чтобы тест мог подставить «зависший» запуск.
+WORKER = _worker
+
+
 def _params_for(check: dict, params_override) -> dict:
     return {**(check.get("params") or {}), **((params_override or {}).get(check.get("id")) or {})}
 
@@ -207,6 +212,9 @@ def run_checks(mart, checks: list[dict], params_override: dict | None = None, lo
     log = log or (lambda level, message: None)
     isolated = getattr(mart, "comparison_csv", None) is not None
     rows: list[dict] = []
+    # Процесс проверок не запустился — почему. Остальным проверкам сразу FAIL с тем же текстом:
+    # иначе каждая снова ждала бы START_TIMEOUT (N проверок — N × 120 с)
+    start_error: str | None = None
     proc = tasks = results = None
 
     def stop_worker():
@@ -220,9 +228,22 @@ def run_checks(mart, checks: list[dict], params_override: dict | None = None, lo
         nonlocal proc, tasks, results
         ctx = mp.get_context("spawn")
         tasks, results = ctx.Queue(), ctx.Queue()
-        proc = ctx.Process(target=_worker, args=(mart.comparison_csv, mart.segments_csv, tasks, results), daemon=True)
+        proc = ctx.Process(target=WORKER, args=(mart.comparison_csv, mart.segments_csv, tasks, results), daemon=True)
         proc.start()
-        if results.get(timeout=max(timeout, 120))[0] != "ready":
+        # Ждём, пока дочерний процесс загрузит витрину. Если он упал (нет файла, битый CSV) —
+        # не ждём весь срок впустую. Не дождались — процесс убиваем: иначе его запоздалое «ready»
+        # следующая проверка приняла бы за свой результат.
+        deadline = time.time() + max(timeout, START_TIMEOUT)
+        while True:
+            try:
+                status = results.get(timeout=1)[0]
+                break
+            except queue.Empty:
+                if not proc.is_alive() or time.time() > deadline:
+                    stop_worker()
+                    raise RuntimeError("процесс проверок не запустился (не удалось загрузить витрину)") from None
+        if status != "ready":
+            stop_worker()
             raise RuntimeError("процесс проверок не запустился")
 
     try:
@@ -232,8 +253,14 @@ def run_checks(mart, checks: list[dict], params_override: dict | None = None, lo
             started = time.time()
             try:
                 if isolated and check.get("source"):
+                    if start_error is not None:
+                        raise RuntimeError(start_error)
                     if proc is None:
-                        start_worker()
+                        try:
+                            start_worker()
+                        except Exception as e:  # noqa: BLE001
+                            start_error = str(e)
+                            raise RuntimeError(start_error) from None
                     tasks.put((i, check["source"], params))
                     try:
                         status, _, payload = results.get(timeout=timeout)

@@ -224,6 +224,38 @@ def test_hanging_check_is_killed_and_next_runs(mart):
     assert rows[1]["LABEL"] == "t"
 
 
+def test_worker_that_cannot_load_mart_fails_fast(tmp_path):
+    """Дочерний процесс упал при загрузке витрины: не ждём 120 с, каждая проверка — строка FAIL."""
+    class BrokenMart:
+        comparison_csv = tmp_path / "нет.csv"  # файла нет — Mart в дочернем процессе упадёт
+        segments_csv = tmp_path / "нет_segments.csv"
+
+    started = time.time()
+    rows = run_checks(BrokenMart(), [load_check(GOOD, "code"), load_check(GOOD, "code")], timeout=3)
+    assert time.time() - started < 60
+    assert [r["RESULT"] for r in rows] == ["FAIL", "FAIL"]
+    assert "не запустился" in rows[0]["ARGUMENT"]
+
+
+def _hanging_worker(comparison_csv, segments_csv, tasks, results):
+    """Дочерний процесс жив, но «ready» так и не присылает — как зависшая загрузка витрины."""
+    time.sleep(600)
+
+
+def test_hanging_worker_start_waits_only_once(mart, monkeypatch):
+    """Запуск завис: ждём один раз, остальные проверки — сразу FAIL с той же причиной, а не N × ожидание."""
+    import pipeline.checks_runner as runner
+    monkeypatch.setattr(runner, "WORKER", _hanging_worker)
+    monkeypatch.setattr(runner, "START_TIMEOUT", 4)
+    checks = [load_check(GOOD, "code") for _ in range(3)]
+    started = time.time()
+    rows = run_checks(mart, checks, timeout=1)
+    elapsed = time.time() - started
+    assert elapsed < 8, f"ждали {elapsed:.1f} с — похоже, каждая проверка ждала запуск заново"
+    assert [r["RESULT"] for r in rows] == ["FAIL"] * 3
+    assert all("не запустился" in r["ARGUMENT"] for r in rows)
+
+
 def test_user_code_does_not_see_env_secrets(mart, monkeypatch):
     monkeypatch.setenv("MY_SECRET_TOKEN", "abc")
     spy = load_check('import os\ndef run(m, p):\n'

@@ -20,6 +20,7 @@ from pipeline.compare import read_unpaired
 from pipeline.csvio import read_csv, write_csv
 from pipeline.errors import BadFile
 from pipeline.segments import CHANGE_SOURCES  # словарь «Откуда смена» — один на весь pipeline
+from pipeline.segments import normalize_decision  # правило решений — то же, что у DECISION_CHANGED
 
 # Порядок колонок — CONTRACTS §2.4
 APPS_COLUMNS = [
@@ -36,12 +37,6 @@ _COPY = {
     "reject_reason_before": "REJECT_REASON_BEFORE", "reject_reason_after": "REJECT_REASON_AFTER",
     "change_source": "CHANGE_SOURCE",
 }
-
-
-def normalize_decision(raw: str) -> str:
-    """APPROVE → approve, REJECT → reject, всё остальное (VERIFICATION, пусто...) → other."""
-    value = (raw or "").strip().lower()
-    return value if value in ("approve", "reject") else "other"
 
 
 def decision_change(before: str, after: str) -> str:

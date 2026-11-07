@@ -74,6 +74,20 @@ def test_decision_changed_and_not_changed(tmp_path):
     assert df.loc["X2", "DECISION_CHANGED"] == "0"
 
 
+def test_decision_changed_same_rule_as_summary(tmp_path):
+    """DECISION_CHANGED — по приведённым решениям, как decision_change в summary.json."""
+    n, df = run(tmp_path, {
+        "X1": (doc("X1", "VERIFICATION", [trial(1)]), doc("X1", "MANUAL", [trial(1)])),  # обе other
+        "X2": (doc("X2", "approve", [trial(1)]), doc("X2", "APPROVE", [trial(1)])),  # регистр не важен
+        "X3": (doc("X3", "VERIFICATION", [trial(1)]), doc("X3", "REJECT", [trial(1)])),
+    })
+    assert df.loc["X1", "DECISION_CHANGED"] == "0"
+    assert df.loc["X2", "DECISION_CHANGED"] == "0"
+    assert df.loc["X3", "DECISION_CHANGED"] == "1"
+    # сами решения в разрезе — как в данных
+    assert (df.loc["X1", "DECISION_BEFORE"], df.loc["X1", "DECISION_AFTER"]) == ("VERIFICATION", "MANUAL")
+
+
 def test_top_offer_and_same_product_fields(tmp_path):
     # в выдаче первым стоит продукт 20 (rank 1), хотя в прогонах первым идёт 10
     before = doc("X", "APPROVE", [trial(10, "OLD10", "CO10", partner="OTHER"), trial(20, "OLD20", "CO20", routing="api")],
