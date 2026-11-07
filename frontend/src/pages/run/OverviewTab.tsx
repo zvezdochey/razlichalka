@@ -258,7 +258,7 @@ function Verdict({ runId, summary }: { runId: string; summary: Summary }) {
           <StripItem
             label="Из них из-за правил / из-за данных"
             hint="правила — те же данные посчитаны иначе; данные — у заявки другие входные данные"
-            title="Логика — изменились правила или модель; входные данные — у заявки другие данные или ответ внешнего источника"
+            title="Правила — изменились правила, пороги или модель оценки; данные — у заявки другие входные данные или ответ внешнего сервиса"
           >
             <span className="num">
               {formatNumber(extras.sources.logic)} / {formatNumber(extras.sources.data)}
