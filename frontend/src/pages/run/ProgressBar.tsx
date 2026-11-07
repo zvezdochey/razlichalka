@@ -13,7 +13,7 @@ type ProgressBarProps = {
  * Прогресс запуска. Числовую полосу показываем только при известном `total`,
  * иначе — индикатор активности (DESIGN п. 5): полоса «на глазок» врёт.
  *
- * Единица измерения — **файлы**, не заявки: 4004 = 2002 заявки × 2 среза.
+ * Единица измерения — **файлы**, не заявки: на каждую заявку два файла (до и после).
  */
 export function ProgressBar({ done, total, withCaption = true }: ProgressBarProps) {
   const known = total > 0
@@ -36,7 +36,7 @@ export function ProgressBar({ done, total, withCaption = true }: ProgressBarProp
           {known ? (
             <>
               <span className="num">{formatNumber(done)}</span> из{' '}
-              <span className="num">{formatNumber(total)}</span> файлов — это 2002 заявки × 2 среза
+              <span className="num">{formatNumber(total)}</span> файлов (каждая заявка — два файла: до и после)
             </>
           ) : (
             'Обрабатываем — общий объём ещё неизвестен'

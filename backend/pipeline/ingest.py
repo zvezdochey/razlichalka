@@ -71,7 +71,7 @@ def iter_files(name: str, data: bytes, budget: list[int] | None = None) -> Itera
             if budget is not None:
                 budget[0] -= info.file_size
                 if budget[0] < 0:
-                    raise BadFile("после распаковки данных слишком много (лимит запроса — 500 МБ)")
+                    raise BadFile(f"после распаковки данных слишком много (лимит запроса — {MAX_UNPACKED // 1024 // 1024} МБ)")
             try:
                 content = zf.read(info)
             except (zipfile.BadZipFile, RuntimeError, OSError) as e:
