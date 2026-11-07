@@ -8,10 +8,12 @@ type PivotFiltersProps = {
   field: PivotField
   onFieldChange: (field: PivotField) => void
   dragHandle: ReactNode
+  /** Значения поля, которые есть в прогоне: подсказки при вводе. */
+  suggestions?: string[]
   onChange: (filters: Record<string, string[]>) => void
 }
 
-export function PivotFilters({ filters, field, onFieldChange, dragHandle, onChange }: PivotFiltersProps) {
+export function PivotFilters({ filters, field, onFieldChange, dragHandle, suggestions = [], onChange }: PivotFiltersProps) {
   const values = filters[field]
   const applied = values?.some((value) => /[;,]/.test(value))
     ? JSON.stringify(values)
@@ -73,15 +75,20 @@ export function PivotFilters({ filters, field, onFieldChange, dragHandle, onChan
           </select>
         </label>
         <label>
-          <span>Значения через запятую</span>
+          <span>Значения через запятую (начните вводить — появятся подсказки)</span>
           <input
             className="input"
+            list="pivot-filter-values"
             value={value}
             onChange={(event) => { setDraft({ field, applied, value: event.target.value }); setError('') }}
             placeholder="Например VALUE_CHANGED"
             title={'Для значений с запятой используйте список JSON, например ["a,b"].'}
           />
         </label>
+        <datalist id="pivot-filter-values">
+          {/* value — то, что уйдёт в фильтр; подпись — по-человечески (0/1 → «Нет»/«Да», коды → названия) */}
+          {suggestions.map((item) => <option key={item} value={item} label={factLabel(field, item)} />)}
+        </datalist>
         <button className="btn" type="submit">Применить фильтр</button>
       </form>
       {error && <p className="pivot-filter-error" role="alert">{error}</p>}

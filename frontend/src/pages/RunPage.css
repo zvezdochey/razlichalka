@@ -76,3 +76,16 @@
 .run-notice {
   margin-bottom: var(--s-4);
 }
+
+/* Узкий экран: кнопки отчёта уходят под заголовок и переносятся, а не обрезаются */
+@media (max-width: 640px) {
+  .run-head {
+    flex-wrap: wrap;
+  }
+
+  .run-actions {
+    flex-wrap: wrap;
+    flex-shrink: 1;
+    width: 100%;
+  }
+}

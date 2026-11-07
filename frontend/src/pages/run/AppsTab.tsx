@@ -187,10 +187,10 @@ function ReadyApps({ runId }: { runId: string }) {
               {sortHeader('app_id', 'Заявка')}
               {pairHead('Решение')}
               {sortHeader('attributes_changed', 'Полей ответа изменилось')}
+              <th scope="col" rowSpan={2} title="Почему у заявки что-то поменялось: из-за правил или из-за данных">Почему изменилось</th>
               {pairHead('Модель оценки')}
               {pairHead('Набор порогов')}
               {pairHead('Причина отказа')}
-              <th scope="col" rowSpan={2} title="Почему у заявки что-то поменялось: из-за правил или из-за данных">Почему изменилось</th>
             </tr>
             <tr>
               <th scope="col">до</th><th scope="col">после</th>
@@ -205,10 +205,11 @@ function ReadyApps({ runId }: { runId: string }) {
             <td className="mono">{app.app_id}</td>
             <PairCells before={app.decision_before} after={app.decision_after} badge label={decisionLabel} />
             <td className="num">{formatNumber(app.attributes_changed)}</td>
+            {/* «Почему» — сразу за решением и числом полей: на узком экране главное видно без прокрутки */}
+            <td>{app.change_source === null ? DASH : SOURCES[app.change_source]}</td>
             <PairCells before={app.pd_model_before} after={app.pd_model_after} />
             <PairCells before={app.cutoff_before} after={app.cutoff_after} />
             <PairCells before={app.reject_reason_before} after={app.reject_reason_after} />
-            <td>{app.change_source === null ? DASH : SOURCES[app.change_source]}</td>
           </tr>)}</tbody>
         </table>
       </div>)}

@@ -8,7 +8,7 @@ import { formatNumber } from '../../lib/format'
 import { NotReadyNotice } from './NotReadyNotice'
 import { PivotFilters } from './PivotFilters'
 import { PivotGroupPanel } from './PivotGroupPanel'
-import { isPivotField, PIVOT_FIELDS, PIVOT_PRESETS, readPivotLayout, writePivotLayout } from './pivotLayout'
+import { factLabel, isPivotField, PIVOT_FIELDS, PIVOT_PRESETS, readPivotLayout, writePivotLayout } from './pivotLayout'
 import type { PivotField, PivotLayout } from './pivotLayout'
 import { PivotTable } from './PivotTable'
 import { useFactGroup } from './useFactGroup'
@@ -97,6 +97,17 @@ function ReadyPivot({ runId }: { runId: string }) {
   const [params, setParams] = useSearchParams()
   const layout = useMemo(() => readPivotLayout(params), [params])
   const [filterField, setFilterField] = useState<PivotField>('DECISION_CHANGED')
+  // Подсказки для фильтра: какие значения у поля есть в этом прогоне (самые частые), с понятными подписями
+  const [suggestions, setSuggestions] = useState<{ field: PivotField; values: string[] } | null>(null)
+  useEffect(() => {
+    const controller = new AbortController()
+    getFacts(runId, { dims: [filterField], measure: 'counts_distinct_apps', limit: 100 }, { signal: controller.signal })
+      .then((data) => setSuggestions({
+        field: filterField,
+        values: data.rows.map((row) => row[filterField]).filter((value) => value !== null && value !== undefined).map(String),
+      }), () => setSuggestions(null))
+    return () => controller.abort()
+  }, [runId, filterField])
   const [filterReset, setFilterReset] = useState(0)
   const { group, page, setGroup, setPage } = useFactGroup()
   const trigger = useRef<HTMLButtonElement>(null)
@@ -120,6 +131,37 @@ function ReadyPivot({ runId }: { runId: string }) {
     const search = writePivotLayout(params, next)
     if (resetHistory || params.toString() !== search.toString()) setParams(search, { preventScrollReset: true })
   }
+
+  // «Сдвиг значений»: матрица «бакет до × бакет после» для одного атрибута. Атрибут — из фильтра PATH,
+  // а если его нет — самый часто меняющийся в этом прогоне (спрашиваем у фактов, путь в коде не зашит).
+  const [shiftBusy, setShiftBusy] = useState(false)
+  const openValueShift = async () => {
+    let path = layout.filters.PATH?.length === 1 ? layout.filters.PATH[0] : undefined
+    if (path === undefined) {
+      setShiftBusy(true)
+      try {
+        const top = await getFacts(runId, { dims: ['PATH'], filter: { CHANGE_TYPE: ['VALUE_CHANGED'] }, measure: 'counts_distinct_apps', limit: 1 })
+        const value = top.rows[0]?.PATH
+        path = value === undefined || value === null ? undefined : String(value)
+      } catch {
+        path = undefined
+      } finally {
+        setShiftBusy(false)
+      }
+    }
+    if (path === undefined) return
+    update({ rows: ['ADJUSTED_BEFORE'], column: 'ADJUSTED_AFTER', measure: 'counts_distinct_apps', filters: { PATH: [path], CHANGE_TYPE: ['VALUE_CHANGED'] } })
+  }
+
+  const [manualOpen, setManualOpen] = useState(false)
+  // Коротко, что сейчас в раскладке, — видно и в свёрнутом виде
+  const layoutSummary = [
+    `строки: ${layout.rows.map((field) => PIVOT_FIELDS[field]).join(', ')}`,
+    layout.column !== null && `колонки: ${PIVOT_FIELDS[layout.column]}`,
+    Object.entries(layout.filters).length > 0 && `фильтры: ${Object.entries(layout.filters)
+      .map(([field, values]) => `${isPivotField(field) ? PIVOT_FIELDS[field] : field} = ${values.map((value) => isPivotField(field) ? factLabel(field, value) : value).join(' или ')}`)
+      .join('; ')}`,
+  ].filter(Boolean).join(' · ')
 
   const close = useCallback(() => {
     const button = trigger.current?.isConnected ? trigger.current
@@ -174,6 +216,16 @@ function ReadyPivot({ runId }: { runId: string }) {
                 </button>
               )
             })}
+            <button
+              type="button"
+              className="btn"
+              aria-pressed={layout.rows.join(',') === 'ADJUSTED_BEFORE' && layout.column === 'ADJUSTED_AFTER'}
+              disabled={shiftBusy}
+              title="Строки — значение или диапазон (бакет) до, колонки — после, для одного атрибута. Атрибут — из фильтра, иначе тот, что меняется чаще всего"
+              onClick={() => void openValueShift()}
+            >
+              Сдвиг значений (до → после)
+            </button>
           </div>
           <button type="button" className="btn" onClick={() => {
             setFilterField('DECISION_CHANGED')
@@ -184,10 +236,14 @@ function ReadyPivot({ runId }: { runId: string }) {
 
         <p className="pivot-note muted">
           Сводная считает заявки по двум признакам: что стоит в строках и что в колонках, в клетке — сколько заявок.
-          Проще всего начать с готовых кнопок сверху: например, «Кто сменил решение» — решение старой версии в строках,
-          новой — в колонках. Поля можно менять в списках ниже или перетаскивать за метку; для фильтра укажите значение
-          и нажмите «Применить фильтр».
+          Проще всего начать с готовых кнопок сверху; свою раскладку и фильтры можно собрать ниже.
         </p>
+        {/* Ручные настройки свёрнуты: на экране ноутбука таблица должна быть видна сразу. */}
+        <details className="pivot-manual" open={manualOpen} onToggle={(event) => setManualOpen(event.currentTarget.open)}>
+          <summary>
+            <span className="pivot-manual__title">Настроить раскладку</span>{' '}
+            <span className="muted">{layoutSummary}</span>
+          </summary>
         <div className="pivot-axes">
           <fieldset>
             <legend>Строки</legend>
@@ -222,11 +278,13 @@ function ReadyPivot({ runId }: { runId: string }) {
             key={filterReset}
             filters={layout.filters}
             field={filterField}
+            suggestions={suggestions?.field === filterField ? suggestions.values : []}
             onFieldChange={setFilterField}
             dragHandle={<DragField field={filterField} />}
             onChange={(filters) => update({ ...layout, filters })}
           />
         </fieldset>
+        </details>
       </section>
 
       <div className={group ? 'pivot-results pivot-results--with-group' : 'pivot-results'}>

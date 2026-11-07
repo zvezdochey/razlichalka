@@ -198,8 +198,12 @@ def _number(text: str):
         return text
 
 
-def checks(run_dir: Path, *, result: str, page: int, size: int | None, include_refs: bool = True) -> dict:
-    """Таблица проверок (docs/api.md п. 10.1) из checks.csv."""
+def checks(run_dir: Path, *, result: str, page: int, size: int | None, include_refs: bool = True,
+           with_app_ids: bool = False) -> dict:
+    """Таблица проверок (docs/api.md п. 10.1) из checks.csv.
+
+    `with_app_ids` — только для HTML-отчёта: заявки строки списком (в ответе API этого поля нет).
+    """
     if result and result not in ("PASS", "FAIL"):
         raise ApiError("bad_file", "result — PASS или FAIL")
     rows = read_csv(result_file(run_dir, "checks.csv")).fillna("")
@@ -221,5 +225,6 @@ def checks(run_dir: Path, *, result: str, page: int, size: int | None, include_r
             "result": r["RESULT"],
             "apps_ref": _apps_ref(run_dir, app_ids) if include_refs else None,
             "faint": r["CONFIDENCE"] == "LOW",
+            **({"app_ids": app_ids} if with_app_ids else {}),
         })
     return {"page": page, "size": size, "total": len(rows), "rows": out}

@@ -442,6 +442,13 @@ function Workspace({
           </div>
         </div>
 
+        {draft.kind === 'check' && !readOnly && (
+          <p className="faint proc__hint">
+            Название — для списка процедур. В отчёте строка проверки подписывается из кода:{' '}
+            <code>CHECK["label"]</code>.
+          </p>
+        )}
+
         {readOnly && (
           <div className="proc__note muted">
             Встроенная процедура — открыта только на чтение.

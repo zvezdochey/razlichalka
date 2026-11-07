@@ -321,3 +321,19 @@
   outline: 2px solid var(--accent, currentColor);
   outline-offset: 2px;
 }
+
+/* Ручные настройки раскладки — свёрнуты, в заголовке видно, что сейчас выбрано */
+.pivot-manual {
+  margin-top: var(--s-2);
+  border-top: 1px solid var(--border);
+  padding-top: var(--s-2);
+}
+
+.pivot-manual > summary {
+  cursor: pointer;
+  font-size: var(--fs-table);
+}
+
+.pivot-manual__title {
+  font-weight: 500;
+}

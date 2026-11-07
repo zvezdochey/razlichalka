@@ -76,7 +76,7 @@
         </div>
         <div>
           <dt>Дата запуска</dt>
-          <dd><time datetime="{{ run.created_at }}">{{ run.created_at | replace('T', ' ') | replace('Z', ' UTC') }}</time></dd>
+          <dd><time datetime="{{ run.created_at }}">{{ created_msk }}</time></dd>
         </div>
         <div>
           <dt>Датасет</dt>
@@ -108,8 +108,9 @@
         </div>
         {% if summary.checks_fail is defined %}
         <div class="card fail">
-          <dt>Проверки с FAIL</dt>
+          <dt>Строк проверок с FAIL</dt>
           <dd class="value">{{ summary.checks_fail }}</dd>
+          <dd class="muted">от {{ checks_failed }} {{ "проверки" if checks_failed == 1 else "проверок" }}</dd>
         </div>
         {% endif %}
       </dl>
@@ -151,7 +152,7 @@
         <tbody>
           {% for app in top_apps %}
           <tr>
-            <th scope="row"><code>{{ app.app_id }}</code></th>
+            <th scope="row"><a href="{{ app_url }}/apps?app={{ app.app_id | urlencode }}"><code>{{ app.app_id }}</code></a></th>
             <td>{{ app.decision_before | ru }} → {{ app.decision_after | ru }}</td>
             <td class="numeric">{{ app.attributes_changed }}</td>
           </tr>
@@ -168,15 +169,17 @@
       {% if checks %}
       <table aria-labelledby="checks">
         <thead>
-          <tr><th scope="col">Проверка</th><th scope="col">Предмет</th><th scope="col" class="numeric">Заявок</th><th scope="col">Результат</th></tr>
+          <tr><th scope="col">Проверка</th><th scope="col">Предмет</th><th scope="col" class="numeric">Метрика</th><th scope="col" class="numeric">Заявок</th><th scope="col">Результат</th><th scope="col">Заявки</th></tr>
         </thead>
         <tbody>
           {% for c in checks %}
           <tr{% if c.faint %} class="muted"{% endif %}>
             <th scope="row">{{ c.check_name }}</th>
             <td>{{ c.argument or "—" }}</td>
+            <td class="numeric">{% if c.metric is number %}{{ "%.4g" | format(c.metric) }}{% else %}{{ c.metric or "—" }}{% endif %}</td>
             <td class="numeric">{{ c.numbers or "—" }}</td>
             <td>{{ c.result }}{% if c.faint %} (мало данных){% endif %}</td>
+            <td>{% for id in c.app_ids[:3] %}<a href="{{ app_url }}/apps?app={{ id | urlencode }}"><code>{{ id }}</code></a>{% if not loop.last %}, {% endif %}{% else %}—{% endfor %}{% if c.app_ids|length > 3 %} и ещё {{ c.app_ids|length - 3 }}{% endif %}</td>
           </tr>
           {% endfor %}
         </tbody>
@@ -199,7 +202,13 @@
       {% endif %}
     </section>
 
-    <footer><a href="{{ app_url }}">Открыть в приложении</a></footer>
+    <footer>
+      Открыть в приложении:
+      <a href="{{ app_url }}">обзор</a> ·
+      <a href="{{ app_url }}/pivot">сводная</a> ·
+      <a href="{{ app_url }}/checks">проверки</a> ·
+      <a href="{{ app_url }}/apps">заявки</a>
+    </footer>
   </main>
 </body>
 </html>
