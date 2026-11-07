@@ -102,7 +102,7 @@ function filterApps(params: URLSearchParams): AppRow[] {
   const search = params.get('search')?.trim().toLowerCase() ?? ''
 
   const filtered = APPS.filter((app) => {
-    if (sources && !sources.includes(app.change_source)) return false
+    if (sources && (app.change_source === null || !sources.includes(app.change_source))) return false
     if (changes !== null && !changes.includes(app.decision_change)) return false
     if (onlyAttrChange && app.attributes_changed === 0) return false
     if (search !== '' && !matchesSearch(app, search)) return false

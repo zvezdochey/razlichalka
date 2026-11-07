@@ -1,24 +1,25 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef } from 'react'
 import { getReasons } from '../../api'
 import { ErrorBox, Spinner } from '../../components'
 import { formatNumber } from '../../lib/format'
 import { PivotGroupPanel } from './PivotGroupPanel'
-import type { PivotGroup } from './PivotTable'
+import { useFactGroup } from './useFactGroup'
 import { usePivotRequest } from './usePivotRequest'
 import './ReasonsBlock.css'
 
 const PERCENT = new Intl.NumberFormat('ru-RU', { style: 'percent', maximumFractionDigits: 1 })
-type ReasonGroup = PivotGroup & { key: string }
 
 export function ReasonsBlock({ runId }: { runId: string }) {
   const load = useCallback((signal: AbortSignal) => getReasons(runId, { signal }), [runId])
   const { result, retry } = usePivotRequest(load)
-  const [group, setGroup] = useState<ReasonGroup | null>(null)
+  const { group, page, setGroup, setPage } = useFactGroup()
   const opener = useRef<HTMLButtonElement>(null)
   const closeGroup = useCallback(() => {
+    const button = opener.current?.isConnected ? opener.current
+      : document.querySelector<HTMLButtonElement>(`[data-reason-key="${CSS.escape(group?.key ?? '')}"]`)
     setGroup(null)
-    opener.current?.focus()
-  }, [])
+    button?.focus()
+  }, [setGroup, group])
 
   const data = result.status === 'ready' ? result.data : null
   const sources = data?.by_source
@@ -40,6 +41,7 @@ export function ReasonsBlock({ runId }: { runId: string }) {
                   <button
                     type="button"
                     className="reasons-row"
+                    data-reason-key={key}
                     aria-expanded={expanded}
                     onClick={(event) => {
                       opener.current = event.currentTarget
@@ -70,6 +72,8 @@ export function ReasonsBlock({ runId }: { runId: string }) {
         key={group.key}
         runId={runId}
         group={group}
+        page={page}
+        onPageChange={setPage}
         onClose={closeGroup}
         emptyHint="Выберите другую причину на обзоре."
       />}

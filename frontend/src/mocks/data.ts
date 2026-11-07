@@ -241,7 +241,7 @@ const bySource = { logic: 0, data: 0, both: 0 }
 let unexplained = 0
 for (const app of APPS) {
   if (app.decision_change === 'same') continue
-  if (app.change_source !== 'none') bySource[app.change_source] += 1
+  if (app.change_source && app.change_source !== 'none') bySource[app.change_source] += 1
   if (app.decision_change !== 'approve_to_reject') continue
 
   const reason = app.reject_reason_after

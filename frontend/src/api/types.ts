@@ -247,7 +247,7 @@ export type Summary = {
 // ─── 7.4. Список заявок с различиями ─────────────────────────────────────────
 
 export type AppRow = {
-  change_source: ChangeSource
+  change_source: ChangeSource | null
   app_id: string
   decision_before: Decision
   decision_after: Decision

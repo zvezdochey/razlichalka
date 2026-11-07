@@ -55,13 +55,7 @@ export function readPivotLayout(params: URLSearchParams): PivotLayout {
   if (rows.length === 0) rows.push('PATH')
 
   const column = params.get('cols') ?? 'CHANGE_TYPE'
-  const filters: Record<string, string[]> = {}
-  for (const condition of (params.get('f') ?? 'DIFF_FLAG:1').split(';')) {
-    const colon = condition.indexOf(':')
-    if (colon < 0) continue
-    const field = condition.slice(0, colon)
-    if (isPivotField(field)) filters[field] = condition.slice(colon + 1).split(',')
-  }
+  const filters = readFilters(params.get('f') ?? 'DIFF_FLAG:1')
 
   return {
     rows,
@@ -69,6 +63,33 @@ export function readPivotLayout(params: URLSearchParams): PivotLayout {
     filters,
     measure: params.get('m') === 'counts_distinct_apps' ? 'counts_distinct_apps' : 'counts',
   }
+}
+
+function readFilters(raw: string): Record<string, string[]> {
+  const filters: Record<string, string[]> = {}
+  if (raw.trimStart().startsWith('{')) {
+    try {
+      const parsed: unknown = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object') {
+        for (const [field, values] of Object.entries(parsed)) {
+          if (isPivotField(field) && Array.isArray(values) && values.length && values.every((value) => typeof value === 'string')) {
+            filters[field] = values
+          }
+        }
+      }
+    } catch {
+      // Повреждённая ссылка открывается без фильтра.
+    }
+    return filters
+  }
+  for (const condition of raw.split(';')) {
+    const colon = condition.indexOf(':')
+    if (colon < 0) continue
+    const field = condition.slice(0, colon)
+    if (isPivotField(field)) filters[field] = condition.slice(colon + 1).split(',')
+  }
+
+  return filters
 }
 
 export function writePivotLayout(params: URLSearchParams, layout: PivotLayout): URLSearchParams {
