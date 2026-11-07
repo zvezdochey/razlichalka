@@ -58,7 +58,8 @@ def test_run_to_ready(client):
     stages = client.get(f"/api/runs/{started['id']}/stages", headers=ANN).json()["stages"]
     assert [s["name"] for s in stages] == ["normalize", "compare", "aggregate", "checks"]
     assert all(s["status"] == "ready" and s["started_at"] and s["finished_at"] for s in stages)
-    assert stages[0]["procedure_id"] == "builtin_normalize" and stages[1]["procedure_id"] is None
+    assert [s["procedure_id"] for s in stages[:3]] == ["builtin_normalize", "builtin_compare", "builtin_aggregate"]
+    assert stages[1]["code_ref"]["path"] == "procedures/builtin_compare.py" and stages[3]["procedures"] == []
     assert stages[0]["log"] and "error" not in stages[0]
 
     lst = client.get("/api/runs", headers=ANN).json()["runs"]

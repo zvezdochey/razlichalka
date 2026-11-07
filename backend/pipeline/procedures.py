@@ -10,9 +10,9 @@
 (PROCEDURES_DIR) и пробрасывает в этапы; без аргумента — `backend/procedures` рядом с кодом.
 Переменные окружения здесь не читаем: источник правды о путях один — `app/settings.py`.
 
-Файл исполняется как Python, поэтому так грузим только свои встроенные файлы из репозитория.
-TODO (E13): пользовательские процедуры так грузить нельзя — их код надо исполнять в отдельном процессе
-с таймаутом, как проверки (pipeline/checks_runner.py).
+Файл исполняется как Python, поэтому так грузим только свои встроенные файлы из репозитория
+и файлы, которые приложение само собрало в папке запуска. Код пользователя исполняется отдельно —
+в дочернем процессе с таймаутом (pipeline/user_procedures.py).
 """
 
 import copy
@@ -53,6 +53,18 @@ def load_builtin_value(name: str, var: str, folder: Path | None = None):
     if var not in _cache[key]:
         raise BadFile(f"процедура {name}: в файле нет переменной {var}")
     return copy.deepcopy(_cache[key][var])
+
+
+def load_builtin_module(name: str, folder: Path | None = None) -> dict:
+    """Все переменные модуля `<папка>/<name>.py` — для встроенной процедуры-функции (сравнение).
+
+    Только для своих файлов из репозитория: код исполняется в этом процессе.
+    """
+    file = _file(name, folder)
+    key = ("module", *_stamp(file))
+    if key not in _cache:
+        _cache[key] = dict(vars(_module(name, file)))
+    return _cache[key]
 
 
 def _stamp(file: Path) -> tuple:

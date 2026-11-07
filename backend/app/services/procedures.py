@@ -10,16 +10,21 @@ from pathlib import Path
 
 from app import settings, store
 from app.errors import ApiError
-from pipeline.checks_runner import forbidden_code_problems, validate_check_code
+from pipeline.checks_runner import validate_check_code
+from pipeline.errors import BadFile
+from pipeline.user_procedures import load_constants, static_problems
 
 KIND = "procedures"
-KINDS = ("normalize", "aggregate", "check")
+KINDS = ("normalize", "compare", "aggregate", "check")
 
 # Встроенные процедуры этапов: id -> (вид, название, файл в procedures/)
 _STAGE_BUILTINS = {
     "builtin_normalize": ("normalize", "Правила разбора ответов", "builtin_normalize.py"),
+    "builtin_compare": ("compare", "Сравнение по ключу (APP_ID, PATH, ARRAY_KEY)", "builtin_compare.py"),
     "builtin_aggregate": ("aggregate", "Карта полей для разрезов", "builtin_segments.py"),
 }
+# Встроенная процедура этапа по умолчанию (в старых конфигурациях поля `compare` нет)
+STAGE_DEFAULTS = {"normalize": "builtin_normalize", "compare": "builtin_compare", "aggregate": "builtin_aggregate"}
 
 
 def _now() -> str:
@@ -110,7 +115,7 @@ def list_all(kind: str | None, user: str) -> list[dict]:
 def validate(kind: str, source: str, code: str | None, path: str | None) -> list[dict]:
     """Список {line, message}; пустой — код годится. Исполнять код здесь не нужно: проверка статическая."""
     if kind not in KINDS:
-        return [{"line": 1, "message": f"Неизвестный вид процедуры «{kind}», нужен normalize, aggregate или check"}]
+        return [{"line": 1, "message": f"Неизвестный вид процедуры «{kind}», нужен normalize, compare, aggregate или check"}]
     if source == "file":
         try:
             text = resolve_path(path or "").read_text(encoding="utf-8")
@@ -124,11 +129,15 @@ def validate(kind: str, source: str, code: str | None, path: str | None) -> list
         return [{"line": 1, "message": "source — inline или file"}]
     if kind == "check":
         return validate_check_code(text)
+    problems = static_problems(kind, text)
+    if problems or kind == "compare":
+        return problems  # функцию сравнения проверит запуск: ей нужны данные всего датасета
     try:
-        tree = ast.parse(text)
-    except SyntaxError as exc:
-        return [{"line": exc.lineno or 1, "message": f"Синтаксическая ошибка: {exc.msg}"}]
-    return forbidden_code_problems(tree)
+        # процедура-данные: исполняем в отдельном процессе — так упавший код виден до запуска
+        load_constants(kind, text)
+    except BadFile as exc:
+        return [{"line": 1, "message": str(exc)}]
+    return []
 
 
 def _checked_fields(body: dict) -> dict:
@@ -173,6 +182,18 @@ def with_code(proc: dict) -> dict:
     if proc["source"] == "file":
         return {**_public(proc), "code": resolve_path(proc["path"]).read_text(encoding="utf-8")}
     return {**_public(proc), "code": proc["code"]}
+
+
+def code_of(proc: dict) -> str:
+    """Текст кода процедуры: файл из procedures/ или checks/ либо inline."""
+    if proc["source"] == "file":
+        return resolve_path(proc["path"]).read_text(encoding="utf-8")
+    return proc["code"]
+
+
+def code_ref(proc: dict) -> dict:
+    """Куда вести из журнала (docs/api.md п. 6): в рабочую область этой процедуры."""
+    return {"procedure_id": proc["id"], "source": proc["source"], "path": proc.get("path"), "line": 1}
 
 
 def check_source(proc: dict) -> tuple[str, str]:

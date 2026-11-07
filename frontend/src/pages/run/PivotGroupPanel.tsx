@@ -68,7 +68,7 @@ export function PivotGroupPanel({
             <ul className="pivot-group-list">
               {data.apps.map((id) => (
                 <li key={id}>
-                  <Link className="mono" to={`/runs/${encodeURIComponent(runId)}/apps?${new URLSearchParams({ app: id })}`}>
+                  <Link className="mono" to={`/runs/${encodeURIComponent(runId)}/apps?${new URLSearchParams(group.path ? { app: id, attr: group.path } : { app: id })}`}>
                     {id}
                   </Link>
                 </li>

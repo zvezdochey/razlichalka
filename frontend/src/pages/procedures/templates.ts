@@ -5,6 +5,7 @@ import { STAGE_TITLES } from '../run/stages'
 export const KIND_TITLES: Record<ProcedureKind, string> = {
   check: 'Проверки',
   normalize: STAGE_TITLES.normalize,
+  compare: STAGE_TITLES.compare,
   aggregate: STAGE_TITLES.aggregate,
 }
 
@@ -12,11 +13,12 @@ export const KIND_TITLES: Record<ProcedureKind, string> = {
 export const KIND_NAMES: Record<ProcedureKind, string> = {
   check: 'Проверка',
   normalize: STAGE_TITLES.normalize,
+  compare: STAGE_TITLES.compare,
   aggregate: STAGE_TITLES.aggregate,
 }
 
 /** Порядок групп в списке: проверки пишут чаще всего — они первые. */
-export const KIND_ORDER: readonly ProcedureKind[] = ['check', 'normalize', 'aggregate']
+export const KIND_ORDER: readonly ProcedureKind[] = ['check', 'normalize', 'compare', 'aggregate']
 
 /**
  * Шаблон новой проверки по контракту из `checks/README.md`: объект `CHECK` и

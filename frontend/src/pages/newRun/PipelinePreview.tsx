@@ -2,9 +2,10 @@ import { Link } from 'react-router-dom'
 import type { Procedure, ProcedureKind } from '../../api'
 import { ErrorBox, Spinner } from '../../components'
 
-/** Выбор процедур и проверок прогона — то, что уходит в `normalize`, `aggregate`, `checks` (п. 4.2). */
+/** Выбор процедур и проверок прогона — то, что уходит в `normalize`, `compare`, `aggregate`, `checks` (п. 4.2). */
 export type PipelineChoice = {
   normalize: string
+  compare: string
   aggregate: string
   checks: string[]
 }
@@ -135,15 +136,14 @@ export function PipelinePreview({ procedures, error, onReload, value, onChange }
             selected={value.normalize}
             onSelect={(id) => onChange({ ...value, normalize: id })}
           />
-          <li className="steps__item">
-            <div className="steps__main">
-              <span className="steps__title">Сравнение</span>
-              <span className="muted">Сводит срезы BEFORE и AFTER и помечает различия.</span>
-            </div>
-            <div className="steps__right">
-              <span className="chip">встроенное, не меняется</span>
-            </div>
-          </li>
+          <StepSelect
+            kind="compare"
+            title="Сравнение"
+            description="Сводит срезы BEFORE и AFTER и помечает различия."
+            procedures={procedures}
+            selected={value.compare}
+            onSelect={(id) => onChange({ ...value, compare: id })}
+          />
           <StepSelect
             kind="aggregate"
             title="Факты (подсчёты)"

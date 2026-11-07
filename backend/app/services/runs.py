@@ -11,7 +11,7 @@ from pathlib import Path
 
 from app import pipeline_stub, settings, store
 from app.errors import ApiError
-from app.services import ai_review, datasets, stages, warmup
+from app.services import ai_review, datasets, procedures, stages, warmup
 from pipeline.errors import Cancelled as PipelineCancelled
 
 log = logging.getLogger("razlichalka")
@@ -226,6 +226,26 @@ def execute(run: dict) -> None:
         _done[rid].set()
 
 
+def _stage_code(config: dict, name: str, user: str) -> dict:
+    """Что исполняет этап — для перехода из журнала к коду (docs/api.md п. 6).
+
+    У этапов normalize/compare/aggregate — выбранная процедура; у checks — список подключённых проверок.
+    """
+    if name == "checks":
+        items = []
+        for proc_id in config.get("checks") or []:
+            try:
+                items.append({"id": proc_id, "name": procedures.find(proc_id, user)["name"]})
+            except ApiError:
+                items.append({"id": proc_id, "name": proc_id})  # удалили — этап сам покажет ошибку
+        return {"procedure_id": None, "code_ref": None, "procedures": items}
+    try:
+        proc = stages.stage_procedure(config, name, user)
+    except ApiError:
+        return {"procedure_id": config.get(name), "code_ref": None}
+    return {"procedure_id": proc["id"], "code_ref": procedures.code_ref(proc)}
+
+
 def create(config: dict, user: str) -> dict:
     """Создаёт запуск по конфигурации и отдаёт его в фон."""
     ds = datasets.get_dataset(config["dataset"])
@@ -240,8 +260,7 @@ def create(config: dict, user: str) -> dict:
         "current_stage": None, "error": None,
         "stages": [
             {"name": name, "title": title, "status": "pending", "started_at": None, "finished_at": None,
-             "procedure_id": snapshot.get(name) if name in ("normalize", "aggregate") else None,
-             "code_ref": stages.CODE_REFS.get(name), "log": []}
+             **_stage_code(snapshot, name, user), "log": []}
             for name, title, _ in PIPELINE
         ],
     }

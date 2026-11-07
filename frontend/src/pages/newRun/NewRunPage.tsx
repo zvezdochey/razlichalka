@@ -18,6 +18,7 @@ import type { PipelineChoice } from './PipelinePreview'
 import { SavedConfigs } from './SavedConfigs'
 import {
   BUILTIN_AGGREGATE,
+  BUILTIN_COMPARE,
   BUILTIN_NORMALIZE,
   DEFAULT_ARRAY_MODES,
   DEFAULT_BUCKETS,
@@ -107,6 +108,7 @@ export function NewRunPage() {
   /** `checks: null` — список процедур ещё не пришёл, умолчание подставится после загрузки. */
   const [pipeline, setPipeline] = useState<Omit<PipelineChoice, 'checks'> & { checks: string[] | null }>({
     normalize: BUILTIN_NORMALIZE,
+    compare: BUILTIN_COMPARE,
     aggregate: BUILTIN_AGGREGATE,
     checks: null,
   })
@@ -218,7 +220,12 @@ export function NewRunPage() {
     setName(config.name)
     setDatasetId(config.dataset)
     setIgnorePaths(config.ignore_paths)
-    setPipeline({ normalize: config.normalize, aggregate: config.aggregate, checks: config.checks })
+    setPipeline({
+      normalize: config.normalize,
+      compare: config.compare ?? BUILTIN_COMPARE,
+      aggregate: config.aggregate,
+      checks: config.checks,
+    })
     // Пока форму не тронули, «Запустить» берёт эту конфигурацию, а не плодит копию.
     setSavedConfig(config)
     setRunNotStarted(false)
@@ -273,6 +280,7 @@ export function NewRunPage() {
       name: name.trim() === '' ? defaultConfigName() : name.trim(),
       dataset: datasetId,
       normalize: pipeline.normalize,
+      compare: pipeline.compare,
       aggregate: pipeline.aggregate,
       checks: pipeline.checks ?? [],
       ignore_paths: ignorePaths,

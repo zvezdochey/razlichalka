@@ -14,6 +14,8 @@ from pipeline.dataset import list_source_files
 from pipeline.errors import BadFile
 from pipeline.mart import Mart
 from pipeline.normalize import normalize_dataset
+from pipeline.procedures import load_builtin_value
+from pipeline.user_procedures import load_constants, run_compare, write_data_procedure
 from pipeline.segments import build_segments, segment_field_map
 from pipeline.summary import build_summary
 
@@ -31,13 +33,43 @@ APPS = "apps.csv"
 CHECKS = "checks.csv"
 CHECKS_INDEX = "checks_index.json"  # название проверки -> id процедуры (в checks.csv есть только LABEL)
 
-# Откуда «открыть код» встроенной процедуры (docs/api.md п. 6)
-CODE_REFS = {
-    "normalize": {"procedure_id": "builtin_normalize", "source": "file",
-                  "path": "procedures/builtin_normalize.py", "line": 1},
-    "aggregate": {"procedure_id": "builtin_aggregate", "source": "file",
-                  "path": "procedures/builtin_segments.py", "line": 1},
+RUN_PROCEDURES = "procedures"  # папка запуска с файлами процедур-данных, которые читает разбор
+
+# Процедура-данные этапа: какой файл читает разбор и какие переменные в нём нужны
+DATA_PROCEDURES = {
+    "normalize": ("builtin_normalize", "Правила массивов для приведения ответов", ["ARRAY_RULES"]),
+    "aggregate": ("builtin_segments", "Карта полей для разрезов", ["FIELD_MAP", "INPUT_PREFIXES"]),
 }
+
+
+def stage_procedure(config: dict, stage: str, user: str) -> dict:
+    """Процедура, выбранная для этапа в конфигурации (в старых конфигурациях `compare` нет — встроенная)."""
+    return procedures.find(config.get(stage) or procedures.STAGE_DEFAULTS[stage], user)
+
+
+def _procedures_dir(ctx, stage: str) -> Path:
+    """Папка с файлом процедуры-данных для разбора.
+
+    Встроенная процедура — папка `backend/procedures/` как есть. Своя — её код исполняется в отдельном процессе
+    (pipeline/user_procedures.py), а нужные переменные записываются файлом в `runs/<id>/procedures/`:
+    так разбор читает ровно то, что выбрал пользователь, и не исполняет чужой код у себя.
+    """
+    proc = stage_procedure(ctx.config, stage, ctx.owner)
+    if proc.get("builtin"):
+        return Path(settings.PROCEDURES_DIR)
+    file_name, title, names = DATA_PROCEDURES[stage]
+    ctx.log("info", f"Процедура «{proc['name']}» ({proc['id']}): исполняю код")
+    found = load_constants(stage, procedures.code_of(proc), proc["name"])
+    values = {}
+    for name in names:
+        if name in found:
+            values[name] = found[name]
+        else:  # необязательная настройка (INPUT_PREFIXES) — берём из встроенной процедуры
+            values[name] = load_builtin_value(file_name, name, settings.PROCEDURES_DIR)
+            ctx.log("info", f"В процедуре нет {name} — беру из встроенной")
+    folder = ctx.run_dir / RUN_PROCEDURES
+    write_data_procedure(folder / f"{file_name}.py", f"{title}: «{proc['name']}» ({proc['id']})", values)
+    return folder
 
 
 def _parse_cfg(config: dict) -> dict:
@@ -46,7 +78,7 @@ def _parse_cfg(config: dict) -> dict:
         "ignore_paths": config.get("ignore_paths") or [],
         "array_modes": config.get("array_modes") or {},
         "array_rules": config.get("array_rules") or {},
-        "procedures_dir": settings.PROCEDURES_DIR,  # встроенные процедуры — backend/procedures/
+        "procedures_dir": settings.PROCEDURES_DIR,  # встроенные процедуры — backend/procedures/ (этап заменит на свою)
         "buckets": config.get("buckets") or {},
     }
 
@@ -59,6 +91,7 @@ def _need_file(path: Path, stage: str, previous: str) -> None:
 
 def stage_normalize(ctx) -> None:
     cfg = _parse_cfg(ctx.config)
+    cfg["procedures_dir"] = _procedures_dir(ctx, "normalize")
     # Общий прогресс этапа: сначала файлы BEFORE, потом AFTER (счётчик второго идёт со смещением)
     sizes = {s: len(list_source_files(ctx.dataset_dir, s)) for s in ("BEFORE", "AFTER")}
     total, offset = sum(sizes.values()), 0
@@ -75,8 +108,14 @@ def stage_normalize(ctx) -> None:
 def stage_compare(ctx) -> None:
     for name in NORMALIZED.values():
         _need_file(ctx.run_dir / name, "Сравнение срезов", "Приведение ответов")
+    proc = stage_procedure(ctx.config, "compare", ctx.owner)
+    compare_fn = None  # встроенная процедура — procedures/builtin_compare.py, в этом процессе
+    if not proc.get("builtin"):
+        ctx.log("info", f"Процедура сравнения «{proc['name']}» ({proc['id']}): исполняю в отдельном процессе")
+        code = procedures.code_of(proc)
+        compare_fn = lambda before, after: run_compare(code, before, after, proc["name"])  # noqa: E731
     compare_csv(ctx.run_dir / NORMALIZED["BEFORE"], ctx.run_dir / NORMALIZED["AFTER"],
-                ctx.run_dir / COMPARISON, log=ctx.log, unpaired_json=ctx.run_dir / UNPAIRED)
+                ctx.run_dir / COMPARISON, log=ctx.log, unpaired_json=ctx.run_dir / UNPAIRED, compare_fn=compare_fn)
     ctx.progress(1, 1)
 
 
@@ -85,10 +124,11 @@ def stage_aggregate(ctx) -> None:
     # Две подстадии в одном этапе: сначала слой разрезов (половина прогресса), потом итоги
     ctx.log("info", "Строю слой разрезов (segments.csv)")
     files = len(list_source_files(ctx.dataset_dir, "BEFORE"))
-    # карта полей — только из файла процедуры builtin_segments; поля в конфигурации для неё пока нет
+    # карта полей — из выбранной процедуры фактов (встроенная — builtin_segments.py)
     # витрина нужна для CHANGE_SOURCE (логика или входные данные, E10)
-    fields = segment_field_map(procedures_dir=settings.PROCEDURES_DIR)
-    build_segments(ctx.dataset_dir, ctx.run_dir / SEGMENTS, field_map=fields, procedures_dir=settings.PROCEDURES_DIR,
+    folder = _procedures_dir(ctx, "aggregate")
+    fields = segment_field_map(procedures_dir=folder)
+    build_segments(ctx.dataset_dir, ctx.run_dir / SEGMENTS, field_map=fields, procedures_dir=folder,
                    comparison_csv=ctx.run_dir / COMPARISON,
                    on_progress=lambda n: ctx.progress(n, 2 * files),
                    log=ctx.log, is_cancelled=ctx.is_cancelled)

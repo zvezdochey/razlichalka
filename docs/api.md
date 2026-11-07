@@ -154,9 +154,15 @@
 
 | `kind` | Вход | Выход |
 |---|---|---|
-| `normalize` | JSON одного ответа | строки плоской таблицы (поля витрины) |
-| `aggregate` | витрина сравнения | факты `counts` для сводного отчёта |
+| `normalize` | — | `ARRAY_RULES`: правила сопоставления массивов, по ним общий разбор строит плоскую таблицу |
+| `compare` | `COMPARE["entrypoint"](before, after)`: два DataFrame нормализованных строк | DataFrame витрины сравнения (колонки `comparison.csv`, `CHANGE_TYPE` из словаря) |
+| `aggregate` | — | `FIELD_MAP` (+ необязательный `INPUT_PREFIXES`): карта полей разрезов, по ней считаются факты `counts` |
 | `check` | факты и витрина | строки `PASS` / `FAIL` |
+
+Код пользовательских `normalize`, `compare`, `aggregate` (как и проверок) исполняется в отдельном процессе с таймаутом.
+У `normalize` и `aggregate` берутся переменные заглавными буквами; запуск записывает их файлом в `runs/<id>/procedures/` — его и читает разбор.
+Встроенные: `builtin_normalize`, `builtin_compare` (`procedures/builtin_compare.py`), `builtin_aggregate`. Скопировать можно любую.
+При сохранении `normalize`/`aggregate` код исполняется: упавший код — `bad_code` сразу. `compare` проверяется статически, результат — в запуске.
 
 ### 3.1. Список процедур
 
@@ -236,6 +242,7 @@
   "name": "Прогон на 06.11",
   "dataset": "RUN-20260827-0001",
   "normalize": "builtin_normalize",
+  "compare": "builtin_compare",
   "aggregate": "builtin_aggregate",
   "checks": ["builtin_attribute_new_loss", "p_1"],
   "ignore_paths": ["appData.request_id", "appData.createDateTime"],
@@ -245,7 +252,7 @@
 }
 ```
 
-- `normalize`, `aggregate` — id процедуры нужного `kind`.
+- `normalize`, `compare`, `aggregate` — id процедуры нужного `kind` (другой вид — `bad_code`). `compare` необязателен, по умолчанию `builtin_compare`.
 - `checks` — список id проверок (`kind: "check"`).
 - `ignore_paths` — пути, которые не сравниваем. Два технических поля — из `manifest.json` датасета (`technical_fields_always_differ`): они различаются у всех 2002 заявок.
 - `array_rules` — правило массива по пути целиком: `{ "mode": "key", "key": ["поле", ...] }`, или `{ "mode": "value" }`, или `{ "mode": "index" }`. Перекрывает правило встроенной процедуры `builtin_normalize` (файл `backend/procedures/builtin_normalize.py`) и позволяет добавить правило для нового массива. Необязательно, по умолчанию `{}`. Для `key` нужен непустой `key`. Если массива нет ни в процедуре, ни в `array_rules`/`array_modes`, бэк берёт умолчание, а не падает: список скаляров сопоставляется по значению (если значения не повторяются), иначе — по позиции (`index`). То же, если встроенное правило процедуры не подходит к данным (нет поля ключа) и конфигурация его не переопределила; правило из `array_rules`/`array_modes` при несовпадении по-прежнему даёт `bad_file`. Каждый такой откат записывается предупреждением в журнал этапа `normalize` (список массивов), чтобы сравнение по позиции не случилось молча.
@@ -338,18 +345,19 @@
       "started_at": "2026-11-06T12:00:01Z",
       "finished_at": "2026-11-06T12:01:10Z",
       "procedure_id": "builtin_normalize",
-      "code_ref": { "procedure_id": "builtin_normalize", "source": "file", "path": "procedures/normalize.py", "line": 1 },
+      "code_ref": { "procedure_id": "builtin_normalize", "source": "file", "path": "procedures/builtin_normalize.py", "line": 1 },
       "log": [ { "at": "2026-11-06T12:00:02Z", "level": "info", "message": "Обработано 500 из 4004" } ]
     },
-    { "name": "compare", "title": "Сравнение срезов", "status": "running", "started_at": "2026-11-06T12:01:11Z", "finished_at": null, "procedure_id": null, "code_ref": null, "log": [] },
-    { "name": "aggregate", "title": "Факты counts", "status": "pending", "started_at": null, "finished_at": null, "procedure_id": "builtin_aggregate", "code_ref": null, "log": [] },
-    { "name": "checks", "title": "Проверки", "status": "pending", "started_at": null, "finished_at": null, "procedure_id": null, "code_ref": null, "log": [] }
+    { "name": "compare", "title": "Сравнение срезов", "status": "running", "started_at": "2026-11-06T12:01:11Z", "finished_at": null, "procedure_id": "p_3c1a2b", "code_ref": { "procedure_id": "p_3c1a2b", "source": "inline", "path": null, "line": 1 }, "log": [] },
+    { "name": "aggregate", "title": "Факты counts", "status": "pending", "started_at": null, "finished_at": null, "procedure_id": "builtin_aggregate", "code_ref": { "procedure_id": "builtin_aggregate", "source": "file", "path": "procedures/builtin_segments.py", "line": 1 }, "log": [] },
+    { "name": "checks", "title": "Проверки", "status": "pending", "started_at": null, "finished_at": null, "procedure_id": null, "code_ref": null, "procedures": [ { "id": "builtin_attribute_new_loss", "name": "Изменился состав атрибутов" } ], "log": [] }
   ]
 }
 ```
 
 - Этапы идут в порядке: `normalize`, `compare`, `aggregate`, `checks`.
-- `code_ref` — куда перейти по клику: id процедуры, путь (для `file`) или `inline`, и номер строки.
+- `code_ref` — куда перейти по клику: процедура, которую исполняет этап (выбранная в конфигурации), путь (для `file`) или `inline`, и номер строки.
+- `procedures` — только у `checks`: подключённые проверки `{id, name}`, к коду каждой можно перейти.
 - `log` — последние записи этапа. Полный журнал: `GET /api/runs/{id}/stages/{name}/log?after=<индекс>`.
 
 `level` в журнале — `info`, `warn` или `error`.

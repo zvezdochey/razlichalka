@@ -5,6 +5,8 @@ import type { ArrayMode } from '../../api'
 /** id встроенной процедуры приведения ответов (`kind: normalize`). */
 export const BUILTIN_NORMALIZE = 'builtin_normalize'
 
+/** id встроенной процедуры сравнения срезов (`kind: compare`). */
+export const BUILTIN_COMPARE = 'builtin_compare'
 /** id встроенной процедуры подготовки фактов (`kind: aggregate`). */
 export const BUILTIN_AGGREGATE = 'builtin_aggregate'
 

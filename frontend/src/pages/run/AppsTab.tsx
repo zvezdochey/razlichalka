@@ -110,7 +110,9 @@ function ReadyApps({ runId }: { runId: string }) {
       if (FILTER_KEYS.includes(key) && key !== 'has_attr_change' && hasDefaultFilters(previous)) next.set('has_attr_change', '1')
       if (value) next.set(key, value)
       else next.delete(key)
-      if (resetPage) { next.set('page', '1'); next.delete('app') }
+      // Атрибут из сводной относится к одной открытой заявке: сменили заявку — забываем его
+      if (key === 'app') next.delete('attr')
+      if (resetPage) { next.set('page', '1'); next.delete('app'); next.delete('attr') }
       return next
     }, { preventScrollReset: true })
   }, [setParams])
@@ -219,7 +221,7 @@ function ReadyApps({ runId }: { runId: string }) {
       <div className="apps-page-buttons"><button className="btn" disabled={!data || page <= 1} onClick={() => update('page', String(page - 1), false)}>Назад</button>
         <span>{page}{data ? ` / ${pages}` : ''}</span><button className="btn" disabled={!data || page >= pages} onClick={() => update('page', String(page + 1), false)}>Далее</button></div>
     </div>
-    {appId && <AppPanel key={appId} runId={runId} appId={appId}
+    {appId && <AppPanel key={appId} runId={runId} appId={appId} focusPath={params.get('attr') ?? undefined}
       app={data?.apps.find((item) => item.app_id === appId)}
       onClose={() => update('app', '', false)} />}
   </section>

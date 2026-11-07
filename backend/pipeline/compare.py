@@ -1,8 +1,8 @@
 """Сравнение двух срезов (E5): normalized_BEFORE.csv + normalized_AFTER.csv → comparison.csv.
 
-Ключ строки — (APP_ID, PATH, ARRAY_KEY). Сравниваем строго по VALUE (не по ADJUSTED_VALUE):
-значение, сменившееся внутри одного бакета, — всё равно VALUE_CHANGED.
-PREFIX/CLASS/SUFFIX/KEY берутся из AFTER, а у ATTRIBUTE_LOST (там AFTER нет) — из BEFORE.
+Само правило сравнения — в процедуре: встроенная `procedures/builtin_compare.py` или своя из рабочей области
+(тогда она исполняется в отдельном процессе, pipeline/user_procedures.py). Здесь — обвязка: чтение срезов,
+заявки без пары, проверка результата по контракту, сортировка и запись.
 Сортировка: APP_ID «естественная» (1, 2, 10, а не 1, 10, 2), затем PATH и ARRAY_KEY как строки.
 Строка `null` (JSON null) и «атрибута нет в срезе» — разные случаи: второе даёт пустые ячейки стороны.
 
@@ -21,6 +21,10 @@ import pandas as pd
 
 from pipeline.csvio import read_csv, write_csv
 from pipeline.errors import BadFile
+from pipeline.procedures import load_builtin_module
+
+BUILTIN = "builtin_compare"  # встроенная процедура: само правило сравнения — там
+CHANGE_TYPES = ("SAME", "VALUE_CHANGED", "ATTRIBUTE_NEW", "ATTRIBUTE_LOST")
 
 KEY = ["APP_ID", "PATH", "ARRAY_KEY"]
 NUM = re.compile(r"\d+")
@@ -79,11 +83,33 @@ def read_unpaired(path: Path | None) -> dict:
     return {"only_before": len(data.get("only_before") or []), "only_after": len(data.get("only_after") or [])}
 
 
+def _builtin_compare(before: pd.DataFrame, after: pd.DataFrame) -> pd.DataFrame:
+    """Встроенная процедура сравнения — `procedures/builtin_compare.py` (свой файл, исполняем в этом процессе)."""
+    return load_builtin_module(BUILTIN)["COMPARE"]["entrypoint"](before, after)
+
+
+def _check_result(out) -> pd.DataFrame:
+    """Результат процедуры сравнения -> витрина по контракту: все колонки, словарь CHANGE_TYPE, DIFF_FLAG 0/1."""
+    if not isinstance(out, pd.DataFrame):
+        raise BadFile(f"Процедура сравнения вернула {type(out).__name__}, а нужен pandas.DataFrame")
+    missing = [c for c in COLUMNS if c not in out.columns]
+    if missing:
+        raise BadFile(f"Процедура сравнения: в результате нет колонок {', '.join(missing)}")
+    out = out[COLUMNS].fillna("").astype(str)
+    bad = sorted(set(out["CHANGE_TYPE"]) - set(CHANGE_TYPES))
+    if bad:
+        raise BadFile(f"Процедура сравнения: CHANGE_TYPE «{bad[0]}» не из словаря {', '.join(CHANGE_TYPES)}")
+    # DIFF_FLAG — строго по CHANGE_TYPE: иначе сводная и проверки разойдутся с типом изменения
+    out["DIFF_FLAG"] = (out["CHANGE_TYPE"] != "SAME").astype(int).astype(str)
+    return out
+
+
 def compare_csv(before_csv: Path, after_csv: Path, out_csv: Path, log=None,
-                unpaired_json: Path | None = None) -> int:
+                unpaired_json: Path | None = None, compare_fn=None) -> int:
     """Строит витрину сравнения. Возвращает число записанных строк.
 
     `unpaired_json` — куда записать заявки без пары (см. docstring модуля); без него только журнал.
+    `compare_fn(before, after)` — процедура сравнения пользователя; без неё — встроенная.
     """
     before = _load(before_csv, "BEFORE")
     after = _load(after_csv, "AFTER")
@@ -105,30 +131,7 @@ def compare_csv(before_csv: Path, after_csv: Path, out_csv: Path, log=None,
                             f"в витрину не попали: {', '.join(ids[:5])}"
                             + (f" и ещё {len(ids) - 5}" if len(ids) > 5 else ""))
 
-    merged = before.merge(
-        after, on=KEY, how="outer", suffixes=("_B", "_A"), indicator=True
-    )
-    both = merged["_merge"] == "both"
-    only_before = merged["_merge"] == "left_only"
-    only_after = merged["_merge"] == "right_only"
-
-    out = pd.DataFrame({c: merged[c] for c in ["APP_ID", "ARRAY_KEY", "PATH"]})
-    # PREFIX/CLASS/SUFFIX/KEY: из AFTER, а если строки там нет — из BEFORE
-    for col in META:
-        out[col] = merged[col + "_A"].where(~only_before, merged[col + "_B"])
-    # Пустая ячейка у стороны, где атрибута нет
-    out["VALUE_BEFORE"] = merged["VALUE_B"].where(~only_after, "")
-    out["VALUE_AFTER"] = merged["VALUE_A"].where(~only_before, "")
-    out["ADJUSTED_BEFORE"] = merged["ADJUSTED_VALUE_B"].where(~only_after, "")
-    out["ADJUSTED_AFTER"] = merged["ADJUSTED_VALUE_A"].where(~only_before, "")
-
-    changed = both & (merged["VALUE_B"] != merged["VALUE_A"])
-    change_type = pd.Series("SAME", index=merged.index)
-    change_type[changed] = "VALUE_CHANGED"
-    change_type[only_after] = "ATTRIBUTE_NEW"
-    change_type[only_before] = "ATTRIBUTE_LOST"
-    out["CHANGE_TYPE"] = change_type
-    out["DIFF_FLAG"] = (change_type != "SAME").astype(int).astype(str)
+    out = _check_result(compare_fn(before, after) if compare_fn else _builtin_compare(before, after))
 
     # Естественный порядок APP_ID: числа внутри id дополняем нулями, чтобы 2 шло раньше 10
     natural = out["APP_ID"].str.replace(r"\d+", lambda m: m.group().zfill(20), regex=True)

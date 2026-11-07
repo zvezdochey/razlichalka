@@ -112,6 +112,8 @@ export type ConfigInput = {
   dataset: string
   /** id процедуры приведения (`kind: normalize`). */
   normalize: string
+  /** id процедуры сравнения (`kind: compare`). В старых конфигурациях поля нет — встроенная. */
+  compare?: string
   /** id процедуры агрегации (`kind: aggregate`). */
   aggregate: string
   /** id проверок (`kind: check`). */
@@ -221,6 +223,8 @@ export type Stage = {
   finished_at: string | null
   procedure_id: string | null
   code_ref: CodeRef | null
+  /** Только у этапа `checks`: подключённые проверки — к коду каждой можно перейти. */
+  procedures?: { id: string; name: string }[]
   /** Последние записи журнала. Полный журнал — отдельной ручкой. */
   log: StageLogEntry[]
 }
@@ -398,8 +402,8 @@ export type ChecksParams = {
 
 // ─── 3. Процедуры и проверки ─────────────────────────────────────────────────
 
-/** Вид процедуры: приведение ответов, факты для сводной или проверка. */
-export type ProcedureKind = 'normalize' | 'aggregate' | 'check'
+/** Вид процедуры: приведение ответов, сравнение срезов, факты для сводной или проверка. */
+export type ProcedureKind = 'normalize' | 'compare' | 'aggregate' | 'check'
 
 /** Процедура в списке (п. 3.1). `path` есть только у `source: 'file'`. */
 export type Procedure = {
