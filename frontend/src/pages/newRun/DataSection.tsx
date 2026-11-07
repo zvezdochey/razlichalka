@@ -9,6 +9,7 @@ type DataSectionProps = {
   selectedId: string
   onSelect: (datasetId: string) => void
   onUploaded: (result: UploadResponse) => void
+  onReload: () => void
   ignorePaths: string[]
   onIgnorePathsChange: (paths: string[]) => void
 }
@@ -21,6 +22,7 @@ export function DataSection({
   selectedId,
   onSelect,
   onUploaded,
+  onReload,
   ignorePaths,
   onIgnorePathsChange,
 }: DataSectionProps) {
@@ -60,6 +62,9 @@ export function DataSection({
             </option>
           ))}
         </select>
+        <button type="button" className="btn field__reload" onClick={onReload}>
+          Обновить список
+        </button>
         {selectedId === '' && (
           <p className="field__hint muted">
             {datasets.length === 0

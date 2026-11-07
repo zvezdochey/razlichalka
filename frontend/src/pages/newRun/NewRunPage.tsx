@@ -245,6 +245,7 @@ export function NewRunPage() {
           selectedId={datasetId}
           onSelect={handleDatasetChange}
           onUploaded={handleUploaded}
+          onReload={reloadDatasets}
           ignorePaths={ignorePaths}
           onIgnorePathsChange={handleIgnorePathsChange}
         />

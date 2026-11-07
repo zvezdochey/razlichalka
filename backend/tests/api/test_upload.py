@@ -99,3 +99,9 @@ def test_run_on_uploaded_dataset_finds_its_folder(client):
     run = {"dataset": ds_id, "dataset_folder": ds_id}
     assert runs.dataset_path(run) == settings.UPLOADS_DIR / ds_id
     assert (runs.dataset_path(run) / "manifest.json").is_file()
+
+
+def test_same_labels_are_rejected(client):
+    r = client.post("/api/datasets/upload", files=[("before", ("I1.json", "{}", "x")), ("after", ("I1.json", "{}", "x"))],
+                    data={"before_label": "X", "after_label": "X"})
+    assert r.status_code == 400 and r.json()["error"]["code"] == "bad_request"

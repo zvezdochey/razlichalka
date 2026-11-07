@@ -81,6 +81,8 @@ def create_dataset(before: list[tuple[str, bytes]], after: list[tuple[str, bytes
     if not before or not after:
         raise ApiError("bad_request", "Нужны оба среза: файлы «до» и файлы «после»")
     labels = {"BEFORE": _label(before_label, "BEFORE"), "AFTER": _label(after_label, "AFTER")}
+    if labels["BEFORE"] == labels["AFTER"]:
+        raise ApiError("bad_request", "Названия срезов «до» и «после» должны различаться")
     array_paths = set(default_array_rules(settings.PROCEDURES_DIR))
     budget = [MAX_UNPACKED]
     apps, received = {}, {}
