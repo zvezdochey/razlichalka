@@ -59,7 +59,7 @@ const LEAVE_QUESTION = 'Есть несохранённые изменения. 
 type Busy = 'idle' | 'loading' | 'checking' | 'saving' | 'deleting'
 
 /**
- * Рабочая область процедур (DESIGN.md п. 4, задача E13). Слева — список по видам,
+ * Рабочая область процедур. Слева — список по видам,
  * справа — редактор. Что открыто, лежит в URL: `?id=<процедура>&line=<строка>` (так
  * ведёт ссылка «код этапа» из журнала), `?new=check` — новая проверка из шаблона,
  * `?copy=<id>` — копия встроенной процедуры или проверки в рабочую область.
@@ -391,7 +391,7 @@ type WorkspaceProps = {
   onCopy: () => void
 }
 
-/** Состояние кода словами (DESIGN.md п. 4): сохранено, не сохранено, идёт, ошибка. */
+/** Состояние кода словами: сохранено, не сохранено, идёт, ошибка. */
 function statusText(draft: Draft, dirty: boolean, busy: Busy, codeErrors: CodeError[] | null): string {
   if (busy === 'checking') return 'Проверяем…'
   if (busy === 'saving') return 'Сохраняем…'

@@ -56,7 +56,7 @@
 - **Бэк:** Python 3.12, FastAPI, pandas, numpy, Jinja2 (HTML-отчёт), `multiprocessing` (изоляция кода пользователя), pytest.
 - **Фронт:** React 19, TypeScript, Vite, React Router; в Docker отдаётся через nginx. Сводная — свой компонент.
 - **ИИ:** облачная модель через Ollama Cloud (по умолчанию `gemma4:31b`); в модель уходят только агрегаты прогона.
-- **Инструменты:** Docker Compose, oxlint, ИИ-ассистенты (Claude Code, Codex) при разработке.
+- **Инструменты:** Docker Compose, oxlint.
 
 ## 4. Данные
 

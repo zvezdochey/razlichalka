@@ -74,7 +74,7 @@ export function ChecksAppsPanel({ runId, row, appsRef, onClose }: ChecksAppsPane
   const canGoForward = page < pages && state.status !== 'loading'
   const count = countOf(row)
   // Проверка отдаёт не больше `app_ids_limit` заявок: если их меньше, чем CNT,
-  // говорим об этом прямо, а не обещаем полный список (DESIGN.md п. 9).
+  // говорим об этом прямо, а не обещаем полный список.
   const limited = data !== null && count !== null && data.total < count
 
   const argument = displayArgument(row)

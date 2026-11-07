@@ -42,5 +42,4 @@ npm run preview  # посмотреть собранный dist/
 
 ## Что читать перед правками
 
-`frontend/CLAUDE.md` и `frontend/PLAN.md` — визуальный язык и порядок задач,
-`docs/api.md` — договор по API, `frontend/DESIGN.md` — дизайн-концепция.
+`docs/api.md` — договор по API, `src/styles/tokens.css` — цвета и размеры.
