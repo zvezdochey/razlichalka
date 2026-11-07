@@ -152,6 +152,14 @@
   text-align: right;
 }
 
+/* Граница между столбцами данных (Значение изменилось / Атрибут исчез / … / Итого).
+   Первая колонка с метками строк и так отделена border-right — вторую не дублируем,
+   а начиная с третьей ставим свою левую границу. */
+.pivot-table th:not(:first-child):not(:nth-child(2)),
+.pivot-table td:not(:first-child):not(:nth-child(2)) {
+  border-left: 1px solid var(--border);
+}
+
 .pivot-table tbody th,
 .pivot-table tfoot th {
   position: static;
