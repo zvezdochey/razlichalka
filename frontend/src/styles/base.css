@@ -250,3 +250,10 @@ a {
   white-space: nowrap;
   border: 0;
 }
+
+/* Кнопки действий в строке таблицы. */
+.row-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}

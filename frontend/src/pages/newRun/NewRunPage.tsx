@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   createConfig,
   createRun,
+  getConfig,
   getDatasets,
   isAbortError,
   listProcedures,
@@ -44,6 +45,7 @@ function errorMessage(error: unknown): string {
 /** Настройка прогона: выбрать датасет, сохранить конфигурацию, запустить. */
 export function NewRunPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
 
   /**
    * Пользователь ещё на этой странице. Запросы на создание не отменяем: сервер
@@ -207,6 +209,22 @@ export function NewRunPage() {
     setSubmitError(null)
     setChangedSinceSave(false)
   }
+
+  // Ссылка из раздела «Конфигурации» (?config=id): когда датасеты пришли, подставляем поля формы.
+  const configFromUrl = searchParams.get('config')
+  useEffect(() => {
+    if (configFromUrl === null || datasets === null) return
+    setSearchParams({}, { replace: true })
+    getConfig(configFromUrl)
+      .then((config) => {
+        if (onPage.current) handleLoadConfig(config)
+      })
+      .catch((error: unknown) => {
+        if (onPage.current) setSubmitError(errorMessage(error))
+      })
+    // handleLoadConfig пересоздаётся на каждый рендер; нужен только один запуск на ссылку.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configFromUrl, datasets])
 
   /** Конфигурацию удалили: форма остаётся как есть, но это снова новая конфигурация. */
   function handleConfigDeleted(id: string) {
