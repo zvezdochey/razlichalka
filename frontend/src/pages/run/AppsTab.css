@@ -10,21 +10,37 @@
 .apps-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .apps-chips .btn { padding: 2px var(--s-2); font-size: var(--fs-caption); }
 .apps-table-scroll { max-height: max(192px, calc(100dvh - 530px)); }
-.apps-table { white-space: nowrap; min-width: 1100px; table-layout: fixed; }
+.apps-table { white-space: nowrap; min-width: 1370px; table-layout: fixed; }
 .apps-table tbody tr { cursor: pointer; }
 .apps-table tbody tr[aria-current='true'] { outline: 2px solid var(--focus); outline-offset: -2px; }
 .apps-table td, .apps-table th { padding-right: var(--s-2); padding-left: var(--s-2); }
-/* На ноутбуке сохраняем все семь колонок; длинные значения доступны в title. */
-.apps-table th:nth-child(1) { width: 100px; }
-.apps-table th:nth-child(2) { width: 170px; }
-.apps-table th:nth-child(3) { width: 120px; }
-.apps-table th:nth-child(7) { width: 110px; }
-.apps-pair { display: flex; align-items: center; gap: var(--s-2); }
-.apps-pair > span, .apps-pair .axis > span { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.apps-pair .axis { overflow: hidden; }
-.apps-pair > span { flex: 1; }
-.apps-pair .axis::before { flex-shrink: 0; }
-.apps-table td:nth-child(2) .apps-pair > span { flex: 0 0 auto; }
+.apps-table td { overflow: hidden; text-overflow: ellipsis; }
+/* Заголовок-группа (напр. «Модель») стоит над обеими своими колонками через colSpan,
+   а «до»/«после» — подписи второй строки шапки, каждая ровно над своим значением:
+   не «Модель · до / после» одной строкой, а разнесено по колонкам. */
+.apps-table th { white-space: normal; line-height: 1.25; vertical-align: bottom; }
+/* Ширины — через <colgroup>: она одна на все колонки независимо от colSpan/rowSpan
+   в шапке, поэтому номер колонки совпадает что в <col>, что в строках <tbody>. */
+.apps-table colgroup col:nth-child(1) { width: 100px; }   /* APP_ID */
+.apps-table colgroup col:nth-child(2) { width: 90px; }    /* Решение · до */
+.apps-table colgroup col:nth-child(3) { width: 90px; }    /* Решение · после */
+.apps-table colgroup col:nth-child(4) { width: 110px; }   /* Изменено атр. */
+.apps-table colgroup col:nth-child(5) { width: 150px; }   /* Модель · до */
+.apps-table colgroup col:nth-child(6) { width: 150px; }   /* Модель · после */
+.apps-table colgroup col:nth-child(7) { width: 170px; }   /* Порог · до */
+.apps-table colgroup col:nth-child(8) { width: 170px; }   /* Порог · после */
+.apps-table colgroup col:nth-child(9) { width: 90px; }    /* Причина отказа · до */
+.apps-table colgroup col:nth-child(10) { width: 120px; }  /* Причина отказа · после */
+.apps-table colgroup col:nth-child(11) { width: 130px; }  /* Источник */
+/* Граница между каждой парой соседних колонок — первая строка шапки (группы с colSpan),
+   вторая строка (до/после) и тело таблицы размечены раздельно, т.к. у них разное
+   число ячеек в строке, но колонка одна и та же. */
+.apps-table thead tr:first-child th:not(:first-child) { border-left: 1px solid var(--border); }
+.apps-table thead tr:last-child th { border-left: 1px solid var(--border); }
+/* Обе строки шапки липкие (base.css: top: 0) — без сдвига «до/после» при прокрутке
+   наезжает на строку групп. Сдвигаем вторую строку на высоту первой. */
+.apps-table thead tr:last-child th { top: var(--row-h); }
+.apps-table tbody td:not(:first-child) { border-left: 1px solid var(--border); }
 .apps-different { background: var(--surface-sunken); font-weight: 500; }
 .apps-sort { border: 0; background: transparent; color: inherit; font: inherit; padding: 6px 0; cursor: pointer; }
 .apps-page-buttons { display: flex; align-items: center; gap: var(--s-3); }

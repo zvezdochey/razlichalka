@@ -138,7 +138,7 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
               Атрибуты
             </button>
             <button type="button" className="btn" aria-pressed={section === 'why'} onClick={() => setSection('why')}>
-              Почему
+              Причины
             </button>
           </div>
 

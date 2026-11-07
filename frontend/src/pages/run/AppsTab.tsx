@@ -19,12 +19,22 @@ const SOURCES: Record<ChangeSource, string> = {
 }
 const FILTER_KEYS = ['decision_change', 'change_source', 'has_attr_change', 'search']
 
-/** Пара значений: цвет отмечает только факт различия, а не его оценку. */
-function Pair({ before, after, badge = false }: { before: string | null; after: string | null; badge?: boolean }) {
-  return <div className="apps-pair">
-    <span className={badge ? 'chip' : undefined} title={before ?? DASH}>{before ?? DASH}</span>
-    <span className="axis"><span className={badge ? 'chip' : undefined} title={after ?? DASH}>{after ?? DASH}</span></span>
-  </div>
+/**
+ * Пара значений — отдельная ячейка на «до» и отдельная на «после» (а не одна ячейка
+ * с обоими значениями через разделитель): так подпись «до»/«после» в шапке стоит
+ * ровно над своим значением, а не читается общей строкой через слеш.
+ * Цвет (apps-different) отмечает только факт различия, а не его оценку.
+ */
+function PairCells({ before, after, badge = false }: { before: string | null; after: string | null; badge?: boolean }) {
+  const different = before !== after
+  return <>
+    <td className={different ? 'apps-different' : undefined}>
+      <span className={badge ? 'chip' : undefined} title={before ?? DASH}>{before ?? DASH}</span>
+    </td>
+    <td className={different ? 'apps-different' : undefined}>
+      <span className={badge ? 'chip' : undefined} title={after ?? DASH}>{after ?? DASH}</span>
+    </td>
+  </>
 }
 
 /** Отдельный компонент сбрасывает незавершённый ввод при любой навигации. */
@@ -110,12 +120,14 @@ function ReadyApps({ runId }: { runId: string }) {
     ...(hasAttr ? [{ key: 'has_attr_change', value: '1', label: 'С различиями атрибутов' }] : []),
     ...(search ? [{ key: 'search', value: search, label: `Поиск: ${search}` }] : []),
   ]
-  const sortHeader = (field: string, label: string) => <th scope="col"
+  const sortHeader = (field: string, label: string) => <th scope="col" rowSpan={2}
     aria-sort={sort === field ? 'ascending' : sort === `-${field}` ? 'descending' : 'none'}>
     <button className="apps-sort" onClick={() => update('sort', sort === `-${field}` ? field : `-${field}`)}>
       {label} <span aria-hidden="true">{sort === field ? '↑' : sort === `-${field}` ? '↓' : '↕'}</span>
     </button>
   </th>
+  /** Группа «до/после» в шапке: название поля сверху (на обе колонки), подписи под ним — каждая над своим значением. */
+  const pairHead = (label: string) => <th scope="colgroup" colSpan={2}>{label}</th>
   const data = result.status === 'ready' ? result.data : null
   const pages = data ? Math.max(1, Math.ceil(data.total / size)) : page
   const appId = params.get('app')
@@ -151,16 +163,35 @@ function ReadyApps({ runId }: { runId: string }) {
       action={<button className="btn" onClick={data.total === 0 ? reset : () => update('page', '1', false)}>{data.total === 0 ? 'Сбросить фильтры' : 'На первую страницу'}</button>} /> :
       <div className="table-scroll apps-table-scroll" tabIndex={0} aria-label="Таблица заявок, прокручиваемая область">
         <table className="table apps-table"><caption className="visually-hidden">Заявки: значения до и после</caption>
-          <thead><tr>{sortHeader('app_id', 'APP_ID')}<th scope="col">Решение · до / после</th>{sortHeader('attributes_changed', 'Изменено атр.')}
-            <th scope="col">Модель · до / после</th><th scope="col">Порог · до / после</th><th scope="col">Причина отказа · до / после</th><th scope="col">Источник</th></tr></thead>
+          <colgroup>
+            <col /><col /><col /><col /><col /><col /><col /><col /><col /><col /><col />
+          </colgroup>
+          <thead>
+            <tr>
+              {sortHeader('app_id', 'APP_ID')}
+              {pairHead('Решение')}
+              {sortHeader('attributes_changed', 'Изменено атр.')}
+              {pairHead('Модель')}
+              {pairHead('Порог')}
+              {pairHead('Причина отказа')}
+              <th scope="col" rowSpan={2}>Источник</th>
+            </tr>
+            <tr>
+              <th scope="col">до</th><th scope="col">после</th>
+              <th scope="col">до</th><th scope="col">после</th>
+              <th scope="col">до</th><th scope="col">после</th>
+              <th scope="col">до</th><th scope="col">после</th>
+            </tr>
+          </thead>
           <tbody>{data.apps.map((app) => <tr key={app.app_id} tabIndex={0} aria-label={`Открыть заявку ${app.app_id}`}
             aria-current={params.get('app') === app.app_id ? 'true' : undefined} onClick={() => update('app', app.app_id, false)}
             onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); update('app', app.app_id, false) } }}>
-            <td className="mono">{app.app_id}</td><td><Pair before={app.decision_before} after={app.decision_after} badge /></td>
+            <td className="mono">{app.app_id}</td>
+            <PairCells before={app.decision_before} after={app.decision_after} badge />
             <td className="num">{formatNumber(app.attributes_changed)}</td>
-            <td className={app.pd_model_before !== app.pd_model_after ? 'apps-different' : undefined}><Pair before={app.pd_model_before} after={app.pd_model_after} /></td>
-            <td className={app.cutoff_before !== app.cutoff_after ? 'apps-different' : undefined}><Pair before={app.cutoff_before} after={app.cutoff_after} /></td>
-            <td className={app.reject_reason_before !== app.reject_reason_after ? 'apps-different' : undefined}><Pair before={app.reject_reason_before} after={app.reject_reason_after} /></td>
+            <PairCells before={app.pd_model_before} after={app.pd_model_after} />
+            <PairCells before={app.cutoff_before} after={app.cutoff_after} />
+            <PairCells before={app.reject_reason_before} after={app.reject_reason_after} />
             <td>{app.change_source === null ? DASH : SOURCES[app.change_source]}</td>
           </tr>)}</tbody>
         </table>
