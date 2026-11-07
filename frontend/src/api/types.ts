@@ -221,6 +221,7 @@ export type Summary = {
 // ─── 7.4. Список заявок с различиями ─────────────────────────────────────────
 
 export type AppRow = {
+  change_source: ChangeSource
   app_id: string
   decision_before: Decision
   decision_after: Decision
@@ -244,6 +245,7 @@ export type AppsResponse = {
 
 /** Параметры списка заявок. Пустые поля в query-строку не попадают. */
 export type AppsParams = {
+  change_source?: ChangeSource[]
   /** Один или несколько видов изменения решения. */
   decision_change?: DecisionChange[]
   /** `true` — только заявки, где хотя бы один атрибут различается. */
@@ -257,6 +259,9 @@ export type AppsParams = {
   /** До 500. */
   size?: number
 }
+
+/** Источник различий; both зарезервирован договором. */
+export type ChangeSource = 'logic' | 'data' | 'both' | 'none'
 
 // ─── 8.1. Атрибуты одной заявки ──────────────────────────────────────────────
 

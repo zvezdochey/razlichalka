@@ -138,6 +138,7 @@ export function getApps(
 ): Promise<AppsResponse> {
   const query = toQuery({
     decision_change: params.decision_change,
+    change_source: params.change_source,
     has_attr_change: params.has_attr_change,
     search: params.search,
     sort: params.sort,

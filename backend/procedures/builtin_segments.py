@@ -41,6 +41,14 @@ FIELD_MAP = {
     "CUTOFF": "decisionResult.product_trials[].cutOff.name",
     "REJECT_REASON": "decisionResult.product_trials[].rejectReason",
     "SCORE_OKB": "characteristics.score_okb",
+    # Дополнительные поля исходного ответа для карточки заявки (I3).
+    "PRODUCT_DECISION": "decisionResult.product_trials[].decision",
+    "REJECT_REASON_CODE": "decisionResult.product_trials[].rejectReasonCode",
+    "PD_VALUE": "decisionResult.product_trials[].scoring.pd.value",
+    "CUTOFF_VALUE": "decisionResult.product_trials[].cutOff.value",
+    "RULE_NAME": "decisionResult.product_trials[].rules[].name",
+    "RULE_HIT": "decisionResult.product_trials[].rules[].hit",
+    "OFFER_TYPE": "decisionResult.available_offers[].type",
 }
 
 INPUT_PREFIXES = ["appData", "ext_data"]
