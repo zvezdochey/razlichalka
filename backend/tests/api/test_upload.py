@@ -88,3 +88,14 @@ def test_upload_errors(client, files, code, text):
     assert r.json()["error"]["code"] == code
     assert text in r.json()["error"]["message"]
     assert not settings.UPLOADS_DIR.exists() or list(settings.UPLOADS_DIR.iterdir()) == []  # ничего не сохранили
+
+
+def test_run_on_uploaded_dataset_finds_its_folder(client):
+    """Регресс: запуск искал датасет только в DATASETS_DIR и не находил загруженный."""
+    from app.services import runs
+    body = client.post("/api/datasets/upload", files=[("before", ("I1.json", app_json("I1", "APPROVE", "b"), "x")),
+                                                      ("after", ("I1.xml", app_xml("I1", "REJECT", "a"), "x"))]).json()
+    ds_id = body["dataset"]["id"]
+    run = {"dataset": ds_id, "dataset_folder": ds_id}
+    assert runs.dataset_path(run) == settings.UPLOADS_DIR / ds_id
+    assert (runs.dataset_path(run) / "manifest.json").is_file()

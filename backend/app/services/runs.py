@@ -101,7 +101,12 @@ def recover() -> None:
 def dataset_path(run: dict) -> Path:
     """Папка исходного датасета из метаданных запуска."""
     # Старые запуски хранят только id. Родительская папка может переехать.
-    return Path(settings.DATASETS_DIR) / run.get("dataset_folder", run["dataset"])
+    # Датасет лежит либо среди серверных (DATASETS_DIR), либо среди загруженных через приложение (UPLOADS_DIR).
+    folder = run.get("dataset_folder", run["dataset"])
+    for root in (settings.DATASETS_DIR, settings.UPLOADS_DIR):
+        if (Path(root) / folder / "manifest.json").is_file():
+            return Path(root) / folder
+    return Path(settings.DATASETS_DIR) / folder  # не нашли: этап сам скажет «нет manifest.json»
 
 
 class Ctx:

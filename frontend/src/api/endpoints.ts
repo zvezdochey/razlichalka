@@ -32,6 +32,8 @@ import type {
   Stage,
   StagesResponse,
   Summary,
+  UploadInput,
+  UploadResponse,
   ValidateInput,
   ValidateResponse,
 } from './types'
@@ -80,6 +82,16 @@ export function getHealth(options?: Options): Promise<HealthResponse> {
 export async function getDatasets(options?: Options): Promise<Dataset[]> {
   const res = await request<DatasetsResponse>('/datasets', options)
   return res.datasets
+}
+
+/** Загрузка датасета (п. 2.2): файлы двух срезов, бэк приводит их к одному виду. */
+export function uploadDataset(input: UploadInput, options?: Options): Promise<UploadResponse> {
+  const body = new FormData()
+  for (const file of input.before) body.append('before', file, file.name)
+  for (const file of input.after) body.append('after', file, file.name)
+  if (input.beforeLabel?.trim()) body.append('before_label', input.beforeLabel.trim())
+  if (input.afterLabel?.trim()) body.append('after_label', input.afterLabel.trim())
+  return request<UploadResponse>('/datasets/upload', { ...options, method: 'POST', body })
 }
 
 // ─── 4. Конфигурации ─────────────────────────────────────────────────────────

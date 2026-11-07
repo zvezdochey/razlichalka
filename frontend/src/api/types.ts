@@ -29,6 +29,7 @@ export type Status = 'pending' | 'running' | 'ready' | 'error'
 /** Коды ошибок из раздела «Ошибки». */
 export type ErrorCode =
   | 'bad_file'
+  | 'bad_request'
   | 'bad_code'
   | 'no_id_column'
   | 'not_found'
@@ -71,6 +72,31 @@ export type Dataset = {
 
 export type DatasetsResponse = {
   datasets: Dataset[]
+}
+
+/** Что бэк принял из загруженных файлов одного среза (п. 2.2). */
+export type UploadReceived = {
+  applications: number
+  json: number
+  xml: number
+  csv: number
+}
+
+export type UploadResponse = {
+  dataset: Dataset
+  received: Record<Source, UploadReceived>
+  /** Заявки, которые есть только в одном срезе: в расчёт они не попадут. */
+  applications_only_before: number
+  applications_only_after: number
+}
+
+export type UploadInput = {
+  /** Файлы среза «до»: .json, .xml, .csv или один .zip. */
+  before: File[]
+  after: File[]
+  /** Названия срезов (MASTER / BETA). Пусто — бэк подставит BEFORE / AFTER. */
+  beforeLabel?: string
+  afterLabel?: string
 }
 
 // ─── 4. Конфигурации ─────────────────────────────────────────────────────────

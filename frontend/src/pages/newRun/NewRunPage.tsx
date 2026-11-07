@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createConfig, createRun, getDatasets, isAbortError } from '../../api'
-import type { Config, ConfigInput, Dataset } from '../../api'
-import { EmptyState, ErrorBox, Spinner } from '../../components'
+import type { Config, ConfigInput, Dataset, UploadResponse } from '../../api'
+import { ErrorBox, Spinner } from '../../components'
 import { DataSection } from './DataSection'
 import { PipelinePreview } from './PipelinePreview'
 import {
@@ -107,12 +107,24 @@ export function NewRunPage() {
     setChangedSinceSave(true)
   }
 
-  function handleDatasetChange(id: string) {
+  function selectDataset(id: string, technicalFields: string[]) {
     setDatasetId(id)
     // Технические поля различаются у всех заявок — предзаполняем ими «Не сравнивать» (п. 2.1).
     // Смена датасета список перезаписывает: пути прежнего датасета к новому отношения не имеют.
-    setIgnorePaths(datasets?.find((dataset) => dataset.id === id)?.technical_fields ?? [])
+    setIgnorePaths(technicalFields)
     setChangedSinceSave(true)
+  }
+
+  function handleDatasetChange(id: string) {
+    selectDataset(id, datasets?.find((dataset) => dataset.id === id)?.technical_fields ?? [])
+  }
+
+  /** Данные загружены: новый датасет попадает в список и сразу выбран. */
+  function handleUploaded({ dataset }: UploadResponse) {
+    setDatasets((list) =>
+      list === null || list.some((item) => item.id === dataset.id) ? list : [...list, dataset],
+    )
+    selectDataset(dataset.id, dataset.technical_fields)
   }
 
   function handleIgnorePathsChange(paths: string[]) {
@@ -220,23 +232,6 @@ export function NewRunPage() {
     )
   }
 
-  if (datasets.length === 0) {
-    return (
-      <>
-        <PageHead />
-        <EmptyState
-          title="Положите датасет на сервер"
-          hint="Датасеты не загружают через интерфейс: папку прогона кладут в каталог данных на сервере, и она появляется в этом списке."
-          action={
-            <button type="button" className="btn" onClick={reloadDatasets}>
-              Проверить снова
-            </button>
-          }
-        />
-      </>
-    )
-  }
-
   return (
     <form className="new-run" onSubmit={handleStart}>
       <PageHead />
@@ -249,6 +244,7 @@ export function NewRunPage() {
           datasets={datasets}
           selectedId={datasetId}
           onSelect={handleDatasetChange}
+          onUploaded={handleUploaded}
           ignorePaths={ignorePaths}
           onIgnorePathsChange={handleIgnorePathsChange}
         />

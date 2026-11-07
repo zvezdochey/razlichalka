@@ -72,7 +72,8 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const headers = new Headers(init?.headers)
   // Авторизации нет: бэк различает людей по этому заголовку.
   headers.set('X-User', getCurrentUser())
-  if (init?.body !== undefined && !headers.has('Content-Type')) {
+  // У FormData заголовок с границей частей ставит сам браузер: свой JSON-заголовок его сломает.
+  if (init?.body !== undefined && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
 

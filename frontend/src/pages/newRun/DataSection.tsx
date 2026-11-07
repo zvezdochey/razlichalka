@@ -1,5 +1,6 @@
-import type { Dataset } from '../../api'
+import type { Dataset, UploadResponse } from '../../api'
 import { IgnorePathsField } from './IgnorePathsField'
+import { UploadDataset } from './UploadDataset'
 
 type DataSectionProps = {
   name: string
@@ -7,6 +8,7 @@ type DataSectionProps = {
   datasets: Dataset[]
   selectedId: string
   onSelect: (datasetId: string) => void
+  onUploaded: (result: UploadResponse) => void
   ignorePaths: string[]
   onIgnorePathsChange: (paths: string[]) => void
 }
@@ -18,6 +20,7 @@ export function DataSection({
   datasets,
   selectedId,
   onSelect,
+  onUploaded,
   ignorePaths,
   onIgnorePathsChange,
 }: DataSectionProps) {
@@ -58,9 +61,15 @@ export function DataSection({
           ))}
         </select>
         {selectedId === '' && (
-          <p className="field__hint muted">Без датасета прогон не запустить.</p>
+          <p className="field__hint muted">
+            {datasets.length === 0
+              ? 'На сервере датасетов нет — загрузите свои данные ниже.'
+              : 'Без датасета прогон не запустить.'}
+          </p>
         )}
       </div>
+
+      <UploadDataset onUploaded={onUploaded} />
 
       {selected && <DatasetFacts dataset={selected} />}
 
