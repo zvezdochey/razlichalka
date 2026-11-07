@@ -262,7 +262,7 @@ export function ProceduresPage() {
     if (draft === null || draft.id === null || draft.builtin || busy !== 'idle') return
     const question =
       `Удалить «${draft.name}»? Если проверка подключена к конфигурациям, в них останется ` +
-      'id несуществующей процедуры, и новые прогоны по ним не стартуют, пока её не уберут. ' +
+      'id несуществующей процедуры: новые прогоны по ним её молча пропустят. ' +
       'Уже посчитанные прогоны останутся.'
     if (!window.confirm(question)) return
     setBusy('deleting')
