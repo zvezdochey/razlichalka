@@ -186,8 +186,9 @@ export function RunPage() {
         </div>
       )}
 
-      {/* Сервер перезапустили посреди расчёта: показываем причину и даём запустить заново */}
-      {run?.error?.code === 'interrupted' && (
+      {/* Сервер перезапустили посреди расчёта: причина и «Повторить». В журнале то же самое
+          уже рисует LogTab, поэтому там верхний блок не показываем. */}
+      {run?.error?.code === 'interrupted' && !pathname.endsWith('/log') && (
         <div className="run-notice">
           <p>{run.error.message}</p>
           <RetryRunButton configId={run.config_id} />

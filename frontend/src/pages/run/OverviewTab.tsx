@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { DecisionChange, ReasonsResponse, Summary } from '../../api'
-import { getChecks, getReasons, getSummary, isAbortError } from '../../api'
+import { getConfig, getReasons, getSummary, isAbortError } from '../../api'
 import { ErrorBox, Spinner } from '../../components'
 import { DASH, formatNumber } from '../../lib/format'
 import { NotReadyNotice } from './NotReadyNotice'
@@ -20,12 +20,12 @@ export function OverviewTab() {
   const { runId, run } = useRunContext()
   if (run === null || run.status !== 'ready') return <NotReadyNotice run={run} />
 
-  return <OverviewBody runId={runId} />
+  return <OverviewBody runId={runId} configId={run.config_id} />
 }
 
 // ─── Загрузка ────────────────────────────────────────────────────────────────
 
-function OverviewBody({ runId }: { runId: string }) {
+function OverviewBody({ runId, configId }: { runId: string; configId: string }) {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
@@ -69,7 +69,7 @@ function OverviewBody({ runId }: { runId: string }) {
 
   return (
     <div className="overview">
-      <Verdict runId={runId} summary={summary} />
+      <Verdict key={runId} runId={runId} configId={configId} summary={summary} />
       <div className="overview__columns">
         <DecisionTransitions summary={summary} />
         <AttributeBars summary={summary} />
@@ -117,48 +117,45 @@ function appsLink(search: string) {
 
 /** Дополнительные данные для верхней ленты: источник смен и число проверок. */
 type Extras = {
-  /** Смены решения по источнику: логика / данные / оба. `null` — ещё не пришло или недоступно. */
+  /** Смены решения по источнику: логика / данные / оба. `null` — нет данных. */
   sources: ReasonsResponse['by_source'] | null
-  /** Сколько разных проверок дали строки результатов. `null` — ещё не пришло. */
+  /** Сколько проверок в конфигурации прогона. `null` — не получили. */
   checksCount: number | null
 }
 
-/** Грузим источник смен (ручка причин) и список проверок. Ошибка не ломает обзор: просто прочерк. */
-function useExtras(runId: string, withChecks: boolean): Extras {
+/** Источник смен берём из ручки причин, число проверок — из конфигурации прогона. Ошибка не ломает обзор: просто прочерк. */
+function useExtras(runId: string, configId: string): Extras {
   const [extras, setExtras] = useState<Extras>({ sources: null, checksCount: null })
 
   useEffect(() => {
     const controller = new AbortController()
     const options = { signal: controller.signal }
     const load = async () => {
-      const [reasons, checks] = await Promise.allSettled([
+      const [reasons, config] = await Promise.allSettled([
         getReasons(runId, options),
-        withChecks ? getChecks(runId, { size: 500 }, options) : Promise.resolve(null),
+        getConfig(configId, options),
       ])
       if (controller.signal.aborted) return
-      const ids = new Set<string>()
-      if (checks.status === 'fulfilled' && checks.value !== null) {
-        for (const row of checks.value.rows) ids.add(row.check_id ?? row.check_name)
-      }
       setExtras({
         sources: reasons.status === 'fulfilled' ? (reasons.value.by_source ?? null) : null,
-        checksCount: ids.size > 0 ? ids.size : null,
+        checksCount: config.status === 'fulfilled' ? config.value.checks.length : null,
       })
     }
     // eslint-disable-next-line react/set-state-in-effect -- загрузка данных эффектом и есть синхронизация с внешней системой
     void load()
     return () => controller.abort()
-  }, [runId, withChecks])
+  }, [runId, configId])
 
   return extras
 }
 
-/** «Русское» согласование: 1 проверка, 2 проверки, 5 проверок. */
-function checksWord(n: number): string {
+/** Склонение по числу: plural(1, 'заявка', 'заявки', 'заявок'). */
+function plural(n: number, one: string, few: string, many: string): string {
   const mod10 = n % 10
   const mod100 = n % 100
-  if (mod10 === 1 && mod100 !== 11) return 'проверки'
-  return 'проверок'
+  if (mod10 === 1 && mod100 !== 11) return one
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few
+  return many
 }
 
 /**
@@ -171,7 +168,8 @@ function verdictText(summary: Summary): ReactNode {
   if (decision_changed === 0) {
     return (
       <>
-        Решение не сменилось ни у одной из <Big value={applications} /> заявок.
+        Решение не сменилось ни у одной из <Big value={applications} />{' '}
+        {plural(applications, 'заявки', 'заявок', 'заявок')}.
       </>
     )
   }
@@ -183,8 +181,9 @@ function verdictText(summary: Summary): ReactNode {
 
   return (
     <>
-      Решение сменили <Big value={decision_changed} /> из <Big value={applications} /> заявок (
-      {formatPercent(decision_changed / applications)}): <Big value={lost} /> потеряли одобрение,{' '}
+      Решение сменили{' '}
+      <Big value={decision_changed} /> из <Big value={applications} />{' '}
+      {plural(applications, 'заявки', 'заявок', 'заявок')} ({formatPercent(decision_changed / applications)}): <Big value={lost} /> потеряли одобрение,{' '}
       <Big value={gained} /> получили
       {other > 0 && (
         <>
@@ -205,9 +204,23 @@ function verdictText(summary: Summary): ReactNode {
   )
 }
 
-function Verdict({ runId, summary }: { runId: string; summary: Summary }) {
+function Verdict({
+  runId,
+  configId,
+  summary,
+}: {
+  runId: string
+  configId: string
+  summary: Summary
+}) {
   const { applications, applications_changed, applications_changed_share } = summary
-  const extras = useExtras(runId, summary.checks_fail !== undefined)
+  const extras = useExtras(runId, configId)
+  // Старые прогоны отдают нули: тогда карточка только путает.
+  const { sources } = extras
+  const showSources =
+    summary.decision_changed === 0 || sources === null || sources === undefined
+      ? false
+      : sources.logic + sources.data + sources.both > 0
 
   return (
     <section className="panel verdict" aria-labelledby="verdict-head">
@@ -239,7 +252,7 @@ function Verdict({ runId, summary }: { runId: string; summary: Summary }) {
         </StripItem>
 
         {/* Источник смен: логика / данные. Без by_source (старый бэк) карточку не показываем. */}
-        {extras.sources !== null && extras.sources !== undefined && (
+        {showSources && extras.sources && (
           <StripItem label="Источник смены решения" hint="заявки со сменой решения">
             <span className="num">
               логика {formatNumber(extras.sources.logic)} · данные {formatNumber(extras.sources.data)}
@@ -259,7 +272,7 @@ function Verdict({ runId, summary }: { runId: string; summary: Summary }) {
             hint={
               extras.checksCount === null
                 ? 'строки результатов проверок'
-                : `строки результатов ${formatNumber(extras.checksCount)} ${checksWord(extras.checksCount)}`
+                : `строки результатов ${formatNumber(extras.checksCount)} ${plural(extras.checksCount, 'проверки', 'проверок', 'проверок')}`
             }
           >
             <Link className="strip__link num" to={{ pathname: '../checks', search: '?result=FAIL' }}>

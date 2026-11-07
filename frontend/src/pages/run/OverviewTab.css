@@ -209,6 +209,6 @@
 
 /* Подпись про единицу счёта у топа причин: стоит над блоком причин */
 .overview__unit-note {
-  margin: calc(var(--s-4) * -1) 0 0;
+  margin: 0;
   font-size: var(--fs-caption);
 }
