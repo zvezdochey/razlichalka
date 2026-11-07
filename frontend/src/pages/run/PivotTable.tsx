@@ -1,10 +1,14 @@
 import type { FactsResponse, FactsRow, FactValue } from '../../api'
+import { useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { DASH, formatNumber } from '../../lib/format'
-import { factLabel, isOneGroupLayout, PIVOT_FIELDS } from './pivotLayout'
+import { compareFactValues, factLabel, groupLabel, isOneGroupLayout, PIVOT_FIELD_HINTS, PIVOT_FIELDS } from './pivotLayout'
 import type { PivotField, PivotLayout } from './pivotLayout'
 
-export type PivotGroup = { ref: string; label: string }
+export type PivotGroup = { ref: string; label: string; cellCount?: number; measure?: 'counts' | 'counts_distinct_apps' }
+
+const AVAILABLE_OFFERS_PATH = 'decisionResult.available_offers'
+const AVAILABLE_OFFERS_HINT = 'Пустой список офферов считается отдельным атрибутом: если офферы пропали, список «появился» (стал пустым); если появились — «исчез»'
 
 type PivotTableProps = {
   layout: PivotLayout
@@ -51,7 +55,7 @@ function PathText({ path }: { path: string }) {
 }
 
 export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTableProps) {
-  const { rows, columns, total } = makeMatrix(data.rows, layout.rows, layout.column)
+  const { rows, columns, total } = useMemo(() => makeMatrix(data.rows, layout.rows, layout.column), [data.rows, layout.rows, layout.column])
   const location = useLocation()
   const navigate = useNavigate()
   const rowPage: number = location.state?.pivotRowPage ?? 0
@@ -59,8 +63,17 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
   const setPage = (key: 'pivotRowPage' | 'pivotColumnPage', value: number) => navigate(location.pathname + location.search, {
     replace: true, preventScrollReset: true, state: { ...location.state, [key]: value },
   })
-  const visibleRows = [...rows].slice(rowPage * ROW_PAGE_SIZE, (rowPage + 1) * ROW_PAGE_SIZE)
-  const visibleColumns = [...columns].slice(columnPage * COLUMN_PAGE_SIZE, (columnPage + 1) * COLUMN_PAGE_SIZE)
+  // Порядок значений: решения и типы изменения — по фиксированному порядку, массив — по убыванию числа.
+  const sortedRows = useMemo(
+    () => [...rows].sort(([, a], [, b]) => compareFactValues(layout.rows, a.values, b.values) || (layout.rows.includes('ARRAY_KEY_1') ? b.total - a.total : 0)),
+    [rows, layout.rows],
+  )
+  const sortedColumns = useMemo(() => [...columns].sort(([, a], [, b]) => {
+    if (layout.column === null) return 0
+    return compareFactValues([layout.column], [a.value], [b.value]) || (layout.column === 'ARRAY_KEY_1' ? b.total - a.total : 0)
+  }), [columns, layout.column])
+  const visibleRows = sortedRows.slice(rowPage * ROW_PAGE_SIZE, (rowPage + 1) * ROW_PAGE_SIZE)
+  const visibleColumns = sortedColumns.slice(columnPage * COLUMN_PAGE_SIZE, (columnPage + 1) * COLUMN_PAGE_SIZE)
   // Итоги суммируем, если показатель — строки витрины или заявка попадает ровно в одну группу.
   const additive = layout.measure === 'counts' || isOneGroupLayout([...layout.rows, layout.column])
   const truncated = data.total_groups > data.rows.length
@@ -93,15 +106,33 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
         <table className="table pivot-table">
           <caption className="visually-hidden">Сводная таблица. Показатель — {metric}</caption>
           <thead>
-            <tr>
-              {layout.rows.map((field) => <th key={field} scope="col">{PIVOT_FIELDS[field]}</th>)}
-              {visibleColumns.map(([key, column]) => (
-                <th key={key} scope="col" className="num">
-                  {layout.column === null ? metric : factLabel(layout.column, column.value)}
-                </th>
-              ))}
-              {layout.column !== null && <th scope="col" className="num">{totalLabel}</th>}
-            </tr>
+            {layout.column === null ? (
+              <tr>
+                {layout.rows.map((field) => <th key={field} scope="col" title={PIVOT_FIELD_HINTS[field]}>{PIVOT_FIELDS[field]}</th>)}
+                <th scope="col" className="num">{metric}</th>
+              </tr>
+            ) : (
+              <>
+                <tr>
+                  {layout.rows.map((field, index) => (
+                    <th key={field} scope="col" rowSpan={2} title={PIVOT_FIELD_HINTS[field]}>
+                      {index === layout.rows.length - 1
+                        ? `${PIVOT_FIELDS[field]} ↓ / ${PIVOT_FIELDS[layout.column as PivotField]} →`
+                        : PIVOT_FIELDS[field]}
+                    </th>
+                  ))}
+                  <th scope="colgroup" colSpan={visibleColumns.length} className="num pivot-col-group" title={PIVOT_FIELD_HINTS[layout.column]}>
+                    {PIVOT_FIELDS[layout.column]}
+                  </th>
+                  {additive && <th scope="col" rowSpan={2} className="num">{totalLabel}</th>}
+                </tr>
+                <tr>
+                  {visibleColumns.map(([key, column]) => (
+                    <th key={key} scope="col" className="num">{factLabel(layout.column as PivotField, column.value)}</th>
+                  ))}
+                </tr>
+              </>
+            )}
           </thead>
           <tbody>
             {visibleRows.map(([rowKey, row]) => {
@@ -109,15 +140,16 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
               return (
                 <tr key={rowKey}>
                   {layout.rows.map((field, index) => (
-                    <th key={field} scope="row" className={field === 'PATH' ? 'mono' : undefined} title={rowLabels[index]}>
+                    <th key={field} scope="row" className={field === 'PATH' ? 'mono' : undefined}
+                      title={field === 'PATH' && row.values[index] === AVAILABLE_OFFERS_PATH ? `${rowLabels[index]}. ${AVAILABLE_OFFERS_HINT}` : rowLabels[index]}>
                       {field === 'PATH' ? <PathText path={rowLabels[index]} /> : rowLabels[index]}
                     </th>
                   ))}
                   {visibleColumns.map(([key, column]) => {
                     const cell = row.cells.get(key)
                     const label = layout.column === null
-                      ? rowLabels.join(' · ')
-                      : [...rowLabels, factLabel(layout.column, column.value)].join(' · ')
+                      ? groupLabel(layout.rows, row.values)
+                      : groupLabel([...layout.rows, layout.column], [...row.values, column.value])
                     return (
                       <td key={key} className="num">
                         {cell ? (
@@ -126,7 +158,7 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
                             type="button"
                             data-fact-ref={cell.app_ids_ref}
                             aria-label={`Заявки группы ${label}, ${metric.toLowerCase()}: ${formatNumber(cell.counts)}`}
-                            onClick={(event) => onOpenGroup({ ref: cell.app_ids_ref, label }, event.currentTarget)}
+                            onClick={(event) => onOpenGroup({ ref: cell.app_ids_ref, label, cellCount: cell.counts, measure: layout.measure }, event.currentTarget)}
                           >
                             {formatNumber(cell.counts)}
                           </button>
@@ -134,23 +166,25 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
                       </td>
                     )
                   })}
-                  {layout.column !== null && <td className="num">{additive ? formatNumber(row.total) : DASH}</td>}
+                  {layout.column !== null && additive && <td className="num">{formatNumber(row.total)}</td>}
                 </tr>
               )
             })}
           </tbody>
-          <tfoot>
-            <tr>
-              <th scope="row" colSpan={layout.rows.length}>{totalLabel}</th>
-              {visibleColumns.map(([key, column]) => (
-                <td key={key} className="num">{additive ? formatNumber(column.total) : DASH}</td>
-              ))}
-              {layout.column !== null && <td className="num">{additive ? formatNumber(total) : DASH}</td>}
-            </tr>
-          </tfoot>
+          {additive && (
+            <tfoot>
+              <tr>
+                <th scope="row" colSpan={layout.rows.length}>{totalLabel}</th>
+                {visibleColumns.map(([key, column]) => (
+                  <td key={key} className="num">{formatNumber(column.total)}</td>
+                ))}
+                {layout.column !== null && <td className="num">{formatNumber(total)}</td>}
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
-      {!additive && <p className="pivot-note muted">Итого по заявкам не показываем: одна заявка может попасть в несколько групп.</p>}
+      {!additive && <p className="pivot-note muted">Итого по заявкам не показываем: одна заявка может попасть в несколько ячеек, и сумма посчитала бы её дважды.</p>}
     </>
   )
 }

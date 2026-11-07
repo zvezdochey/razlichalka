@@ -132,7 +132,7 @@ export function ConfigurationsPage() {
                       </Link>
                       <button
                         type="button"
-                        className="btn btn--danger"
+                        className="btn btn--text"
                         disabled={busyId !== null}
                         onClick={() => void handleDelete(config)}
                       >

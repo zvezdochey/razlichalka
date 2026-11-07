@@ -14,6 +14,7 @@ const PAGE_SIZE = 20
 /** Что показываем в колонках «Сменили решение» и «FAIL»; `null` — ещё грузится, `'error'` — не вышло. */
 type RowInfo = { changed: number; fail: number | null } | { reason: string } | 'error'
 
+const ERROR_TEXT = 'Прогон не завершён — запустите повторно'
 const INTERRUPTED_TEXT = 'Прерван перезапуском сервера — запустите повторно'
 
 /** Грузит итоги для строк: ready — из summary, error — причину из статуса. Не больше MAX_PARALLEL запросов сразу. */
@@ -139,12 +140,13 @@ export function RunsListPage() {
                 const interrupted = typeof row === 'object' && 'reason' in row
                 const loaded = typeof row === 'object' && 'changed' in row
                 // Для ready ждём ответ — «…», при ошибке — «—». Для остальных статусов итогов нет.
-                const placeholder = run.status === 'ready' && row === undefined ? '…' : '—'
+                const loading = run.status === 'ready' && row === undefined
+                const placeholder = loading ? '…' : '—'
                 return (
                 <tr
                   key={run.id}
                   className={index === 0 ? 'runs-table__row runs-table__row--latest' : 'runs-table__row'}
-                  title={interrupted ? row.reason : undefined}
+                  title={interrupted ? row.reason : run.status === 'error' ? ERROR_TEXT : undefined}
                   onClick={() => navigate(`/runs/${encodeURIComponent(run.id)}`)}
                 >
                   <td>

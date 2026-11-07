@@ -1,4 +1,5 @@
 import type { Dataset, UploadResponse } from '../../api'
+import { uploadTimeFromId } from '../../lib/format'
 import { IgnorePathsField } from './IgnorePathsField'
 import { UploadDataset } from './UploadDataset'
 
@@ -22,6 +23,16 @@ type DataSectionProps = {
   onReload: () => void
   ignorePaths: string[]
   onIgnorePathsChange: (paths: string[]) => void
+}
+
+/** Подпись датасета: загруженные — по времени из id, остальные — по id как есть. */
+function datasetLabel(dataset: Dataset): string {
+  const time = uploadTimeFromId(dataset.id)
+  const count = `${dataset.applications.toLocaleString('ru-RU')} ${applicationsWord(dataset.applications)}`
+  const sources = `${dataset.sources.BEFORE} → ${dataset.sources.AFTER}`
+  return time === null
+    ? `${dataset.id} — ${count}, ${sources}`
+    : `Загруженный ${time} (время сервера) — ${count}, ${sources}`
 }
 
 /** Секция «Данные» — единственная, которая в MVP работает. */
@@ -68,7 +79,7 @@ export function DataSection({
           <option value="">Выберите датасет</option>
           {datasets.map((dataset) => (
             <option key={dataset.id} value={dataset.id}>
-              {dataset.id} — {dataset.applications.toLocaleString('ru-RU')} {applicationsWord(dataset.applications)},{dataset.sources.BEFORE} → {dataset.sources.AFTER}
+              {datasetLabel(dataset)}
             </option>
           ))}
         </select>

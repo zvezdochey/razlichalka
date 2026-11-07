@@ -436,6 +436,7 @@ export function NewRunPage() {
         <button type="submit" className="btn btn--primary" disabled={!canSubmit}>
           {willReuseConfig ? 'Запустить ещё раз' : 'Запустить'}
         </button>
+        {datasetId === '' && !busy && <span className="muted">Выберите датасет</span>}
       </div>
 
       <p className="muted new-run__hint">

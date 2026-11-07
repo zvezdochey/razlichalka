@@ -341,10 +341,10 @@ export function ProceduresPage() {
           )}
           {draft === null && busy !== 'loading' && loadError === null && (
             <EmptyState
-              title="Выберите процедуру слева"
+              title="Выберите процедуру в списке"
               hint="Встроенные открываются на чтение. Свою проверку можно написать с шаблона."
               action={
-                <button type="button" className="btn btn--primary" onClick={() => open({ new: 'check' })}>
+                <button type="button" className="btn" onClick={() => open({ new: 'check' })}>
                   Новая проверка
                 </button>
               }
@@ -451,37 +451,43 @@ function Workspace({
           </div>
         )}
 
-        <fieldset className="proc__source" disabled={readOnly || locked}>
-          <legend className="overline">Источник кода</legend>
-          <label>
-            <input
-              type="radio"
-              name="proc-source"
-              checked={draft.source === 'inline'}
-              onChange={() => onEdit({ source: 'inline' })}
-            />
-            Рабочая область
-          </label>
-          <label>
-            <input
-              type="radio"
-              name="proc-source"
-              checked={draft.source === 'file'}
-              onChange={() => onEdit({ source: 'file' })}
-            />
-            Файл на сервере
-          </label>
-          {draft.source === 'file' && (
-            <input
-              className="input mono proc__path"
-              aria-label="Путь к файлу на сервере"
-              placeholder="checks/check_my.py"
-              value={draft.path}
-              readOnly={readOnly}
-              onChange={(event) => onEdit({ path: event.target.value })}
-            />
-          )}
-        </fieldset>
+        {readOnly ? (
+          <p className="muted proc__hint">
+            Встроенная, только чтение
+            {draft.source === 'file' && <>. Файл на сервере: <code>{draft.path}</code></>}
+          </p>
+        ) : (
+          <fieldset className="proc__source" disabled={locked}>
+            <legend className="overline">Источник кода</legend>
+            <label>
+              <input
+                type="radio"
+                name="proc-source"
+                checked={draft.source === 'inline'}
+                onChange={() => onEdit({ source: 'inline' })}
+              />
+              Рабочая область
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="proc-source"
+                checked={draft.source === 'file'}
+                onChange={() => onEdit({ source: 'file' })}
+              />
+              Файл на сервере
+            </label>
+            {draft.source === 'file' && (
+              <input
+                className="input mono proc__path"
+                aria-label="Путь к файлу на сервере"
+                placeholder="checks/check_my.py"
+                value={draft.path}
+                onChange={(event) => onEdit({ path: event.target.value })}
+              />
+            )}
+          </fieldset>
+        )}
 
         {draft.source === 'file' && !readOnly && (
           <p className="faint proc__hint">

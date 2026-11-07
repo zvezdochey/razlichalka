@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { deleteConfig, getConfig, isAbortError, listConfigs } from '../../api'
 import type { Config, ConfigDetail } from '../../api'
+import { formatShortDateTime } from '../../lib/format'
 
 type SavedConfigsProps = {
   /** Меняется после сохранения или обновления — список перечитывается. */
@@ -79,7 +80,7 @@ export function SavedConfigs({ refreshKey, activeId, onDeleted, onLoad }: SavedC
           <option value="">Выберите конфигурацию</option>
           {configs.map((config) => (
             <option key={config.id} value={config.id}>
-              {config.name}
+              {config.name} · {config.dataset} · обновлена {formatShortDateTime(config.updated_at)}
             </option>
           ))}
         </select>

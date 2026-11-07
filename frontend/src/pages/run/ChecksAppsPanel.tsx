@@ -4,7 +4,7 @@ import type { CheckRow, FactAppsResponse } from '../../api'
 import { getFactApps, isAbortError } from '../../api'
 import { EmptyState, ErrorBox, Spinner } from '../../components'
 import { formatNumber } from '../../lib/format'
-import { countOf, examplesLabel } from './checksRows'
+import { countOf, displayArgument, examplesLabel } from './checksRows'
 
 const PAGE_SIZE = 50
 
@@ -77,6 +77,8 @@ export function ChecksAppsPanel({ runId, row, appsRef, onClose }: ChecksAppsPane
   // говорим об этом прямо, а не обещаем полный список (DESIGN.md п. 9).
   const limited = data !== null && count !== null && data.total < count
 
+  const argument = displayArgument(row)
+
   return (
     <aside className="panel checks-apps" aria-labelledby="checks-apps-title">
       <div className="checks-apps-head">
@@ -95,7 +97,7 @@ export function ChecksAppsPanel({ runId, row, appsRef, onClose }: ChecksAppsPane
       </div>
       <p className="checks-apps-label muted">
         {row.check_name}
-        {row.argument !== null && ` · ${row.argument}`}
+        {argument !== null && ` · ${argument}`}
       </p>
 
       {state.status === 'loading' && <Spinner label="Загружаем заявки" />}

@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
-export type FactGroupState = { ref: string; label: string; key?: string }
+export type FactGroupState = { ref: string; label: string; key?: string; cellCount?: number; measure?: 'counts' | 'counts_distinct_apps' }
 type GroupHistory = { factGroup?: FactGroupState | null; factGroupPage?: number }
 
 /** Список группы принадлежит записи истории, поэтому сохраняется при возврате из заявки. */

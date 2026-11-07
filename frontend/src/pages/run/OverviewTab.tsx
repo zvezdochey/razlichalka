@@ -74,7 +74,7 @@ function OverviewBody({ runId }: { runId: string }) {
         <DecisionTransitions summary={summary} />
         <AttributeBars summary={summary} />
       </div>
-      <ReasonsBlock key={`reasons-${runId}`} runId={runId} />
+      <ReasonsBlock key={`reasons-${runId}`} runId={runId} rejectedCount={summary.decision_changes.approve_to_reject} />
       <AiReviewBlock key={`ai-${runId}`} runId={runId} />
     </div>
   )
@@ -120,11 +120,13 @@ type Extras = {
   checksCount: number | null
   /** Сколько из них хотя бы с одним FAIL. */
   checksFailed: number | null
+  /** Всего строк результатов проверок. `null` — не получили. */
+  checksRows: number | null
 }
 
 /** Источник смен берём из ручки причин, число проверок — из фактических результатов прогона (не из текущей конфигурации: её могли изменить после запуска). Ошибка не ломает обзор: просто прочерк. */
 function useExtras(runId: string): Extras {
-  const [extras, setExtras] = useState<Extras>({ sources: null, checksCount: null, checksFailed: null })
+  const [extras, setExtras] = useState<Extras>({ sources: null, checksCount: null, checksFailed: null, checksRows: null })
 
   useEffect(() => {
     const controller = new AbortController()
@@ -142,6 +144,7 @@ function useExtras(runId: string): Extras {
           checks.status === 'fulfilled' && checks.value.total <= checks.value.rows.length
             ? new Set(checks.value.rows.map((row) => row.check_id ?? row.check_name)).size
             : null,
+        checksRows: checks.status === 'fulfilled' ? checks.value.total : null,
         checksFailed:
           checks.status === 'fulfilled' && checks.value.total <= checks.value.rows.length
             ? new Set(checks.value.rows.filter((row) => row.result === 'FAIL').map((row) => row.check_id ?? row.check_name)).size
@@ -252,11 +255,17 @@ function Verdict({ runId, summary }: { runId: string; summary: Summary }) {
 
         {/* Источник смен: логика / данные. Без by_source (старый бэк) карточку не показываем. */}
         {showSources && extras.sources && (
-          <StripItem label="Источник смены решения" hint="заявки со сменой решения">
+          <StripItem
+            label="из-за логики / из-за входных данных"
+            hint="заявки со сменой решения"
+            title="Логика — изменились правила или модель; входные данные — у заявки другие данные или ответ внешнего источника"
+          >
             <span className="num">
-              из-за логики {formatNumber(extras.sources.logic)} · из-за входных данных {formatNumber(extras.sources.data)}
-              {extras.sources.both > 0 && <> (вместе {formatNumber(extras.sources.logic + extras.sources.data + extras.sources.both)})</>}
+              {formatNumber(extras.sources.logic)} / {formatNumber(extras.sources.data)}
             </span>
+            {extras.sources.both > 0 && (
+              <span className="muted"> · из-за логики и данных {formatNumber(extras.sources.both)}</span>
+            )}
           </StripItem>
         )}
 
@@ -267,8 +276,12 @@ function Verdict({ runId, summary }: { runId: string; summary: Summary }) {
           </StripItem>
         ) : (
           <StripItem
-            label="Проверки не пройдены"
-            hint={`${formatNumber(summary.checks_fail)} ${plural(summary.checks_fail, 'строка', 'строки', 'строк')} результатов`}
+            label="проверок не пройдено"
+            hint={
+              extras.checksRows === null
+                ? `${formatNumber(summary.checks_fail)} ${plural(summary.checks_fail, 'строка', 'строки', 'строк')} результатов`
+                : `${formatNumber(summary.checks_fail)} из ${formatNumber(extras.checksRows)} строк результатов не пройдены`
+            }
           >
             <Link className="strip__link num" to={{ pathname: '../checks', search: '?result=FAIL' }}>
               {extras.checksCount === null || extras.checksFailed === null
@@ -289,12 +302,13 @@ function Big({ value }: { value: number }) {
 type StripItemProps = {
   label: string
   hint: string
+  title?: string
   children: ReactNode
 }
 
-function StripItem({ label, hint, children }: StripItemProps) {
+function StripItem({ label, hint, title, children }: StripItemProps) {
   return (
-    <div className="strip__item">
+    <div className="strip__item" title={title}>
       <dt className="strip__label">{label}</dt>
       <dd className="strip__value">{children}</dd>
       <dd className="strip__hint">{hint}</dd>

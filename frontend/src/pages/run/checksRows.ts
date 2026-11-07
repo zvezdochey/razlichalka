@@ -106,19 +106,52 @@ export function plural(n: number, forms: [string, string, string]): string {
   return forms[2]
 }
 
-const APPS: [string, string, string] = ['заявку', 'заявки', 'заявок']
-
 /** «20 из 130» — когда проверка сохранила не все заявки, иначе просто число. */
 export function examplesLabel(shown: number, count: number | null): string {
   if (count === null || shown >= count) return formatNumber(shown)
   return `${formatNumber(shown)} из ${formatNumber(count)}`
 }
 
-/** Текст ссылки в колонке «Заявки»: «Показать 130 заявок» или «Показать 20 из 130 заявок». */
+/** Текст ссылки в колонке «Заявки»: «Все 130» или «Примеры: 20 из 130». */
 export function appsLinkLabel(shown: number | undefined, count: number | null): string {
-  if (shown === undefined) return count === null ? 'Показать заявки' : `Показать ${formatNumber(count)} ${plural(count, APPS)}`
-  if (count === null || shown >= count) return `Показать ${formatNumber(shown)} ${plural(shown, APPS)}`
-  return `Показать ${formatNumber(shown)} из ${formatNumber(count)} заявок`
+  if (shown === undefined) return count === null ? 'Показать заявки' : `Заявки: ${formatNumber(count)}`
+  if (count === null || shown >= count) return `Все ${formatNumber(shown)}`
+  return `Примеры: ${formatNumber(shown)} из ${formatNumber(count)}`
+}
+
+/** Проверка падения доли одобрений по продукту: её метрика — относительное падение, а не доля CNT / TOTAL. */
+export const AR_DROP_CHECK = 'builtin_ar_drop_by_product'
+
+export function isArDrop(row: CheckRow): boolean {
+  return row.check_id === AR_DROP_CHECK
+}
+
+/** «Что проверяли» для человека: стрелки и «!=» словами, у падения доли — «Продукт 12412». Только отображение. */
+export function displayArgument(row: CheckRow): string | null {
+  if (row.argument === null) return null
+  if (isArDrop(row) && /^\d+$/.test(row.argument)) return `Продукт ${row.argument}`
+  return row.argument.replaceAll(' -> ', ' → ').replaceAll(' != ', ' не совпадает с ')
+}
+
+/**
+ * Номера вариантов для строк с одинаковыми (проверка, версия, аргумент, числа, метрика).
+ * Бэк отдаёт их как два случая под одним названием, но с разными заявками, поэтому не склеиваем.
+ * Строки без дублей в карту не попадают.
+ */
+export function variantsOf(rows: CheckRow[]): Map<CheckRow, number> {
+  const key = (r: CheckRow) => JSON.stringify([r.check_id, r.check_name, r.source, r.argument, r.numbers, r.metric])
+  const counts = new Map<string, number>()
+  for (const row of rows) counts.set(key(row), (counts.get(key(row)) ?? 0) + 1)
+  const seen = new Map<string, number>()
+  const result = new Map<CheckRow, number>()
+  for (const row of rows) {
+    const k = key(row)
+    if ((counts.get(k) ?? 0) < 2) continue
+    const n = (seen.get(k) ?? 0) + 1
+    seen.set(k, n)
+    result.set(row, n)
+  }
+  return result
 }
 
 /** Версия данных простыми словами: AFTER → «после (новая)». Незнакомое значение оставляем как есть. */

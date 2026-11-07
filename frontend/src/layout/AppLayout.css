@@ -27,8 +27,8 @@
   color: #cfcfca;
   /* Кнопка выглядит как текст в шапке: подчёркивание по наведению подсказывает, что она жмётся */
   background: transparent;
-  border: 0;
-  padding: 2px var(--s-1);
+  border: 1px solid #5c5c58;
+  padding: 2px var(--s-2);
   border-radius: var(--r-control);
   cursor: pointer;
 }
@@ -52,6 +52,10 @@
 
 .app__user-hint {
   font-size: var(--fs-caption);
+  color: #cfcfca;
+}
+
+.app__user-hint--error {
   color: #ffd2cc;
 }
 

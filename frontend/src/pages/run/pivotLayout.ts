@@ -5,7 +5,7 @@ import type { FactsMeasure, FactValue } from '../../api'
 export const PIVOT_FIELDS = {
   PATH: 'Атрибут',
   CHANGE_TYPE: 'Тип изменения',
-  ARRAY_KEY_1: 'Элемент массива (продукт / оффер / модель)',
+  ARRAY_KEY_1: 'Элемент массива',
   DECISION_CHANGED: 'Решение изменилось',
   DECISION_BEFORE: 'Решение до',
   DECISION_AFTER: 'Решение после',
@@ -20,8 +20,16 @@ export const PIVOT_FIELDS = {
 export type PivotField = keyof typeof PIVOT_FIELDS
 type PivotAxes = { rows: PivotField[]; column: PivotField | null; measure: FactsMeasure }
 
+/** Пояснение к названию поля — показываем в title. */
+export const PIVOT_FIELD_HINTS: Partial<Record<PivotField, string>> = {
+  ARRAY_KEY_1: 'Элемент массива: продукт, оффер или модель',
+}
+
 /** Поля, у которых одна заявка попадает ровно в одну группу — по ним итоги можно суммировать. */
-const ONE_GROUP_FIELDS: PivotField[] = ['DECISION_BEFORE', 'DECISION_AFTER', 'DECISION_CHANGED', 'CHANGE_SOURCE']
+const ONE_GROUP_FIELDS: PivotField[] = ['DECISION_BEFORE', 'DECISION_AFTER', 'DECISION_CHANGED', 'CHANGE_SOURCE',
+  // Поля разреза: в витрине segments одна строка на заявку (backend/pipeline), поэтому она попадает ровно в одну ячейку.
+  'PD_MODEL_BEFORE', 'PD_MODEL_AFTER', 'PARTNER_TYPE', 'ROUTING_METHOD',
+]
 
 export function isOneGroupLayout(fields: (PivotField | null)[]): boolean {
   return fields.every((field) => field === null || ONE_GROUP_FIELDS.includes(field))
@@ -56,10 +64,10 @@ export function isPivotField(value: string): value is PivotField {
 /** Человеческая подпись элемента массива. Тип угадываем по виду ключа; не уверены — оставляем как есть. */
 function arrayKeyLabel(value: FactValue): string {
   const key = value === null ? '' : String(value).trim()
-  if (key === '' || key.toLowerCase() === 'none') return 'Не относится к массиву'
-  if (/^\d+$/.test(key)) return `${key} — продукт`
+  if (key === '' || key.toLowerCase() === 'none') return NOT_ARRAY_LABEL
+  if (/^\d+$/.test(key)) return `Продукт ${key}`
   const offer = /^(\d+):(.+)$/.exec(key)
-  if (offer) return `${offer[1]} · оффер ${offer[2]}`
+  if (offer) return `Оффер ${offer[2]}, продукт ${offer[1]}`
   if (/^ML_.+_V\d+$/i.test(key)) return `модель ${key}`
   if (/^score_/i.test(key)) return `внешний источник ${key}`
   return key
@@ -72,6 +80,52 @@ export function factLabel(field: PivotField, value: FactValue): string {
   const labels = VALUE_LABELS[field]
   const key = String(value)
   return labels && Object.hasOwn(labels, key) ? labels[key] : key
+}
+
+const NOT_ARRAY_LABEL = 'Не относится к массиву'
+
+/** Порядок значений: решения — «Одобрено», «Отказ», прочие; типы изменения — в фиксированном порядке. */
+const CHANGE_TYPE_ORDER = ['VALUE_CHANGED', 'ATTRIBUTE_NEW', 'ATTRIBUTE_LOST']
+
+function valueRank(field: PivotField, value: FactValue): number {
+  if (field === 'DECISION_BEFORE' || field === 'DECISION_AFTER') {
+    const key = value === null ? '' : String(value).trim().toLowerCase()
+    if (key === 'approve') return 0
+    if (key === 'reject') return 1
+    return value === null || value === '' ? 3 : 2
+  }
+  if (field === 'CHANGE_TYPE') {
+    const index = CHANGE_TYPE_ORDER.indexOf(String(value))
+    return index < 0 ? CHANGE_TYPE_ORDER.length : index
+  }
+  if (field === 'ARRAY_KEY_1') return arrayKeyLabel(value) === NOT_ARRAY_LABEL ? 0 : 1
+  return 0
+}
+
+/** Сравнение двух наборов значений полей; 0 — порядок не задан, остаётся как пришёл от бэка. */
+export function compareFactValues(fields: PivotField[], a: FactValue[], b: FactValue[]): number {
+  for (let i = 0; i < fields.length; i++) {
+    const diff = valueRank(fields[i], a[i]) - valueRank(fields[i], b[i])
+    if (diff !== 0) return diff
+  }
+  return 0
+}
+
+/** Заголовок группы для панели «Заявки группы»: решение пишем как «до → после». */
+export function groupLabel(fields: PivotField[], values: FactValue[]): string {
+  const at = (field: PivotField) => fields.indexOf(field)
+  const before = at('DECISION_BEFORE')
+  const after = at('DECISION_AFTER')
+  const parts: string[] = []
+  fields.forEach((field, i) => {
+    if (field === 'DECISION_BEFORE' || field === 'DECISION_AFTER') return
+    parts.push(factLabel(field, values[i]))
+  })
+  const decision = before >= 0 && after >= 0
+    ? `Решение до: ${factLabel('DECISION_BEFORE', values[before])} → после: ${factLabel('DECISION_AFTER', values[after])}`
+    : before >= 0 ? `Решение до: ${factLabel('DECISION_BEFORE', values[before])}`
+    : after >= 0 ? `Решение после: ${factLabel('DECISION_AFTER', values[after])}` : null
+  return (decision ? [decision, ...parts] : parts).join(' · ')
 }
 
 export function readPivotLayout(params: URLSearchParams): PivotLayout {

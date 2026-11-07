@@ -164,3 +164,7 @@
     padding: var(--s-1) 0;
   }
 }
+
+.stage__hint {
+  font-size: var(--fs-caption);
+}

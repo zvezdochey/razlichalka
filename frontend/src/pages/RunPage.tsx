@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { RunStatus } from '../api'
-import { ApiRequestError, cancelRun, downloadReport, getRun, isAbortError, openReport } from '../api'
+import { ApiRequestError, cancelRun, downloadReport, getConfig, getRun, isAbortError, openReport } from '../api'
 import { ErrorBox, Spinner, StatusBadge } from '../components'
 import { usePolling } from '../hooks/usePolling'
 import { DASH, formatDateTime } from '../lib/format'
@@ -33,6 +33,8 @@ export function RunPage() {
   const [cancelling, setCancelling] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [opening, setOpening] = useState(false)
+  // Название конфигурации из списка; не нашлось — в шапке остаётся id.
+  const [configName, setConfigName] = useState<string | null>(null)
 
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -75,6 +77,17 @@ export function RunPage() {
     // eslint-disable-next-line react/set-state-in-effect -- загрузка данных эффектом и есть синхронизация с внешней системой
     void load()
   }, [load])
+
+  const configId = run?.config_id ?? null
+  useEffect(() => {
+    setConfigName(null) // имя прошлого прогона не должно висеть, пока грузится новое
+    if (configId === null) return
+    const controller = new AbortController()
+    getConfig(configId, { signal: controller.signal })
+      .then((config) => setConfigName(config.name))
+      .catch(() => setConfigName(null))
+    return () => controller.abort()
+  }, [configId])
 
   usePolling(load, POLL_INTERVAL_MS, isFinished(run))
 
@@ -150,7 +163,15 @@ export function RunPage() {
             </div>
             <div>
               <dt>Конфигурация</dt>
-              <dd className="mono">{run?.config_id ?? DASH}</dd>
+              <dd>
+                {run === null ? (
+                  DASH
+                ) : configName !== null ? (
+                  <Link to="/configurations">{configName}</Link>
+                ) : (
+                  <span className="mono">{run.config_id}</span>
+                )}
+              </dd>
             </div>
             <div>
               <dt>Запущен</dt>
@@ -174,10 +195,10 @@ export function RunPage() {
           {run?.status === 'ready' && (
             <>
               <button type="button" className="btn" onClick={onOpenReport} disabled={opening}>
-                {opening ? 'Открываем…' : 'Открыть отчёт в новой вкладке'}
+                {opening ? 'Открываем…' : 'Открыть отчёт'}
               </button>
-              <button type="button" className="btn btn--primary" onClick={onDownload} disabled={downloading}>
-                {downloading ? 'Готовим файл…' : 'Скачать HTML'}
+              <button type="button" className="btn" title="Один файл: откроется без приложения" onClick={onDownload} disabled={downloading}>
+                {downloading ? 'Готовим файл…' : 'Скачать отчёт (HTML)'}
               </button>
             </>
           )}
