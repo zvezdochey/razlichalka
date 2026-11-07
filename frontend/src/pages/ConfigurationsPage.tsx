@@ -116,9 +116,11 @@ export function ConfigurationsPage() {
                   <td>{formatDateTime(config.updated_at)}</td>
                   <td>
                     <div className="row-actions">
+                      {/* Обычная кнопка, не красная: основное действие экрана одно — «Новый прогон»
+                          в шапке. Красная кнопка в каждой строке спорила бы с ним за внимание. */}
                       <button
                         type="button"
-                        className="btn btn--primary"
+                        className="btn"
                         disabled={busyId !== null}
                         onClick={() => void handleRun(config)}
                       >
