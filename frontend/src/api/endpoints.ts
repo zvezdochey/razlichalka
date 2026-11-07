@@ -277,6 +277,13 @@ export function updateConfig(
   })
 }
 
+export function deleteConfig(configId: string, options?: Options): Promise<void> {
+  return request<void>(`/configs/${encodeURIComponent(configId)}`, {
+    ...options,
+    method: 'DELETE',
+  })
+}
+
 // ─── 3. Процедуры и проверки ─────────────────────────────────────────────────
 
 /** Без `kind` — все виды разом. */

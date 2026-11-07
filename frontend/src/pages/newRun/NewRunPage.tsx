@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { createConfig, createRun, getDatasets, isAbortError } from '../../api'
-import type { Config, ConfigInput, Dataset, UploadResponse } from '../../api'
+import { createConfig, createRun, getDatasets, isAbortError, updateConfig } from '../../api'
+import type { Config, ConfigDetail, ConfigUpdate, Dataset, UploadResponse } from '../../api'
 import { ErrorBox, Spinner } from '../../components'
 import { DataSection } from './DataSection'
 import { PipelinePreview } from './PipelinePreview'
+import { SavedConfigs } from './SavedConfigs'
 import {
   BUILTIN_AGGREGATE,
   BUILTIN_NORMALIZE,
@@ -82,6 +83,11 @@ export function NewRunPage() {
   const [datasetId, setDatasetId] = useState('')
   const [ignorePaths, setIgnorePaths] = useState<string[]>([])
 
+  /** Загруженная за основу конфигурация: её настройки, которых нет в форме, переносим как есть. */
+  const [base, setBase] = useState<ConfigDetail | null>(null)
+  /** Растёт после каждого сохранения — по нему список сохранённых перечитывается. */
+  const [listVersion, setListVersion] = useState(0)
+
   // ─── Отправка ─────────────────────────────────────────────────────────────
   const [phase, setPhase] = useState<Phase>('idle')
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -132,16 +138,61 @@ export function NewRunPage() {
     setChangedSinceSave(true)
   }
 
-  function buildInput(): ConfigInput {
+  /** Выбрана сохранённая конфигурация: подставляем поля формы. Сохранение создаст новую копию. */
+  function handleLoadConfig(config: ConfigDetail) {
+    // Датасет могли удалить — запуск по такой конфигурации всё равно упал бы на сервере.
+    if (datasets?.some((dataset) => dataset.id === config.dataset) !== true) {
+      setSubmitError(`Датасет конфигурации «${config.name}» больше не доступен — выберите другой.`)
+      return
+    }
+    setBase(config)
+    setName(config.name)
+    setDatasetId(config.dataset)
+    setIgnorePaths(config.ignore_paths)
+    // Пока форму не тронули, «Запустить» берёт эту конфигурацию, а не плодит копию.
+    setSavedConfig(config)
+    setRunNotStarted(false)
+    setSubmitError(null)
+    setChangedSinceSave(false)
+  }
+
+  /** Конфигурацию удалили: форма остаётся как есть, но это снова новая конфигурация. */
+  function handleConfigDeleted(id: string) {
+    setBase(null)
+    if (savedConfig?.id === id) setSavedConfig(null)
+    setChangedSinceSave(true)
+  }
+
+  /** Перезаписывает открытую конфигурацию (`PUT`), а не создаёт копию. */
+  async function handleUpdate() {
+    if (base === null || !canSubmit) return
+    setSubmitError(null)
+    setRunNotStarted(false)
+    setPhase('saving')
+    try {
+      const updated = await updateConfig(base.id, buildInput())
+      setBase(updated)
+      setSavedConfig(updated)
+      setChangedSinceSave(false)
+      setListVersion((v) => v + 1)
+    } catch (error) {
+      if (onPage.current) setSubmitError(errorMessage(error))
+    } finally {
+      setPhase('idle')
+    }
+  }
+
+  function buildInput(): ConfigUpdate {
     return {
       name: name.trim() === '' ? defaultConfigName() : name.trim(),
       dataset: datasetId,
-      normalize: BUILTIN_NORMALIZE,
-      aggregate: BUILTIN_AGGREGATE,
-      checks: [], // проверки в MVP не подключаем
+      normalize: base?.normalize ?? BUILTIN_NORMALIZE,
+      aggregate: base?.aggregate ?? BUILTIN_AGGREGATE,
+      checks: base?.checks ?? [], // в новой конфигурации проверки не подключаем
       ignore_paths: ignorePaths,
-      array_modes: { ...DEFAULT_ARRAY_MODES },
-      buckets: { ...DEFAULT_BUCKETS },
+      array_modes: { ...(base?.array_modes ?? DEFAULT_ARRAY_MODES) },
+      ...(base?.array_rules !== undefined && { array_rules: base.array_rules }),
+      buckets: { ...(base?.buckets ?? DEFAULT_BUCKETS) },
     }
   }
 
@@ -151,9 +202,13 @@ export function NewRunPage() {
    */
   async function ensureConfig(): Promise<Config> {
     if (savedConfig !== null && !changedSinceSave) return savedConfig
-    const config = await createConfig(buildInput())
+    const input = buildInput()
+    const config = await createConfig(input)
+    // Копия становится открытой конфигурацией: «Обновить» и «Удалить» теперь относятся к ней.
+    if (base !== null) setBase({ ...input, id: config.id, updated_at: config.updated_at })
     setSavedConfig(config)
     setChangedSinceSave(false)
+    setListVersion((v) => v + 1)
     return config
   }
 
@@ -238,6 +293,12 @@ export function NewRunPage() {
 
       {/* Пока идут запросы, форму целиком блокирует fieldset — руками поля не отключаем. */}
       <fieldset className="new-run__fields" disabled={busy}>
+        <SavedConfigs
+          refreshKey={listVersion}
+          activeId={base?.id ?? null}
+          onDeleted={handleConfigDeleted}
+          onLoad={handleLoadConfig}
+        />
         <DataSection
           name={name}
           onNameChange={handleNameChange}
@@ -272,8 +333,13 @@ export function NewRunPage() {
           )}
         </div>
 
+        {base !== null && (
+          <button type="button" className="btn" onClick={handleUpdate} disabled={!canSubmit}>
+            Обновить «{base.name}»
+          </button>
+        )}
         <button type="button" className="btn" onClick={handleSave} disabled={!canSubmit}>
-          Сохранить конфигурацию
+          {base !== null ? 'Сохранить как новую' : 'Сохранить конфигурацию'}
         </button>
         <button type="submit" className="btn btn--primary" disabled={!canSubmit}>
           {willReuseConfig ? 'Запустить ещё раз' : 'Запустить'}
