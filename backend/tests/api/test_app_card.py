@@ -1,15 +1,31 @@
 import json
 import shutil
 import time
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event, Lock
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app import pipeline_stub, settings
 from app.main import create_app
+from app.services import app_card, reasons
 
 OWNER = {"X-User": "ann"}
 DATASET = "MINI-0001"
+
+
+def test_card_fields_reuses_map_until_procedure_changes(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "PROCEDURES_DIR", tmp_path)
+    procedure = tmp_path / "builtin_segments.py"
+    procedure.write_text("FIELD_MAP = {'PD_VALUE': 'custom.path'}\n", encoding="utf-8")
+
+    fields = app_card.card_fields()
+    assert fields["PD_VALUE"] == "custom.path"
+    assert app_card.card_fields() is fields
+
+    procedure.write_text("FIELD_MAP = {'PD_VALUE': 'updated.custom.path'}\n", encoding="utf-8")
+    assert app_card.card_fields()["PD_VALUE"] == "updated.custom.path"
 
 
 def product(product_id, decision, *, model=None, pd=None, cutoff=None, reason=None, code=None, rules=()):
@@ -147,6 +163,46 @@ def test_aggregate_counts_products_and_links_unique_apps(client, run):
     for item in (cutoff, rule):
         path = f"{run}/facts/{item['app_ids_ref']}/apps"
         assert client.get(path).json() == {"page": 1, "size": 50, "total": 1, "apps": ["A2"]}
+
+
+def test_concurrent_reasons_requests_read_each_slice_once(client, run, monkeypatch):
+    first_read = Event()
+    second_request = Event()
+    finish_read = Event()
+    lock = Lock()
+    reads = []
+    read_slice = app_card.read_slice
+
+    class ObservedLock:
+        def __enter__(self):
+            if lock.locked():
+                second_request.set()
+            lock.acquire()
+
+        def __exit__(self, *_):
+            lock.release()
+
+    def paused_read(path, fields):
+        reads.append(path.stem)
+        first_read.set()
+        assert finish_read.wait(5)
+        return read_slice(path, fields)
+
+    monkeypatch.setattr(reasons, "_lock", ObservedLock())
+    monkeypatch.setattr(app_card, "read_slice", paused_read)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(client.get, f"{run}/reasons")
+        try:
+            assert first_read.wait(5)
+            second = pool.submit(client.get, f"{run}/reasons")
+            assert second_request.wait(5)
+        finally:
+            finish_read.set()
+        responses = [request.result(timeout=5) for request in (first, second)]
+
+    assert [response.status_code for response in responses] == [200, 200]
+    assert responses[0].json() == responses[1].json()
+    assert reads == ["A2", "A3"]
 
 
 def test_not_found_for_foreign_unknown_or_missing_slice(client, run, dataset):

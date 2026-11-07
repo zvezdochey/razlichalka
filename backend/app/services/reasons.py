@@ -3,10 +3,12 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from threading import Lock
 
 from app.services import app_card, facts, results
 
 SOURCES = {"CUTOFF": "cutoff", "HARDCHECK": "rule"}
+_lock = Lock()
 
 
 @dataclass
@@ -38,8 +40,14 @@ def _reason_text(kind: str, name: str, thresholds: set[float]) -> str:
     return f"Отсечка {name}"
 
 
-@lru_cache(maxsize=8)
 def reasons(run_dir: Path, dataset_dir: Path) -> dict:
+    # Второй запрос проверяет кэш после того, как первый закончит расчёт.
+    with _lock:
+        return _cached_reasons(run_dir, dataset_dir)
+
+
+@lru_cache(maxsize=8)
+def _cached_reasons(run_dir: Path, dataset_dir: Path) -> dict:
     decisions = results.app_decisions(run_dir)
     counts = Counter(decisions.loc[decisions["decision_change"] != "same", "change_source"])
     by_source = {source: counts[source] for source in ("logic", "data", "both")}

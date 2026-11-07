@@ -8,17 +8,36 @@ from app import settings
 from app.errors import ApiError
 from app.services import results
 from pipeline.dataset import list_source_files
-from pipeline.segments import read_field, segment_field_map
+from pipeline.procedures import DEFAULT_DIR
+from pipeline.segments import BUILTIN, read_field, segment_field_map
 from pipeline.summary import decision_change, normalize_decision
 
 
 def card_fields() -> dict:
+    procedures_dir = settings.PROCEDURES_DIR
+    return _card_fields(procedures_dir, _procedure_stamp(DEFAULT_DIR), _procedure_stamp(procedures_dir))
+
+
+def _procedure_stamp(folder: Path) -> tuple[int, int] | None:
+    try:
+        stat = (folder / f"{BUILTIN}.py").stat()
+    except OSError:
+        return None  # Загрузчик процедуры вернёт штатный bad_file.
+    return stat.st_mtime_ns, stat.st_size
+
+
+@lru_cache(maxsize=8)
+def _card_fields(
+    procedures_dir: Path, default_stamp: tuple[int, int] | None, configured_stamp: tuple[int, int] | None,
+) -> dict:
+    # Отпечатки меняют ключ, если встроенную карту обновили на диске.
     defaults = segment_field_map()
-    return {**defaults, **segment_field_map(procedures_dir=settings.PROCEDURES_DIR)}
+    return {**defaults, **segment_field_map(procedures_dir=procedures_dir)}
 
 
 @lru_cache(maxsize=16)
 def source_index(dataset_dir: Path, source: str) -> dict[str, Path]:
+    """Исходные датасеты доступны бэку только на чтение и не меняются в ходе его работы."""
     return {path.stem: path for path in list_source_files(dataset_dir, source)}
 
 
