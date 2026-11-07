@@ -153,11 +153,18 @@
 }
 
 /* Граница между столбцами данных (Значение изменилось / Атрибут исчез / … / Итого).
-   Первая колонка с метками строк и так отделена border-right — вторую не дублируем,
-   а начиная с третьей ставим свою левую границу. */
-.pivot-table th:not(:first-child):not(:nth-child(2)),
-.pivot-table td:not(:first-child):not(:nth-child(2)) {
+   Ставим её ячейке данных, перед которой стоит другая ячейка данных: так не важно,
+   сколько полей в строках и что «Итого» в подвале — одна ячейка с colSpan.
+   Первый столбец данных отделён от меток их border-right — его не дублируем. */
+.pivot-table thead th.num ~ th.num,
+.pivot-table td ~ td {
   border-left: 1px solid var(--border);
+}
+
+/* Каждая колонка меток (их может быть две) отделена справа — и друг от друга, и от данных. */
+.pivot-table thead th:not(.num),
+.pivot-table tbody th {
+  border-right: 1px solid var(--border);
 }
 
 .pivot-table tbody th,

@@ -37,6 +37,9 @@
    число ячеек в строке, но колонка одна и та же. */
 .apps-table thead tr:first-child th:not(:first-child) { border-left: 1px solid var(--border); }
 .apps-table thead tr:last-child th { border-left: 1px solid var(--border); }
+/* Обе строки шапки липкие (base.css: top: 0) — без сдвига «до/после» при прокрутке
+   наезжает на строку групп. Сдвигаем вторую строку на высоту первой. */
+.apps-table thead tr:last-child th { top: var(--row-h); }
 .apps-table tbody td:not(:first-child) { border-left: 1px solid var(--border); }
 .apps-different { background: var(--surface-sunken); font-weight: 500; }
 .apps-sort { border: 0; background: transparent; color: inherit; font: inherit; padding: 6px 0; cursor: pointer; }
