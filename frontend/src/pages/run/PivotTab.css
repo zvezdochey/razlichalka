@@ -60,6 +60,11 @@
   gap: var(--s-2);
 }
 
+/* В сетке кнопка растягивается на всю ширину и выглядит как поле ввода — держим её по размеру текста. */
+.pivot-swap {
+  justify-self: start;
+}
+
 .pivot-axes label:not(.pivot-measure label),
 .pivot-filter-form label {
   display: grid;
