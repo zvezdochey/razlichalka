@@ -5,7 +5,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.errors import ApiError
-from app.services import datasets, results
+from app.services import ai_review, datasets, results
 
 templates = Environment(
     loader=FileSystemLoader(Path(__file__).resolve().parents[1] / "templates"),
@@ -41,4 +41,5 @@ def render(run: dict, run_dir: Path, app_url: str) -> str:
         changed_share=changed_share,
         app_url=app_url,
         sources=sources,
+        ai=ai_review.peek(run_dir),  # только кэш: отчёт не ждёт модель
     )

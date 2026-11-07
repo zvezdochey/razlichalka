@@ -38,6 +38,8 @@
       background: white;
     }
     dt { color: var(--muted); }
+    .ai-text { white-space: pre-line; margin: 0 0 .5rem; }
+    .ai-note { margin: 0; color: var(--muted); font-size: .9rem; }
     dd { margin: 0; }
     .value, .numeric { font-variant-numeric: tabular-nums; }
     .value { font-size: 1.85rem; font-weight: 700; }
@@ -172,6 +174,18 @@
       {% if checks_total > checks|length %}<p class="muted">Показаны первые {{ checks|length }} из {{ checks_total }} строк.</p>{% endif %}
       {% else %}
       <p class="muted">Проверки не подключены</p>
+      {% endif %}
+    </section>
+
+    <section class="card" aria-label="Мнение ИИ">
+      <h2 id="ai-review">Мнение ИИ</h2>
+      {% if ai.status == "ready" %}
+      <p class="ai-text">{{ ai.text }}</p>
+      <p class="ai-note">Второе мнение, не заменяет проверки. Сгенерировано {{ ai.model }}{% if ai.inputs %}, на основе: {{ ai.inputs | join(", ") }}{% endif %}.</p>
+      {% elif ai.status == "pending" %}
+      <p class="ai-note">Мнение ИИ ещё считается — обновите страницу через минуту.</p>
+      {% else %}
+      <p class="ai-note">Мнение ИИ недоступно. Остальной отчёт полный.</p>
       {% endif %}
     </section>
 

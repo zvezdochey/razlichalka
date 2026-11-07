@@ -32,7 +32,7 @@ curl localhost:8000/api/health
 - интерфейс — `http://localhost:3000` (или твой `FRONTEND_PORT`; запросы `/api/...` nginx проксирует на бэк);
 - бэк напрямую — `http://localhost:8000` (или твой `BACKEND_PORT`), Swagger — `/docs`;
 - если проверки не нашлись (`404 Процедура не найдена`), проверь `CHECKS_PATH`: в папке должны лежать `check_*.py` (если их нет, бэк пишет об этом предупреждение в лог: `docker compose logs backend`);
-- Ollama для «Мнения ИИ» (задача G3) запускается на хосте, а не в compose; контейнер видит её по `host.docker.internal`. На Linux Ollama по умолчанию слушает только `127.0.0.1` — запусти её с `OLLAMA_HOST=0.0.0.0`, иначе из контейнера она недоступна.
+- «Мнение ИИ» (задача G3) ходит в Ollama Cloud напрямую, локальная Ollama не нужна. Создай бесплатный ключ на ollama.com/settings/keys и положи в `.env` как `OLLAMA_API_KEY`. Без ключа всё работает, в отчёте блок «Мнение ИИ недоступно».
 
 Остановить: `docker compose down`. Вместе с результатами запусков: `docker compose down -v`.
 

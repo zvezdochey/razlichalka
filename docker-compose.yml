@@ -9,6 +9,12 @@ services:
       DATASETS_DIR: /data
       DATA_DIR: /var/razlichalka
       CHECKS_DIR: /checks
+      # «Мнение ИИ»: облачная Gemma напрямую в ollama.com, ключ — из .env
+      OLLAMA_URL: ${OLLAMA_URL:-https://ollama.com}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:31b}
+      OLLAMA_API_KEY: ${OLLAMA_API_KEY:-}
+      OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-60}
+      OLLAMA_RETRIES: ${OLLAMA_RETRIES:-2}
     volumes:
       # датасет не лежит в Git — подключаем только на чтение
       - ${DATASETS_PATH:-./ПАКЕТ/ЗАДАНИЕ/data}:/data:ro
@@ -16,9 +22,6 @@ services:
       - ${CHECKS_PATH:-./ПАКЕТ/ЗАДАНИЕ/checks}:/checks:ro
       # результаты запусков переживают перезапуск
       - razlichalka_var:/var/razlichalka
-    # на Linux без этого контейнер не видит Ollama, запущенную на хосте
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
   frontend:
