@@ -5,6 +5,7 @@ import { NotFoundPage } from './pages/NotFoundPage'
 import { RunPage } from './pages/RunPage'
 import { RunsListPage } from './pages/RunsListPage'
 import { AppsTab } from './pages/run/AppsTab'
+import { ChecksTab } from './pages/run/ChecksTab'
 import { LogTab } from './pages/run/LogTab'
 import { OverviewTab } from './pages/run/OverviewTab'
 import { PivotTab } from './pages/run/PivotTab'
@@ -25,6 +26,7 @@ export function App() {
           <Route path="overview" element={<OverviewTab />} />
           <Route path="pivot" element={<PivotTab />} />
           <Route path="apps" element={<AppsTab />} />
+          <Route path="checks" element={<ChecksTab />} />
           <Route path="log" element={<LogTab />} />
         </Route>
         <Route path="*" element={<NotFoundPage />} />

@@ -154,9 +154,18 @@ function Verdict({ summary }: { summary: Summary }) {
           </Link>
         </StripItem>
 
-        <StripItem label="Проверки с FAIL" hint="проверки подключатся позже">
-          <span className="num faint">{DASH}</span>
-        </StripItem>
+        {/* checks_fail появляется после этапа checks (api.md п. 7.1); до него — прочерк. */}
+        {summary.checks_fail === undefined ? (
+          <StripItem label="Проверки с FAIL" hint="проверки ещё не считались">
+            <span className="num faint">{DASH}</span>
+          </StripItem>
+        ) : (
+          <StripItem label="Проверки с FAIL" hint="строки проверок с FAIL">
+            <Link className="strip__link num" to={{ pathname: '../checks', search: '?result=FAIL' }}>
+              {formatNumber(summary.checks_fail)}
+            </Link>
+          </StripItem>
+        )}
       </dl>
     </section>
   )

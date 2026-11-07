@@ -165,6 +165,9 @@ export function RunPage() {
         <NavLink to="apps" className="tabs__item">
           Заявки
         </NavLink>
+        <NavLink to="checks" className="tabs__item">
+          Проверки
+        </NavLink>
         <NavLink to="log" className="tabs__item">
           Журнал
         </NavLink>
