@@ -201,6 +201,22 @@ def test_start_during_shutdown_is_interrupted_not_internal(client, monkeypatch):
     assert data["status"] == "error" and data["error"]["code"] == "interrupted"
 
 
+def test_stage_failing_during_shutdown_is_interrupted(client, monkeypatch):
+    # QA №9: при docker compose restart pandas внутри этапа не может запустить свой пул потоков
+    def shutdown(ctx):
+        raise RuntimeError("cannot schedule new futures after interpreter shutdown")
+
+    monkeypatch.setattr(runs, "PIPELINE", [
+        ("normalize", "Приведение ответов", pipeline_stub.stage_normalize),
+        ("compare", "Сравнение срезов", shutdown),
+        ("aggregate", "Факты counts", pipeline_stub.stage_aggregate),
+        ("checks", "Проверки", pipeline_stub.stage_checks),
+    ])
+    _, started = new_run(client)
+    data = wait_for(client, started["id"], {"error"})
+    assert data["error"]["code"] == "interrupted"
+
+
 def test_stage_error(client, monkeypatch):
     def boom(ctx):
         ctx.log("info", "начали")

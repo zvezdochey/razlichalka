@@ -143,8 +143,15 @@ class Ctx:
         return _cancel[self._run["id"]].is_set()
 
 
+def _is_shutdown(exc: BaseException) -> bool:
+    """Сервер останавливается: пулы потоков (наш и внутри pandas) больше не принимают задачи."""
+    return isinstance(exc, RuntimeError) and "interpreter shutdown" in str(exc)
+
+
 def _error_dict(exc: BaseException) -> dict:
     """Ошибка этапа -> {code, message}; PipelineError (S5) уже несёт code/message."""
+    if _is_shutdown(exc):  # этап упал из-за остановки сервера, а не из-за данных
+        return dict(INTERRUPTED_ERROR)
     code = getattr(exc, "code", None)
     if code and hasattr(exc, "message"):
         return {"code": code, "message": exc.message}
@@ -244,7 +251,9 @@ def create(config: dict, user: str) -> dict:
         _save(run)
     try:
         _executor.submit(execute, run)
-    except RuntimeError:  # "cannot schedule new futures after interpreter shutdown": сервер останавливается
+    except RuntimeError as exc:
+        if not _is_shutdown(exc):
+            raise
         _fail(run, None, INTERRUPTED_ERROR)
         _done[rid].set()
     return run
