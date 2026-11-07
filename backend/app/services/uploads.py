@@ -89,10 +89,14 @@ def create_dataset(before: list[tuple[str, bytes]], after: list[tuple[str, bytes
         received[source] = {"applications": len(apps[source]), **formats}
 
     technical = [t.strip() for t in technical_fields or [] if t.strip()]
-    if not technical:
-        technical = detect_technical_fields(apps["BEFORE"], apps["AFTER"])
+    try:
+        if not technical:
+            technical = detect_technical_fields(apps["BEFORE"], apps["AFTER"])
+        bodies = {s: {i: json.dumps(d, ensure_ascii=False, indent=1) for i, d in apps[s].items()} for s in SOURCES}
+    except RecursionError:
+        raise BadFile("в заявках слишком глубокая вложенность") from None
 
-    dataset_id = f"UP-{datetime.now():%Y%m%d-%H%M%S}-{secrets.token_hex(2)}"
+    dataset_id = f"UP-{datetime.now():%Y%m%d-%H%M%S}-{secrets.token_hex(4)}"
     dirs = {s: f"RESULTS/{s}_{re.sub(r'[^\w.-]+', '_', labels[s])}" for s in SOURCES}
     manifest = {
         "run_id": dataset_id,
@@ -105,8 +109,8 @@ def create_dataset(before: list[tuple[str, bytes]], after: list[tuple[str, bytes
     try:
         for source in SOURCES:
             (tmp / dirs[source]).mkdir(parents=True)
-            for app_id, doc in apps[source].items():
-                (tmp / dirs[source] / f"{app_id}.json").write_text(json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
+            for app_id, body in bodies[source].items():
+                (tmp / dirs[source] / f"{app_id}.json").write_text(body, encoding="utf-8")
         (tmp / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         tmp.rename(settings.UPLOADS_DIR / dataset_id)
     except BaseException:

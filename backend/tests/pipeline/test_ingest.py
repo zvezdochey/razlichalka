@@ -55,6 +55,7 @@ def test_csv_long_table_semicolon_comma_and_cp1251():
     doc = one("I2.csv", text.encode())[0]
     assert doc["decisionResult"]["available_offers"] == []
     assert [t["product_id"] for t in doc["decisionResult"]["product_trials"]] == [7, 8]
+    assert one("r.csv", b"path;value\na[0].x;1\na[1].x;2\n")[0]["a"] == [{"x": 1}, {"x": 2}]
     assert one("I2.csv", text.replace(";", ",").encode())[0] == doc
     ru = "путь;значение\nappData.application_id;I3\ndecisionResult.decision;Отказ\n".encode("cp1251")
     assert one("I3.csv", ru)[0]["decisionResult"]["decision"] == "Отказ"
@@ -72,6 +73,8 @@ def test_csv_many_apps_by_application_id_column():
     ("path;value\na.b;1\na.b;2\n", "встречается дважды"),
     ("path;value\na;1\na.b;2\n", "другого вида"),
     ("path;value\n", "нет строк с данными"),
+    ("path;value\na[5].x;1\n", "индексы идут по порядку"),
+    ("path;value\nx;1e999\n", "слишком большое"),
 ])
 def test_csv_errors_name_the_row(text, message):
     with pytest.raises(BadFile, match=message):
@@ -96,3 +99,18 @@ def test_zip_errors():
         list(iter_files("s.zip", b"not a zip"))
     with pytest.raises(BadFile, match="слишком много"):
         list(iter_files("s.zip", make_zip({"a.json": "{" + " " * 100 + "}"}), budget=[10]))
+
+
+def test_hostile_input_gives_bad_file_not_500():
+    with pytest.raises(BadFile):
+        one("x.json", b"[" * 100_000)
+    with pytest.raises(BadFile):
+        one("x.json", b'{"x": NaN}')
+    with pytest.raises(BadFile):
+        one("x.xml", ("<a>" * 5000 + "</a>" * 5000).encode())
+    with pytest.raises(BadFile):
+        one("x.xml", '<!DOCTYPE r [<!ENTITY a "x">]><r><v>&a;</v></r>'.encode("utf-16"))
+    big = one("x.csv", b"path;value\nappData.application_id;I1\nx;" + b"9" * 5000 + b"\n")  # длинное число — просто строка
+    assert big[0]["x"] == "9" * 5000
+    with pytest.raises(BadFile):
+        one("x.json", b'{"appData": {"application_id": "ab\\n"}}')

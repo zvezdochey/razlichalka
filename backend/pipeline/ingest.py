@@ -10,6 +10,7 @@
 import csv
 import io
 import json
+import math
 import re
 import zipfile
 from collections.abc import Iterator
@@ -19,14 +20,16 @@ from .errors import BadFile
 
 EXTENSIONS = (".json", ".xml", ".csv")
 MAX_FILE = 20 * 1024 * 1024       # один файл заявки (в архиве — после распаковки)
-MAX_UNPACKED = 500 * 1024 * 1024  # все распакованные файлы одного запроса
+MAX_UNPACKED = 150 * 1024 * 1024  # все распакованные файлы одного запроса (разобранные заявки в памяти тяжелее в разы)
 MAX_FILES_IN_ZIP = 100_000
 
-_APP_ID = re.compile(r"^[A-Za-z0-9_.-]{1,100}$")
-_INT = re.compile(r"^-?(0|[1-9]\d*)$")
-_FLOAT = re.compile(r"^-?(0|[1-9]\d*)(\.\d+)?([eE][+-]?\d+)?$")
+_APP_ID = re.compile(r"[A-Za-z0-9_.-]{1,100}")
+_INT = re.compile(r"-?(0|[1-9]\d{0,17})")
+_FLOAT = re.compile(r"-?(0|[1-9]\d{0,30})(\.\d{1,30})?([eE][+-]?\d{1,4})?")
+csv.field_size_limit(MAX_FILE)  # по умолчанию поле CSV ограничено 128 КБ
+
 _TOKEN = re.compile(r"([^.\[\]]+)|\[(\d+)\]")
-_PATH = re.compile(r"^(?:[^.\[\]]+)(?:\.[^.\[\]]+|\[\d+\])*$")
+_PATH = re.compile(r"[^.\[\]]+(?:\.[^.\[\]]+|\[\d+\])*")
 
 
 def ext_of(name: str) -> str:
@@ -82,12 +85,12 @@ def split_apps(name: str, ext: str, data: bytes, array_paths: set[str]) -> list[
     """Один файл -> список заявок (обычно одна). У каждой заявки уже есть appData.application_id."""
     if len(data) > MAX_FILE:
         raise BadFile(f"файл {name} больше {MAX_FILE // 1024 // 1024} МБ")
-    if ext == ".json":
-        docs = _json_docs(name, data)
-    elif ext == ".xml":
-        docs = [_xml_doc(name, data, array_paths)]
-    elif ext == ".csv":
-        docs = _csv_docs(name, data)
+    if ext in EXTENSIONS:
+        try:
+            docs = {".json": lambda: _json_docs(name, data), ".xml": lambda: [_xml_doc(name, data, array_paths)],
+                    ".csv": lambda: _csv_docs(name, data)}[ext]()
+        except (RecursionError, ValueError, csv.Error) as e:  # вложенность, огромные числа, слишком длинные поля
+            raise BadFile(f"файл {name} не разобрать: {type(e).__name__} (слишком глубокая вложенность или странные значения)") from None
     else:
         raise BadFile(f"файл {name}: формат {ext or 'без расширения'} не поддерживается (нужны .json, .xml, .csv, .zip)")
     stem = name.rsplit("/", 1)[-1].rsplit(".", 1)[0]
@@ -111,7 +114,7 @@ def _ensure_app_id(name: str, doc: dict, stem: str | None) -> None:
     if isinstance(app_id, (dict, list, bool)):
         raise BadFile(f"файл {name}: appData.application_id должен быть строкой или числом")
     app_id = str(app_id)
-    if not _APP_ID.match(app_id) or not app_id.strip("."):
+    if not _APP_ID.fullmatch(app_id) or not app_id.strip("."):
         raise BadFile(f"файл {name}: недопустимый id заявки {app_id!r} (буквы, цифры, _ - . и не длиннее 100 знаков)")
     app_data["application_id"] = app_id
 
@@ -134,18 +137,25 @@ def typed(text: str):
         return None
     if value in ("true", "false"):
         return value == "true"
-    if _INT.match(value):
+    if _INT.fullmatch(value):
         return int(value)
-    if _FLOAT.match(value):
-        return float(value)
+    if _FLOAT.fullmatch(value):
+        number = float(value)
+        if not math.isfinite(number):
+            raise BadFile(f"число {value[:30]!r} слишком большое")
+        return number
     return value
 
 
 # ─── JSON ────────────────────────────────────────────────────────────────────
 
+def _no_constants(name: str):
+    raise ValueError(f"{name} не допускается в JSON")
+
+
 def _json_docs(name: str, data: bytes) -> list[dict]:
     try:
-        parsed = json.loads(_text(name, data))
+        parsed = json.loads(_text(name, data), parse_constant=_no_constants)
     except ValueError as e:
         raise BadFile(f"файл {name} не разобрать как JSON: {e}") from None
     items = parsed if isinstance(parsed, list) else [parsed]
@@ -157,6 +167,8 @@ def _json_docs(name: str, data: bytes) -> list[dict]:
 # ─── XML ─────────────────────────────────────────────────────────────────────
 
 def _xml_doc(name: str, data: bytes, array_paths: set[str]) -> dict:
+    if b"\x00" in data or data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        raise BadFile(f"файл {name}: XML должен быть в UTF-8 или однобайтовой кодировке (не UTF-16/32)")
     upper = data.upper()
     if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
         raise BadFile(f"файл {name}: DOCTYPE и сущности в XML запрещены")
@@ -256,7 +268,7 @@ def _csv_docs(name: str, data: bytes) -> list[dict]:
 
 def _put(root: dict, path: str, value) -> None:
     """Кладёт значение по пути вида `a.b[0].c` в дерево, создавая объекты и списки."""
-    if not _PATH.match(path):
+    if not _PATH.fullmatch(path):
         raise BadFile(f"путь {path!r} записан неверно (ожидается вид a.b[0].c)")
     tokens = [(m.group(1), m.group(2)) for m in _TOKEN.finditer(path)]
     node: dict | list = root
@@ -277,9 +289,10 @@ def _put(root: dict, path: str, value) -> None:
             if not isinstance(node, list):
                 raise BadFile(f"путь {path!r}: индекс [{index}] у не-массива")
             n = int(index)
-            if n > 100_000:
-                raise BadFile(f"путь {path!r}: слишком большой индекс {n}")
-            node.extend([None] * (n + 1 - len(node)))
+            if n > len(node):  # дыры не нужны, а индекс в миллион раздул бы память
+                raise BadFile(f"путь {path!r}: индексы идут по порядку, перед [{n}] нет [{len(node)}]")
+            if n == len(node):
+                node.append(None)
             if last:
                 if node[n] is not None:
                     raise BadFile(f"путь {path!r} встречается дважды")
