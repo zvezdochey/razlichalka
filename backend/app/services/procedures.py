@@ -10,7 +10,7 @@ from pathlib import Path
 
 from app import settings, store
 from app.errors import ApiError
-from pipeline.checks_runner import validate_check_code
+from pipeline.checks_runner import forbidden_code_problems, validate_check_code
 
 KIND = "procedures"
 KINDS = ("normalize", "aggregate", "check")
@@ -125,10 +125,10 @@ def validate(kind: str, source: str, code: str | None, path: str | None) -> list
     if kind == "check":
         return validate_check_code(text)
     try:
-        ast.parse(text)
+        tree = ast.parse(text)
     except SyntaxError as exc:
         return [{"line": exc.lineno or 1, "message": f"Синтаксическая ошибка: {exc.msg}"}]
-    return []
+    return forbidden_code_problems(tree)
 
 
 def _checked_fields(body: dict) -> dict:

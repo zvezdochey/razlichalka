@@ -154,7 +154,7 @@ def test_load_check_infinite_loop_does_not_hang():
 def test_load_check_runs_only_in_child_without_secrets(monkeypatch):
     # код отработал при загрузке, но не в этом процессе и без секретов окружения
     monkeypatch.setenv("MY_LOAD_SECRET", "abc")
-    code = ("import os\nSECRET = os.environ.get('MY_LOAD_SECRET')\n"
+    code = ("import posix\nSECRET = posix.environ.get(b'MY_LOAD_SECRET')\n"
             "def run(m, p):\n    return []\n"
             "CHECK = {'id': 'a', 'label': str(SECRET), 'params': {}, 'entrypoint': run}")
     assert load_check(code, "code")["label"] == "None"
@@ -162,7 +162,7 @@ def test_load_check_runs_only_in_child_without_secrets(monkeypatch):
 
 def test_load_check_side_effect_not_in_parent(tmp_path):
     marker = tmp_path / "ran.txt"
-    code = (f"import os\nopen({str(marker)!r}, 'w').write(str(os.getpid()))\n"
+    code = (f"import posix, pathlib\npathlib.Path({str(marker)!r}).write_text(str(posix.getpid()))\n"
             "CHECK = {'id': 'a', 'label': 'b', 'params': {}, 'entrypoint': print}")
     load_check(code, "code")
     import os
@@ -258,10 +258,54 @@ def test_hanging_worker_start_waits_only_once(mart, monkeypatch):
 
 def test_user_code_does_not_see_env_secrets(mart, monkeypatch):
     monkeypatch.setenv("MY_SECRET_TOKEN", "abc")
-    spy = load_check('import os\ndef run(m, p):\n'
-                     '    return [{"LABEL": "env", "ARGUMENT": str(os.environ.get("MY_SECRET_TOKEN")), "RESULT": "PASS"}]\n'
+    spy = load_check('import posix\ndef run(m, p):\n'
+                     '    return [{"LABEL": "env", "ARGUMENT": str(posix.environ.get(b"MY_SECRET_TOKEN")), "RESULT": "PASS"}]\n'
                      'CHECK = {"id": "e", "label": "env", "params": {}, "entrypoint": run}', "code")
     assert run_checks(mart, [spy])[0]["ARGUMENT"] == "None"
+
+
+def _check_with_body(body: str) -> str:
+    return ("def run(m, p):\n" + "".join(f"    {line}\n" for line in body.splitlines()) +
+            "CHECK = {'id': 'x', 'label': 'Своя', 'params': {}, 'entrypoint': run}")
+
+
+@pytest.mark.parametrize("code", [
+    "import os\n", "import subprocess\n", "import socket\n", "import shutil\n", "import ctypes\n",
+    "from os import system\n", "import os.path\n", "x = __import__('os')\n",
+    "open('/etc/hostname')\n",
+])
+def test_forbidden_code_is_rejected(code):
+    body = _check_with_body("return []")
+    problems = validate_check_code(code + body)
+    assert problems and problems[0]["line"] == 1
+    with pytest.raises(BadFile):
+        load_check(code + body, "code")
+
+
+def test_forbidden_words_in_strings_and_relative_open_are_fine():
+    code = _check_with_body("return [{'ARGUMENT': 'import os, open(/etc)', 'RESULT': 'PASS'}]")
+    assert validate_check_code(code) == []
+    assert validate_check_code("open('data.txt')\n" + code) == []
+
+
+def test_user_code_cannot_start_processes(mart, tmp_path):
+    # статическая проверка обойдена через posix: должны сработать лимиты ОС (для root NPROC не действует)
+    import os
+    if os.geteuid() == 0:
+        pytest.skip("под root лимит числа процессов не действует")
+    marker = tmp_path / "started.txt"
+    code = _check_with_body(f"import posix\nposix.system('touch {marker}')\nreturn []")
+    run_checks(mart, [load_check(code, "code")])
+    assert not marker.exists()  # процесс не запустился
+    forking = _check_with_body("import posix\nposix.fork()\nreturn []")
+    row = run_checks(mart, [load_check(forking, "code")])[0]
+    assert row["RESULT"] == "FAIL" and "BlockingIOError" in row["ARGUMENT"]
+
+
+def test_user_code_runs_in_temp_dir(mart):
+    code = _check_with_body("import pathlib\nreturn [{'ARGUMENT': str(pathlib.Path.cwd()), 'RESULT': 'PASS'}]")
+    row = run_checks(mart, [load_check(code, "code")])[0]
+    assert "razlichalka_check_" in row["ARGUMENT"]
 
 
 def test_missing_columns_are_filled(mart):
