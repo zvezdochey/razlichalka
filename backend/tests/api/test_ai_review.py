@@ -226,6 +226,13 @@ def test_check_percents_cleans_raw_names_fractions_and_codes():
     assert "19,2 %" in cleaned
 
 
+def test_check_percents_unquotes_copied_input():
+    # живой ответ модели: цитирует подпись поля и берёт процент в кавычки
+    text = 'Решение изменилось у 385 («доля заявок со сменой решения»: "19,2 %"). Логика — ("56,6 %").'
+    shares = dict(SHARES, by_source_share_of_decision_changed={"logic": 0.566})
+    assert ai_review.check_percents(text, shares) == "Решение изменилось у 385 (19,2 %). Логика — (56,6 %)."
+
+
 def test_model_gets_percent_strings_and_russian_labels():
     shown = ai_review.for_model({
         "decision_changed_share": 0.192, "decision_changes": {"approve_to_reject": 273, "same": 5},

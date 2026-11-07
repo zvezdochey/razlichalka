@@ -193,11 +193,17 @@ CODES = re.compile("|".join(sorted(map(re.escape, LABELS), key=len, reverse=True
 TECH_CODES = ("approve_to_reject", "reject_to_approve", "VALUE_CHANGED", "ATTRIBUTE_NEW", "ATTRIBUTE_LOST")
 
 
+# Модель иногда цитирует вход дословно: («доля заявок со сменой решения»: "19,2 %") или ("43,4 %")
+QUOTED_LABEL = re.compile(r"«[^»]*»:\s*\"([^\"]*%)\"")
+QUOTED_PERCENT = re.compile(r"\"(\d+(?:,\d+)?\s*%)\"")
+
+
 def _translate_codes(text: str) -> str:
     """Известные технические коды -> русские подписи (модель иногда их пишет, несмотря на промт)."""
     for code in TECH_CODES:
         text = text.replace(code, LABELS[code])
-    return text
+    text = QUOTED_LABEL.sub(r"\1", text)  # оставляем только сам процент
+    return QUOTED_PERCENT.sub(r"\1", text)
 
 
 def _clean(part: str) -> bool:
