@@ -101,6 +101,8 @@ export function LogTab() {
   const rows = stages === null ? null : orderStages(stages)
   const runError = run?.error ?? null
   const cancelled = isCancelled(runError)
+  // Перезапуск сервера — тоже не авария прогона: показываем спокойно, как остановку.
+  const interrupted = runError?.code === 'interrupted'
 
   const toggle = (stage: Stage) => {
     const isOpen = expanded[stage.name] ?? stage.status === 'error'
@@ -110,15 +112,15 @@ export function LogTab() {
   return (
     <div className="log">
       {/* Отмена — не авария: отдельный нейтральный блок, без красного. */}
-      {cancelled && runError !== null && (
+      {(cancelled || interrupted) && runError !== null && (
         <div className="panel log__stop">
-          <h2>Запуск остановлен</h2>
+          <h2>{interrupted ? 'Прогон прерван' : 'Запуск остановлен'}</h2>
           <p className="muted">{runError.message}</p>
           {run !== null && <RetryRunButton configId={run.config_id} />}
         </div>
       )}
 
-      {runError !== null && !cancelled && (
+      {runError !== null && !cancelled && !interrupted && (
         <div className="panel log__fail" role="alert">
           <h2>Ошибка выполнения</h2>
           <p>{runError.message}</p>
@@ -142,7 +144,7 @@ export function LogTab() {
             const procedureId = stage.code_ref?.procedure_id ?? stage.procedure_id
 
             // Остановленный этап помечаем отдельно: красная кромка — только для падения.
-            const tone = stage.status === 'error' && cancelled ? 'stopped' : stage.status
+            const tone = stage.status === 'error' && (cancelled || interrupted) ? 'stopped' : stage.status
 
             return (
               <li key={stage.name} className={`stage stage--${tone}`}>
@@ -194,7 +196,7 @@ export function LogTab() {
                     >
                       {isOpen ? 'Скрыть журнал' : `Журнал этапа (${stage.log.length})`}
                     </button>
-                    {isOpen && <StageLog entries={stage.log} cancelled={cancelled} />}
+                    {isOpen && <StageLog entries={stage.log} cancelled={cancelled || interrupted} />}
                   </>
                 ) : (
                   <div className="stage__code faint">Записей журнала нет</div>
