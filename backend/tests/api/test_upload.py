@@ -105,3 +105,18 @@ def test_same_labels_are_rejected(client):
     r = client.post("/api/datasets/upload", files=[("before", ("I1.json", "{}", "x")), ("after", ("I1.json", "{}", "x"))],
                     data={"before_label": "X", "after_label": "X"})
     assert r.status_code == 400 and r.json()["error"]["code"] == "bad_request"
+
+
+def test_xml_single_tag_is_list_when_other_side_has_list(client):
+    # appData.tags — список из одного элемента в JSON и одиночный тег в XML: без общего правила срезы не сравнятся
+    before = {"appData": {"application_id": "I1", "tags": ["web"]}, "decisionResult": {"decision": "APPROVE"}}
+    after = ('<response><appData><application_id>I1</application_id><tags>web</tags></appData>'
+             '<decisionResult><decision>APPROVE</decision></decisionResult></response>')
+    r = client.post("/api/datasets/upload", files=[
+        ("before", ("I1.json", json.dumps(before), "application/json")),
+        ("after", ("I1.xml", after, "text/xml")),
+    ])
+    assert r.status_code == 201, r.text
+    folder = next(p for p in settings.UPLOADS_DIR.iterdir())
+    doc = json.loads((folder / "RESULTS/AFTER_AFTER/I1.json").read_text(encoding="utf-8"))
+    assert doc["appData"]["tags"] == ["web"]

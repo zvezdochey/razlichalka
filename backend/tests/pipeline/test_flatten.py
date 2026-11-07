@@ -101,10 +101,20 @@ def test_adjust_applied():
     assert rows[0]["VALUE"] == "0.7" and rows[0]["ADJUSTED_VALUE"] == "high"
 
 
-def test_no_rule_is_error():
-    with pytest.raises(PipelineError) as e:
-        flat({"unknown": [{"x": 1}]})
-    assert e.value.code == "bad_file" and "unknown[]" in e.value.message
+def test_unknown_array_gets_default_rule():
+    # Нет правила ни в процедуре, ни в конфигурации — список объектов идёт по позиции, а не падает
+    rows = flat({"unknown": [{"x": 1}, {"x": 2}]})
+    assert {r["ARRAY_KEY"] for r in rows} == {"0", "1"}
+
+
+def test_unknown_scalar_array_matches_by_value():
+    rows = flat({"extra": ["web", "mobile"]})
+    assert {r["ARRAY_KEY"] for r in rows} == {"web", "mobile"}
+
+
+def test_unknown_scalar_array_with_duplicates_falls_back_to_index():
+    rows = flat({"extra": ["web", "web"]})
+    assert {r["ARRAY_KEY"] for r in rows} == {"0", "1"}
 
 
 def test_duplicate_key_is_error():
@@ -128,3 +138,17 @@ def test_key_with_separator_is_error(bad):
         flat({"trials": [{"product_id": bad, "type": "x"}]})
     with pytest.raises(BadFile):
         flat({"tags": [bad]})
+
+
+def test_soft_builtin_rule_falls_back_when_key_missing():
+    # ext_data[] из встроенной процедуры ждёт body.action; у чужого формата его нет — берём умолчание
+    rows = flatten_response({"ext_data": [{"source": "BKI"}, {"source": "FNS"}]}, "A1", "BEFORE",
+                            {"ext_data[]": {"mode": "key", "key": ["body.action"]}}, soft_paths=["ext_data[]"])
+    assert {r["ARRAY_KEY"] for r in rows} == {"0", "1"}
+
+
+def test_configured_rule_stays_strict_when_key_missing():
+    with pytest.raises(BadFile) as e:
+        flatten_response({"ext_data": [{"source": "BKI"}]}, "A1", "BEFORE",
+                         {"ext_data[]": {"mode": "key", "key": ["body.action"]}})
+    assert "нет поля ключа" in e.value.message

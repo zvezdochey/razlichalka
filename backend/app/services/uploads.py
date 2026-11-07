@@ -68,6 +68,20 @@ def detect_technical_fields(before: dict[str, dict], after: dict[str, dict]) -> 
     return sorted(p for p, n in seen.items() if n == len(pairs) and differ[p] == len(pairs))
 
 
+def _list_paths(node, path: str = "", out: set[str] | None = None) -> set[str]:
+    """Пути всех списков заявки в виде, как их видит разбор: `a.b[]`, а внутри списка — `a[].c[]`."""
+    out = set() if out is None else out
+    if isinstance(node, dict):
+        for key, value in node.items():
+            _list_paths(value, f"{path}.{key}" if path else key, out)
+    elif isinstance(node, list):
+        arr = path + "[]"
+        out.add(arr)
+        for item in node:
+            _list_paths(item, arr, out)
+    return out
+
+
 def _label(raw: str | None, default: str) -> str:
     label = (raw or "").strip() or default
     if len(label) > MAX_LABEL:
@@ -83,12 +97,22 @@ def create_dataset(before: list[tuple[str, bytes]], after: list[tuple[str, bytes
     labels = {"BEFORE": _label(before_label, "BEFORE"), "AFTER": _label(after_label, "AFTER")}
     if labels["BEFORE"] == labels["AFTER"]:
         raise ApiError("bad_request", "Названия срезов «до» и «после» должны различаться")
+    def read_all(array_paths: set[str]):
+        budget = [MAX_UNPACKED]
+        apps, received = {}, {}
+        for source, uploads in zip(SOURCES, (before, after)):
+            apps[source], formats = _read_source(source, uploads, array_paths, budget)
+            received[source] = {"applications": len(apps[source]), **formats}
+        return apps, received
+
     array_paths = set(default_array_rules(settings.PROCEDURES_DIR))
-    budget = [MAX_UNPACKED]
-    apps, received = {}, {}
-    for source, uploads in zip(SOURCES, (before, after)):
-        apps[source], formats = _read_source(source, uploads, array_paths, budget)
-        received[source] = {"applications": len(apps[source]), **formats}
+    apps, received = read_all(array_paths)
+    # В XML одиночный тег неотличим от поля: массив определяем по всему датасету (списки в JSON и повторы в XML).
+    # Если путь где-то список, в XML его тоже читаем списком, иначе срезы сравнятся как скаляр против списка.
+    if any(received[s]["xml"] for s in SOURCES):
+        found = set().union(*(_list_paths(doc) for s in SOURCES for doc in apps[s].values()))
+        if found - array_paths:
+            apps, received = read_all(array_paths | found)
 
     technical = [t.strip() for t in technical_fields or [] if t.strip()]
     try:
