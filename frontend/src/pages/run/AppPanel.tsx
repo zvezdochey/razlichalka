@@ -69,7 +69,8 @@ type Props = {
 export function AppPanel({ runId, appId, app, onClose }: Props) {
   const dialog = useRef<HTMLElement>(null)
   useDialogFocus(dialog, onClose)
-  const [section, setSection] = useState<'attributes' | 'why'>('attributes')
+  // Сначала объяснение человеческим языком: сырая таблица полей новичку ответа не даёт.
+  const [section, setSection] = useState<'attributes' | 'why'>('why')
 
   // Заявка для шапки: из таблицы или найденная запросом /apps?search=<id>
   const [found, setFound] = useState<AppRow | undefined>(app)
@@ -140,7 +141,7 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
                 <span title={header.decision_before ?? undefined}>{decisionLabel(header.decision_before) ?? '—'}</span>
                 {' → '}
                 <span title={header.decision_after ?? undefined}>{decisionLabel(header.decision_after) ?? '—'}</span>
-                {' '}· Изменено атрибутов: {header.attributes_changed}
+                {' '}· Изменилось полей ответа: {header.attributes_changed}
               </p>
             )}
           </div>
@@ -149,11 +150,11 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
 
         <div className="app-panel-body">
           <div className="app-panel-tabs" role="group" aria-label="Разделы заявки">
-            <button type="button" className="btn" aria-pressed={section === 'attributes'} onClick={() => setSection('attributes')}>
-              Атрибуты
-            </button>
             <button type="button" className="btn" aria-pressed={section === 'why'} onClick={() => setSection('why')}>
-              Почему изменилось решение
+              Почему изменилось
+            </button>
+            <button type="button" className="btn" aria-pressed={section === 'attributes'} onClick={() => setSection('attributes')}>
+              Все поля ответа
             </button>
           </div>
 
@@ -185,15 +186,15 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
           {result.status === 'ready' && visible.length === 0 && <p role="status">{emptyMessage(total, onlyDiff, search, type)}</p>}
 
           {visible.length > 0 && (
-            <div className="table-scroll app-panel-table-scroll" tabIndex={0} aria-label="Таблица атрибутов, прокручиваемая область">
+            <div className="table-scroll app-panel-table-scroll" tabIndex={0} aria-label="Таблица полей ответа, прокручиваемая область">
               <table className="table app-panel-table">
                 <thead>
-                  <tr><th>Атрибут</th><th>Элемент массива (продукт / оффер)</th><th>До</th><th>После</th><th>Тип</th></tr>
+                  <tr><th title="Поле в ответе СПР (атрибут)">Поле ответа</th><th>Элемент массива (продукт / оффер)</th><th title="Старая версия СПР">До</th><th title="Новая версия СПР">После</th><th>Что произошло</th></tr>
                 </thead>
                 <tbody>
                   {visible.map((row, index) => (
                     <tr key={`${row.path}:${row.array_key}:${index}`} className={row.diff_flag ? 'app-panel-diff' : undefined}>
-                      <td className="app-panel-path mono" data-label="Атрибут"><PathText path={row.path} /></td>
+                      <td className="app-panel-path mono" data-label="Поле ответа"><PathText path={row.path} /></td>
                       <td data-label="Элемент массива (продукт / оффер)">{row.array_key === null ? '—' : <span className="chip mono">{row.array_key}</span>}</td>
                       <td data-label="До">
                         <Value
@@ -204,7 +205,7 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
                         />
                       </td>
                       <td data-label="После"><Value value={row.value_after} bucket={row.adjusted_after} sameBucket={false} isDecision={isDecisionPath(row.path)} /></td>
-                      <td data-label="Тип"><span className="app-panel-type">{CHANGE_LABELS[row.change_type]}</span></td>
+                      <td data-label="Что произошло"><span className="app-panel-type">{CHANGE_LABELS[row.change_type]}</span></td>
                     </tr>
                   ))}
                 </tbody>
