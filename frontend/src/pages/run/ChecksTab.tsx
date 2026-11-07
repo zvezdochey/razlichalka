@@ -12,6 +12,7 @@ import {
   appsLinkLabel,
   displayArgument,
   isArDrop,
+  variantLabel,
   variantsOf,
   failedChecks,
   groupRows,
@@ -112,8 +113,8 @@ export function ChecksTab() {
     return () => controller.abort()
   }, [runId, ready, attempt])
 
-  // Сколько заявок реально лежит за каждой ссылкой `apps_ref`. Проверка сохраняет не больше
-  // `app_ids_limit` идентификаторов, поэтому на кнопке честно пишем «20 примеров из 273».
+  // Сколько заявок реально лежит за каждой ссылкой `apps_ref`. Прогон просит у проверок все заявки
+  // (`app_ids_limit` перекрыт), но своя проверка может сохранить часть — тогда пишем «20 примеров из 273».
   // Грузим фоном по одной заявке на ссылку: таблица показывается сразу, подпись уточняется следом.
   const [samples, setSamples] = useState<Record<string, number>>({})
   const loadedRows = state.status === 'ready' ? state.data.rows : null
@@ -373,7 +374,7 @@ function CheckTableRow({ row, variant, samples, isError, isOpened, onOpen }: Che
               className="muted"
               title="Проверка вернула несколько строк с одним названием и одинаковыми числами, но для разных групп заявок (например, у стоп-фактора: правило удалено из стратегии и правило перестало срабатывать)"
             >
-              {` · вариант ${variant}`}
+              {` · ${variantLabel(row, variant)}`}
             </span>
           )}
         </div>

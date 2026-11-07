@@ -13,7 +13,7 @@ router = APIRouter()
 
 
 class ProcedureIn(BaseModel):
-    kind: Literal["normalize", "aggregate", "check"]
+    kind: Literal["normalize", "compare", "aggregate", "check"]
     name: str
     source: Literal["inline", "file"]
     code: Optional[str] = Field(None, max_length=MAX_CODE)

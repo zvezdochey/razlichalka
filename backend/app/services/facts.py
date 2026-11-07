@@ -16,9 +16,18 @@ from pipeline.csvio import read_csv
 _MAX_GROUP_REFS = 20_000
 
 
+# Поля вертикальной витрины (union.csv): срез и значение одной стороны. С ними факты считаются по UNION,
+# а не по горизонтальному сравнению — так сводная показывает «значение или бакет × срез» (ТЗ, блок про counts).
+VERTICAL_FIELDS = ("SOURCE", "VALUE", "ADJUSTED_VALUE")
+
+
 @lru_cache(maxsize=4)
-def _facts_base(run_dir: Path) -> pd.DataFrame:
-    comparison = read_csv(result_file(run_dir, "comparison.csv"))
+def _facts_base(run_dir: Path, vertical: bool = False) -> pd.DataFrame:
+    """Строки витрины + поля разрезов заявки. vertical — union.csv (BEFORE и AFTER строками), иначе comparison.csv."""
+    if vertical and not (run_dir / "union.csv").is_file():
+        raise ApiError("bad_file", "В этом прогоне нет вертикальной витрины (union.csv): он запущен до её появления — "
+                                   "запустите прогон заново")
+    comparison = read_csv(result_file(run_dir, "union.csv" if vertical else "comparison.csv"))
     segments = read_csv(result_file(run_dir, "segments.csv"))
     app_ids = pd.Index(comparison["APP_ID"].unique()).union(segments["APP_ID"].unique())
     app_id_dtype = pd.CategoricalDtype(app_ids)
@@ -40,7 +49,13 @@ def _facts_base(run_dir: Path) -> pd.DataFrame:
     return rows
 
 
-def _parse_filter(raw: str, columns: pd.Index) -> list:
+def _base(run_dir: Path, vertical: bool) -> pd.DataFrame:
+    """Через эту обёртку: lru_cache считает _facts_base(d) и _facts_base(d, False) разными ключами,
+    а прогрев (warmup.py) кладёт в кэш именно _facts_base(d)."""
+    return _facts_base(run_dir, True) if vertical else _facts_base(run_dir)
+
+
+def _parse_filter(raw: str, columns: pd.Index | None) -> list:
     conditions = []
     if raw.lstrip().startswith("{"):
         try:
@@ -62,6 +77,8 @@ def _parse_filter(raw: str, columns: pd.Index) -> list:
 
     for condition in conditions:
         name, choices = condition
+        if columns is None:  # только узнать, какие поля в фильтре
+            continue
         if name not in columns:
             raise ApiError("bad_file", f"Неизвестное поле фильтра «{name}»")
         if name == "DIFF_FLAG":
@@ -157,16 +174,22 @@ def facts(run_dir: Path, *, dims: str, filter_: str, measure: str, limit: int) -
     if measure not in ("counts", "counts_distinct_apps"):
         raise ApiError("bad_file", f"Неизвестный показатель «{measure}»")
 
-    base = _facts_base(run_dir)
+    fields = set(names) | {name for name, _ in _parse_filter(filter_, None)}
+    vertical = any(name in VERTICAL_FIELDS for name in fields)
+    base = _base(run_dir, vertical)
     for name in names:
         if name not in base.columns:
+            if vertical:
+                raise ApiError("bad_file", f"Поле «{name}» есть только в сравнении «до/после», а срез (SOURCE) и значение "
+                                           "одной стороны — в вертикальной витрине. Уберите одно из них")
             raise ApiError("bad_file", f"Неизвестное измерение «{name}»")
     conditions = _parse_filter(filter_, base.columns)
     grouped = _filter_rows(base, conditions).groupby(names, observed=True)
     counts = grouped.size() if measure == "counts" else grouped["APP_ID"].nunique()
 
     rows = counts.nlargest(limit).reset_index(name="counts").to_dict("records")
-    definitions = [{"filter": conditions, "group": [[name, row[name]] for name in names]} for row in rows]
+    definitions = [{"filter": conditions, "group": [[name, row[name]] for name in names], **({"vertical": True} if vertical else {})}
+                   for row in rows]
     for row, ref in zip(rows, _save_refs(run_dir, definitions)):
         for name in names:
             if row[name] == "":
@@ -175,16 +198,20 @@ def facts(run_dir: Path, *, dims: str, filter_: str, measure: str, limit: int) -
     return {"dims": names, "rows": rows, "total_groups": len(counts)}
 
 
-def fact_apps(run_dir: Path, ref: str, *, page: int, size: int) -> dict:
+def group_app_ids(run_dir: Path, ref: str) -> list[str]:
+    """Все заявки группы по ссылке `app_ids_ref` (клетка сводной или строка проверки)."""
     definition = _load_ref(run_dir, ref)
     if definition is None:
         raise ApiError("not_found", "Группа заявок не найдена")
-
     if "app_ids" in definition:
-        app_ids = definition["app_ids"]
-    else:
-        conditions = definition["filter"] + [[name, [value]] for name, value in definition["group"]]
-        app_ids = sorted(_filter_rows(_facts_base(run_dir), conditions)["APP_ID"].unique().tolist())
+        return definition["app_ids"]
+    conditions = definition["filter"] + [[name, [value]] for name, value in definition["group"]]
+    base = _base(run_dir, bool(definition.get("vertical")))
+    return sorted(_filter_rows(base, conditions)["APP_ID"].unique().tolist())
+
+
+def fact_apps(run_dir: Path, ref: str, *, page: int, size: int) -> dict:
+    app_ids = group_app_ids(run_dir, ref)
 
     start = (page - 1) * size
     return {"page": page, "size": size, "total": len(app_ids), "apps": app_ids[start:start + size]}

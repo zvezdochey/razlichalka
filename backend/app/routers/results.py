@@ -36,11 +36,13 @@ def get_summary(run_dir: RunDir):
 @router.get("/apps")
 def get_apps(
     run_dir: RunDir, decision_change: str = "", has_attr_change: bool = False,
-    search: str = "", sort: str = "", page: Page = 1, size: Size = 50, change_source: str = "",
+    search: str = "", sort: str = "", page: Page = 1, size: Size = 50, change_source: str = "", ref: str = "",
 ):
+    # ref — группа из сводной или проверки: список заявок сужается до неё
     return results.apps(
         run_dir, decision_change=decision_change, has_attr_change=has_attr_change,
         search=search, sort=sort, page=page, size=size, change_source=change_source,
+        app_ids=set(facts.group_app_ids(run_dir, ref)) if ref else None,
     )
 
 
@@ -88,11 +90,11 @@ def get_fact_apps(run_dir: RunDir, ref: str, page: Page = 1, size: Size = 50):
 @router.get("/export.csv")
 def export_apps(
     run_dir: RunDir, run_id: str, decision_change: str = "", has_attr_change: bool = False,
-    search: str = "", sort: str = "", change_source: str = "",
+    search: str = "", sort: str = "", change_source: str = "", ref: str = "",
 ):
     content = results.export_apps(
         run_dir, decision_change=decision_change, has_attr_change=has_attr_change, search=search, sort=sort,
-        change_source=change_source,
+        change_source=change_source, app_ids=set(facts.group_app_ids(run_dir, ref)) if ref else None,
     )
     filename = f"apps-{quote(run_id, safe='')}.csv"
     return Response(

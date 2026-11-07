@@ -15,7 +15,7 @@ const DECISIONS = DECISION_CHANGE_LABELS
 const SOURCES: Record<ChangeSource, string> = {
   logic: 'Из-за правил', data: 'Из-за данных заявки', both: 'И правила, и данные', none: 'Ничего не поменялось',
 }
-const FILTER_KEYS = ['decision_change', 'change_source', 'has_attr_change', 'search']
+const FILTER_KEYS = ['decision_change', 'change_source', 'has_attr_change', 'search', 'ref']
 
 /**
  * «Только с различиями» включена по умолчанию, но только когда в ссылке нет ни одного фильтра.
@@ -75,6 +75,8 @@ function ReadyApps({ runId }: { runId: string }) {
   const source = params.get('change_source') ?? ''
   const hasAttr = params.get('has_attr_change') === '1' || hasDefaultFilters(params)
   const search = params.get('search') ?? ''
+  // Группа из сводной (клетка): список под карточкой — именно эти заявки, а не все
+  const ref = params.get('ref') ?? ''
   const sort = params.get('sort') || '-attributes_changed'
   const rawPage = Number(params.get('page') ?? 1)
   const page = Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1
@@ -83,8 +85,8 @@ function ReadyApps({ runId }: { runId: string }) {
   const load = useCallback((signal: AbortSignal) => getApps(runId, {
     decision_change: decision ? decision.split(',') as DecisionChange[] : undefined,
     change_source: source ? source.split(',') as ChangeSource[] : undefined,
-    has_attr_change: hasAttr, search, sort, page, size,
-  }, { signal }), [runId, decision, source, hasAttr, search, sort, page, size])
+    has_attr_change: hasAttr, search, sort, page, size, ref: ref || undefined,
+  }, { signal }), [runId, decision, source, hasAttr, search, sort, page, size, ref])
   const { result, retry } = usePivotRequest(load)
   const [csv, setCsv] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null })
   // CSV — та же выборка, что в таблице (фильтры, поиск, сортировка), но целиком, без страниц
@@ -94,7 +96,7 @@ function ReadyApps({ runId }: { runId: string }) {
       await downloadAppsCsv(runId, {
         decision_change: decision ? decision.split(',') as DecisionChange[] : undefined,
         change_source: source ? source.split(',') as ChangeSource[] : undefined,
-        has_attr_change: hasAttr, search, sort,
+        has_attr_change: hasAttr, search, sort, ref: ref || undefined,
       })
       setCsv({ busy: false, error: null })
     } catch (e) {
@@ -110,7 +112,10 @@ function ReadyApps({ runId }: { runId: string }) {
       if (FILTER_KEYS.includes(key) && key !== 'has_attr_change' && hasDefaultFilters(previous)) next.set('has_attr_change', '1')
       if (value) next.set(key, value)
       else next.delete(key)
-      if (resetPage) { next.set('page', '1'); next.delete('app') }
+      if (key === 'ref' && !value) next.delete('group')
+      // Атрибут из сводной относится к одной открытой заявке: сменили заявку — забываем его
+      if (key === 'app') next.delete('attr')
+      if (resetPage) { next.set('page', '1'); next.delete('app'); next.delete('attr') }
       return next
     }, { preventScrollReset: true })
   }, [setParams])
@@ -118,6 +123,7 @@ function ReadyApps({ runId }: { runId: string }) {
   const reset = () => setParams((previous) => {
     const next = new URLSearchParams(previous)
     FILTER_KEYS.forEach((key) => next.delete(key))
+    next.delete('group')
     next.set('has_attr_change', '0') // «Сбросить» убирает все фильтры, в том числе умолчание «Только с различиями»
     next.delete('app')
     next.set('page', '1')
@@ -132,6 +138,7 @@ function ReadyApps({ runId }: { runId: string }) {
     ...source.split(',').filter(Boolean).map((value) => ({ key: 'change_source', value, label: `Почему изменилось: ${SOURCES[value as ChangeSource] ?? value}` })),
     ...(hasAttr ? [{ key: 'has_attr_change', value: '1', label: 'Только с различиями' }] : []),
     ...(search ? [{ key: 'search', value: search, label: `Поиск: ${search}` }] : []),
+    ...(ref ? [{ key: 'ref', value: ref, label: `Группа сводной: ${params.get('group') ?? ref}` }] : []),
   ]
   const sortHeader = (field: string, label: string) => <th scope="col" rowSpan={2}
     aria-sort={sort === field ? 'ascending' : sort === `-${field}` ? 'descending' : 'none'}>
@@ -185,10 +192,10 @@ function ReadyApps({ runId }: { runId: string }) {
               {sortHeader('app_id', 'Заявка')}
               {pairHead('Решение')}
               {sortHeader('attributes_changed', 'Полей ответа изменилось')}
+              <th scope="col" rowSpan={2} title="Почему у заявки что-то поменялось: из-за правил или из-за данных">Почему изменилось</th>
               {pairHead('Модель оценки')}
               {pairHead('Набор порогов')}
               {pairHead('Причина отказа')}
-              <th scope="col" rowSpan={2} title="Почему у заявки что-то поменялось: из-за правил или из-за данных">Почему изменилось</th>
             </tr>
             <tr>
               <th scope="col">до</th><th scope="col">после</th>
@@ -203,10 +210,11 @@ function ReadyApps({ runId }: { runId: string }) {
             <td className="mono">{app.app_id}</td>
             <PairCells before={app.decision_before} after={app.decision_after} badge label={decisionLabel} />
             <td className="num">{formatNumber(app.attributes_changed)}</td>
+            {/* «Почему» — сразу за решением и числом полей: на узком экране главное видно без прокрутки */}
+            <td>{app.change_source === null ? DASH : SOURCES[app.change_source]}</td>
             <PairCells before={app.pd_model_before} after={app.pd_model_after} />
             <PairCells before={app.cutoff_before} after={app.cutoff_after} />
             <PairCells before={app.reject_reason_before} after={app.reject_reason_after} />
-            <td>{app.change_source === null ? DASH : SOURCES[app.change_source]}</td>
           </tr>)}</tbody>
         </table>
       </div>)}
@@ -219,7 +227,7 @@ function ReadyApps({ runId }: { runId: string }) {
       <div className="apps-page-buttons"><button className="btn" disabled={!data || page <= 1} onClick={() => update('page', String(page - 1), false)}>Назад</button>
         <span>{page}{data ? ` / ${pages}` : ''}</span><button className="btn" disabled={!data || page >= pages} onClick={() => update('page', String(page + 1), false)}>Далее</button></div>
     </div>
-    {appId && <AppPanel key={appId} runId={runId} appId={appId}
+    {appId && <AppPanel key={appId} runId={runId} appId={appId} focusPath={params.get('attr') ?? undefined}
       app={data?.apps.find((item) => item.app_id === appId)}
       onClose={() => update('app', '', false)} />}
   </section>

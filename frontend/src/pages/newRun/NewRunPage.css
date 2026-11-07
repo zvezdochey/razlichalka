@@ -281,3 +281,27 @@
   max-width: 72ch;
   margin: 0 0 var(--s-4);
 }
+
+/* Параметры проверки — под её строкой, на всю ширину */
+.check-params {
+  flex-basis: 100%;
+  margin-left: var(--s-6);
+  font-size: var(--fs-table);
+}
+
+.check-params > summary {
+  cursor: pointer;
+}
+
+.check-params__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--s-3);
+  margin-top: var(--s-2);
+}
+
+.check-params__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}

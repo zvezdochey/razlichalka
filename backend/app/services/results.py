@@ -132,12 +132,14 @@ def _filter_apps(
 
 def apps(
     run_dir: Path, *, decision_change: str, has_attr_change: bool, search: str,
-    sort: str, page: int, size: int, change_source: str = "",
+    sort: str, page: int, size: int, change_source: str = "", app_ids: set[str] | None = None,
 ) -> dict:
     rows = _filter_apps(
         run_dir, decision_change=decision_change, has_attr_change=has_attr_change, search=search, sort=sort,
         change_source=change_source,
     )
+    if app_ids is not None:  # только заявки группы (ref из сводной или проверки)
+        rows = rows[rows["app_id"].isin(app_ids)]
     return _page(rows, "apps", page, size)
 
 
@@ -150,12 +152,14 @@ def _excel_value(value):
 
 def export_apps(
     run_dir: Path, *, decision_change: str, has_attr_change: bool, search: str, sort: str,
-    change_source: str = "",
+    change_source: str = "", app_ids: set[str] | None = None,
 ) -> bytes:
     rows = _filter_apps(
         run_dir, decision_change=decision_change, has_attr_change=has_attr_change, search=search, sort=sort,
         change_source=change_source,
     )
+    if app_ids is not None:  # та же группа, что в таблице
+        rows = rows[rows["app_id"].isin(app_ids)]
     records = ({name: _excel_value(value) for name, value in row.items()} for row in rows.to_dict("records"))
     output = StringIO(newline="")
     writer = DictWriter(output, fieldnames=APP_FIELDS, delimiter=";")
@@ -198,8 +202,12 @@ def _number(text: str):
         return text
 
 
-def checks(run_dir: Path, *, result: str, page: int, size: int | None, include_refs: bool = True) -> dict:
-    """Таблица проверок (docs/api.md п. 10.1) из checks.csv."""
+def checks(run_dir: Path, *, result: str, page: int, size: int | None, include_refs: bool = True,
+           with_app_ids: bool = False) -> dict:
+    """Таблица проверок (docs/api.md п. 10.1) из checks.csv.
+
+    `with_app_ids` — только для HTML-отчёта: заявки строки списком (в ответе API этого поля нет).
+    """
     if result and result not in ("PASS", "FAIL"):
         raise ApiError("bad_file", "result — PASS или FAIL")
     rows = read_csv(result_file(run_dir, "checks.csv")).fillna("")
@@ -221,5 +229,6 @@ def checks(run_dir: Path, *, result: str, page: int, size: int | None, include_r
             "result": r["RESULT"],
             "apps_ref": _apps_ref(run_dir, app_ids) if include_refs else None,
             "faint": r["CONFIDENCE"] == "LOW",
+            **({"app_ids": app_ids} if with_app_ids else {}),
         })
     return {"page": page, "size": size, "total": len(rows), "rows": out}

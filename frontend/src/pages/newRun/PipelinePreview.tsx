@@ -2,11 +2,14 @@ import { Link } from 'react-router-dom'
 import type { Procedure, ProcedureKind } from '../../api'
 import { ErrorBox, Spinner } from '../../components'
 
-/** Выбор процедур и проверок прогона — то, что уходит в `normalize`, `aggregate`, `checks` (п. 4.2). */
+/** Выбор процедур и проверок прогона — то, что уходит в `normalize`, `compare`, `aggregate`, `checks` (п. 4.2). */
 export type PipelineChoice = {
   normalize: string
+  compare: string
   aggregate: string
   checks: string[]
+  /** Параметры проверок, изменённые в форме (только отличия от значений по умолчанию). */
+  checkParams: Record<string, Record<string, unknown>>
 }
 
 type PipelineSectionProps = {
@@ -17,6 +20,67 @@ type PipelineSectionProps = {
   onReload: () => void
   value: PipelineChoice
   onChange: (value: PipelineChoice) => void
+}
+
+/** Подписи известных параметров проверок организаторов; остальные показываем по имени. */
+const PARAM_HINTS: Record<string, string> = {
+  low_confidence_cnt: 'меньше стольких заявок — строка с низкой уверенностью',
+  max_drop_rel: 'на сколько (доля) может упасть Approval Rate',
+  min_share: 'минимальная доля заявок, с которой изменение считается',
+}
+
+/**
+ * Параметры проверки на этот прогон (`check_params`): по умолчанию — из CHECK["params"] в коде проверки.
+ * В конфигурацию уходят только отличия от умолчаний.
+ */
+function CheckParams({
+  defaults,
+  value,
+  onChange,
+}: {
+  defaults: Record<string, unknown>
+  value: Record<string, unknown>
+  onChange: (params: Record<string, unknown>) => void
+}) {
+  const set = (key: string, raw: string) => {
+    const base = defaults[key]
+    let parsed: unknown = raw
+    if (typeof base === 'number') {
+      const number = Number(raw.replace(',', '.'))
+      if (raw.trim() === '' || Number.isNaN(number)) return
+      parsed = number
+    }
+    const next = { ...value }
+    if (parsed === base) delete next[key]
+    else next[key] = parsed
+    onChange(next)
+  }
+  // app_ids_limit прогон ставит сам: в строку проверки попадают все её заявки
+  const fields = Object.entries(defaults).filter(
+    ([key, base]) => key !== 'app_ids_limit' && (typeof base === 'number' || typeof base === 'string'),
+  )
+  if (fields.length === 0) return null
+  return (
+    <details className="check-params">
+      <summary>
+        Параметры{Object.keys(value).length > 0 && <span className="chip chip--info">изменены</span>}
+      </summary>
+      <div className="check-params__grid">
+        {fields.map(([key, base]) => (
+            <label key={`${key}:${String(value[key] ?? base)}`} className="check-params__field">
+              <span className="mono">{key}</span>
+              <input
+                className="input"
+                inputMode={typeof base === 'number' ? 'decimal' : undefined}
+                defaultValue={String(value[key] ?? base)}
+                onBlur={(event) => set(key, event.target.value)}
+              />
+              {PARAM_HINTS[key] && <span className="faint">{PARAM_HINTS[key]}</span>}
+            </label>
+          ))}
+      </div>
+    </details>
+  )
 }
 
 /** Откуда код процедуры: рабочая область или файл на сервере. */
@@ -135,15 +199,14 @@ export function PipelinePreview({ procedures, error, onReload, value, onChange }
             selected={value.normalize}
             onSelect={(id) => onChange({ ...value, normalize: id })}
           />
-          <li className="steps__item">
-            <div className="steps__main">
-              <span className="steps__title">Сравнение</span>
-              <span className="muted">Сводит срезы BEFORE и AFTER и помечает различия.</span>
-            </div>
-            <div className="steps__right">
-              <span className="chip">встроенное, не меняется</span>
-            </div>
-          </li>
+          <StepSelect
+            kind="compare"
+            title="Сравнение"
+            description="Сводит срезы BEFORE и AFTER и помечает различия."
+            procedures={procedures}
+            selected={value.compare}
+            onSelect={(id) => onChange({ ...value, compare: id })}
+          />
           <StepSelect
             kind="aggregate"
             title="Факты (подсчёты)"
@@ -183,6 +246,13 @@ export function PipelinePreview({ procedures, error, onReload, value, onChange }
               <div className="steps__right">
                 <ProcedureChips procedure={proc} />
               </div>
+              {selected.has(proc.id) && proc.params && Object.keys(proc.params).length > 0 && (
+                <CheckParams
+                  defaults={proc.params}
+                  value={value.checkParams[proc.id] ?? {}}
+                  onChange={(params) => onChange({ ...value, checkParams: { ...value.checkParams, [proc.id]: params } })}
+                />
+              )}
             </li>
           ))}
           {missing.map((id) => (

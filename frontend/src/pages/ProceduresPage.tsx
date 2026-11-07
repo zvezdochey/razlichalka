@@ -62,7 +62,7 @@ type Busy = 'idle' | 'loading' | 'checking' | 'saving' | 'deleting'
  * Рабочая область процедур (DESIGN.md п. 4, задача E13). Слева — список по видам,
  * справа — редактор. Что открыто, лежит в URL: `?id=<процедура>&line=<строка>` (так
  * ведёт ссылка «код этапа» из журнала), `?new=check` — новая проверка из шаблона,
- * `?copy=<id>` — копия встроенной проверки в рабочую область.
+ * `?copy=<id>` — копия встроенной процедуры или проверки в рабочую область.
  */
 export function ProceduresPage() {
   const [params, setParams] = useSearchParams()
@@ -149,7 +149,8 @@ export function ProceduresPage() {
             id: null,
             name: `${proc.name} (копия)`,
             source: 'inline',
-            code: markCheckAsCopy(loaded.code),
+            // У проверки в копии меняем CHECK.id, чтобы она не совпала со встроенной
+            code: loaded.kind === 'check' ? markCheckAsCopy(loaded.code) : loaded.code,
             path: '',
             builtin: false,
           })
@@ -291,8 +292,9 @@ export function ProceduresPage() {
       </div>
 
       <p className="muted">
-        Процедура — это кусок логики: шаг обработки или проверка. Для обычной работы менять их не
-        нужно: можно прочитать встроенные или написать свою проверку.
+        Процедура — это кусок логики: шаг обработки (приведение, сравнение, факты) или проверка. Для
+        обычной работы менять их не нужно. Чтобы заменить шаг, скопируйте встроенную процедуру в
+        рабочую область, поправьте и выберите копию в форме «Новый прогон».
       </p>
 
       <div className="procs__layout">
@@ -440,14 +442,19 @@ function Workspace({
           </div>
         </div>
 
+        {draft.kind === 'check' && !readOnly && (
+          <p className="faint proc__hint">
+            Название — для списка процедур. В отчёте строка проверки подписывается из кода:{' '}
+            <code>CHECK["label"]</code>.
+          </p>
+        )}
+
         {readOnly && (
           <div className="proc__note muted">
             Встроенная процедура — открыта только на чтение.
-            {draft.kind === 'check' && (
-              <button type="button" className="btn" onClick={onCopy}>
-                Копировать в рабочую область
-              </button>
-            )}
+            <button type="button" className="btn" onClick={onCopy}>
+              Копировать в рабочую область
+            </button>
           </div>
         )}
 
@@ -481,7 +488,7 @@ function Workspace({
               <input
                 className="input mono proc__path"
                 aria-label="Путь к файлу на сервере"
-                placeholder="checks/check_my.py"
+                placeholder={draft.kind === 'check' ? 'checks/check_my.py' : 'procedures/my_procedure.py'}
                 value={draft.path}
                 onChange={(event) => onEdit({ path: event.target.value })}
               />
@@ -491,7 +498,8 @@ function Workspace({
 
         {draft.source === 'file' && !readOnly && (
           <p className="faint proc__hint">
-            Файл берётся из папок <code>procedures/</code> или <code>checks/</code> на сервере. Код ниже —
+            Файл берётся из папок <code>procedures/</code> или <code>checks/</code> на сервере
+            {draft.kind === 'compare' && <> (пример: <code>procedures/example_compare_by_bucket.py</code>)</>}. Код ниже —
             {draft.id === null ? ' появится после сохранения.' : ' последняя сохранённая версия файла.'}
           </p>
         )}

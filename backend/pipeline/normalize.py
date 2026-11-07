@@ -15,8 +15,8 @@ import sys
 import time
 from pathlib import Path
 
-from .array_rules import default_array_rules, merge_array_rules
-from .buckets import make_adjuster
+from .array_rules import default_array_rules, default_buckets, get_by_path, id_path, merge_array_rules
+from .buckets import make_adjuster, merge_buckets
 from .csvio import write_csv
 from .dataset import list_source_files
 from .errors import BadFile, Cancelled
@@ -38,9 +38,12 @@ def normalize_dataset(dataset_dir: Path, source: str, out_csv: Path, parse_cfg: 
     soft = [p for p in builtin if p.removesuffix("[]") not in overridden]
     ignore_paths = parse_cfg.get("ignore_paths") or []
     adjust = None
-    if parse_cfg.get("buckets"):
+    # бакеты: из процедуры (BUCKETS), конфигурация перекрывает их по пути (пустой список — «без бакетов»)
+    buckets = merge_buckets(default_buckets(parse_cfg.get("procedures_dir")), parse_cfg.get("buckets") or {})
+    id_field = id_path(parse_cfg.get("procedures_dir"))
+    if buckets:
         try:
-            adjust = make_adjuster(parse_cfg["buckets"])
+            adjust = make_adjuster(buckets)
         except ValueError as e:  # кривые границы — понятная ошибка этапа, а не internal
             raise BadFile(f"конфигурация: {e}") from None
 
@@ -62,10 +65,12 @@ def normalize_dataset(dataset_dir: Path, source: str, out_csv: Path, parse_cfg: 
             if not isinstance(doc, dict):  # не объект — ответ не разобрался
                 broken.append(file.name)
             else:
-                app_data = doc.get("appData")
-                app_id = app_data.get("application_id") if isinstance(app_data, dict) else None
+                # путь к id заявки — из процедуры (ID_PATH), а не из кода приложения
+                app_id = get_by_path(doc, id_field)
+                if app_id is not None and not isinstance(app_id, (dict, list)):
+                    app_id = str(app_id)
                 if app_id != file.stem:
-                    raise BadFile(f"в файле {file.name} appData.application_id = {app_id!r}, а имя файла говорит {file.stem!r}")
+                    raise BadFile(f"в файле {file.name} {id_field} = {app_id!r}, а имя файла говорит {file.stem!r}")
                 try:
                     yield from flatten_response(doc, file.stem, source, rules, ignore_paths, adjust,
                                                   soft_paths=soft, on_fallback=fallbacks.add)

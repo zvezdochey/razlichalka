@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { RunStatus } from '../api'
-import { ApiRequestError, cancelRun, downloadReport, getConfig, getRun, isAbortError, openReport } from '../api'
+import { ApiRequestError, cancelRun, downloadReport, getConfig, getRun, isAbortError } from '../api'
 import { ErrorBox, Spinner, StatusBadge } from '../components'
 import { usePolling } from '../hooks/usePolling'
 import { DASH, formatDateTime } from '../lib/format'
@@ -136,7 +136,8 @@ export function RunPage() {
     setOpening(true)
     setActionError(null)
     try {
-      await openReport(id)
+      // Постоянная ссылка на документ — страница приложения /runs/<id>/report (её можно переслать)
+      window.open(`/runs/${encodeURIComponent(id)}/report`, '_blank', 'noopener')
     } catch (e) {
       setActionError(e instanceof Error ? e.message : 'Не удалось открыть отчёт')
     } finally {

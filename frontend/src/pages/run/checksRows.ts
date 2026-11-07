@@ -130,7 +130,22 @@ export function isArDrop(row: CheckRow): boolean {
 export function displayArgument(row: CheckRow): string | null {
   if (row.argument === null) return null
   if (isArDrop(row) && /^\d+$/.test(row.argument)) return `Продукт ${row.argument}`
-  return row.argument.replaceAll(' -> ', ' → ').replaceAll(' != ', ' не совпадает с ')
+  // «предиктор != источник» — сравнение двух имён, поэтому знак ≠, а не фраза (иначе ломается падеж)
+  return row.argument.replaceAll(' -> ', ' → ').replaceAll(' != ', ' ≠ ')
+}
+
+/**
+ * Как называются случаи у встроенных проверок, которые пишут несколько строк с одним аргументом.
+ * Стоп-фактор (checks/check_stop_factor_disappeared.py) выдаёт по правилу сначала строку «удалено из стратегии»,
+ * потом «перестало срабатывать», а сам случай в строку не пишет — подписываем его по порядку.
+ */
+const VARIANT_NAMES: Record<string, string[]> = {
+  builtin_stop_factor_disappeared: ['правило удалено из стратегии', 'правило перестало срабатывать'],
+}
+
+/** Подпись варианта строки: название случая, если оно известно, иначе «вариант N». */
+export function variantLabel(row: CheckRow, variant: number): string {
+  return VARIANT_NAMES[row.check_id ?? '']?.[variant - 1] ?? `вариант ${variant}`
 }
 
 /**

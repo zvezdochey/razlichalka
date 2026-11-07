@@ -1,7 +1,7 @@
 """Конфигурации пользователя (docs/api.md п. 4). Чужие конфигурации не видны."""
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
@@ -21,8 +21,11 @@ class ConfigIn(BaseModel):
     name: str
     dataset: str
     normalize: str = "builtin_normalize"
+    compare: str = "builtin_compare"
     aggregate: str = "builtin_aggregate"
     checks: List[str] = []
+    # параметры проверок на этот прогон: {id проверки: {параметр: значение}}, перекрывают CHECK["params"]
+    check_params: Dict[str, Dict[str, Any]] = {}
     ignore_paths: Optional[List[str]] = None  # не задано — технические поля датасета
     array_modes: Dict[str, str] = {}
     array_rules: Dict[str, dict] = {}  # правило массива целиком: {"mode": "key", "key": [...]}
@@ -36,10 +39,18 @@ def _validate(body: ConfigIn, user: str) -> dict:
     ds = datasets.get_dataset(body.dataset)
     if ds is None:
         raise ApiError("not_found", f"Датасет «{body.dataset}» не найден")
+    for stage in ("normalize", "compare", "aggregate"):
+        # процедура этапа должна быть своего вида: иначе этап исполнит не то, что выбрано
+        proc_id = getattr(body, stage)
+        if procedures.find(proc_id, user)["kind"] != stage:
+            raise ApiError("bad_code", f"Процедура «{proc_id}» не подходит для этапа {stage} (нужен kind={stage})")
     for proc_id in body.checks:
         # нет такой процедуры (или она чужая) — not_found; не проверка — bad_code
         if procedures.find(proc_id, user)["kind"] != "check":
             raise ApiError("bad_code", f"Процедура «{proc_id}» не проверка (kind=check)")
+    for proc_id in body.check_params:
+        if proc_id not in body.checks:
+            raise ApiError("bad_code", f"check_params: проверка «{proc_id}» не подключена (её нет в checks)")
     for path, mode in body.array_modes.items():
         if mode not in ARRAY_MODES:
             raise ApiError("bad_code", f"array_modes[{path}]: режим «{mode}» не подходит, нужен key, value или index")

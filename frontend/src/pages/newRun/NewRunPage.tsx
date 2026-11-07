@@ -18,6 +18,7 @@ import type { PipelineChoice } from './PipelinePreview'
 import { SavedConfigs } from './SavedConfigs'
 import {
   BUILTIN_AGGREGATE,
+  BUILTIN_COMPARE,
   BUILTIN_NORMALIZE,
   DEFAULT_ARRAY_MODES,
   DEFAULT_BUCKETS,
@@ -107,8 +108,10 @@ export function NewRunPage() {
   /** `checks: null` — список процедур ещё не пришёл, умолчание подставится после загрузки. */
   const [pipeline, setPipeline] = useState<Omit<PipelineChoice, 'checks'> & { checks: string[] | null }>({
     normalize: BUILTIN_NORMALIZE,
+    compare: BUILTIN_COMPARE,
     aggregate: BUILTIN_AGGREGATE,
     checks: null,
+    checkParams: {},
   })
 
   function reloadProcedures() {
@@ -218,7 +221,13 @@ export function NewRunPage() {
     setName(config.name)
     setDatasetId(config.dataset)
     setIgnorePaths(config.ignore_paths)
-    setPipeline({ normalize: config.normalize, aggregate: config.aggregate, checks: config.checks })
+    setPipeline({
+      normalize: config.normalize,
+      compare: config.compare ?? BUILTIN_COMPARE,
+      aggregate: config.aggregate,
+      checks: config.checks,
+      checkParams: config.check_params ?? {},
+    })
     // Пока форму не тронули, «Запустить» берёт эту конфигурацию, а не плодит копию.
     setSavedConfig(config)
     setRunNotStarted(false)
@@ -273,8 +282,13 @@ export function NewRunPage() {
       name: name.trim() === '' ? defaultConfigName() : name.trim(),
       dataset: datasetId,
       normalize: pipeline.normalize,
+      compare: pipeline.compare,
       aggregate: pipeline.aggregate,
       checks: pipeline.checks ?? [],
+      // параметры — только у подключённых проверок (иначе бэк ответит bad_code)
+      check_params: Object.fromEntries(
+        Object.entries(pipeline.checkParams).filter(([id, params]) => (pipeline.checks ?? []).includes(id) && Object.keys(params).length > 0),
+      ),
       ignore_paths: ignorePaths,
       array_modes: { ...(base?.array_modes ?? DEFAULT_ARRAY_MODES) },
       ...(base?.array_rules !== undefined && { array_rules: base.array_rules }),

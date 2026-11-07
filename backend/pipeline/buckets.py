@@ -123,3 +123,14 @@ def make_adjuster(buckets_cfg: dict[str, list[float]]) -> Callable[[str, str], s
         return value_str if x is None else bucket_label(x, bounds)
 
     return adjust
+
+
+def merge_buckets(procedure: dict, config: dict) -> dict:
+    """Бакеты процедуры, перекрытые конфигурацией по пути (пути с `[]` и без считаются одним путём).
+
+    Пустой список границ в конфигурации — «у этого пути бакетов нет», даже если они есть в процедуре.
+    """
+    overridden = {_norm_path(path) for path in config}
+    merged = {path: bounds for path, bounds in procedure.items() if _norm_path(path) not in overridden}
+    merged.update(config)
+    return merged

@@ -51,8 +51,9 @@ function Value({ value, bucket, sameBucket, isDecision }: ValueProps & { isDecis
 }
 
 /** Текст, когда строк нет: объясняем, почему именно пусто. */
-function emptyMessage(total: number, onlyDiff: boolean, search: string, type: ChangeType | ''): string {
-  if (type !== '' && total > 0) return 'Среди загруженных строк такого типа нет. Нажмите «Загрузить ещё» или выберите другой тип.'
+function emptyMessage(total: number, hasMore: boolean, onlyDiff: boolean, search: string, type: ChangeType | ''): string {
+  if (type !== '' && hasMore) return 'Среди загруженных строк такого типа нет. Нажмите «Загрузить ещё» или выберите другой тип.'
+  if (type !== '' && total > 0) return 'Строк такого типа у заявки нет. Выберите другой тип.'
   if (search !== '') return 'Атрибуты не найдены. Измените поиск или фильтры.'
   if (onlyDiff) return 'Различий нет'
   return 'У заявки нет атрибутов.'
@@ -63,14 +64,17 @@ type Props = {
   appId: string
   /** Строка заявки из таблицы. Если её там нет (прямая ссылка), панель найдёт её сама. */
   app?: AppRow
+  /** Атрибут, с которого пришли из сводной: панель открывается сразу на нём (поиск по пути). */
+  focusPath?: string
   onClose: () => void
 }
 
-export function AppPanel({ runId, appId, app, onClose }: Props) {
+export function AppPanel({ runId, appId, app, focusPath, onClose }: Props) {
   const dialog = useRef<HTMLElement>(null)
   useDialogFocus(dialog, onClose)
   // Сначала объяснение человеческим языком: сырая таблица полей новичку ответа не даёт.
-  const [section, setSection] = useState<'attributes' | 'why'>('why')
+  // Пришли из сводной с атрибутом — сразу показываем этот атрибут до/после.
+  const [section, setSection] = useState<'attributes' | 'why'>(focusPath ? 'attributes' : 'why')
 
   // Заявка для шапки: из таблицы или найденная запросом /apps?search=<id>
   const [found, setFound] = useState<AppRow | undefined>(app)
@@ -78,8 +82,8 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
 
   // Фильтры. `draft` — то, что набрано в поле, `search` — то, что уже ушло в запрос.
   const [onlyDiff, setOnlyDiff] = useState(true)
-  const [draft, setDraft] = useState('')
-  const [search, setSearch] = useState('')
+  const [draft, setDraft] = useState(focusPath ?? '')
+  const [search, setSearch] = useState(focusPath ?? '')
   const [type, setType] = useState<ChangeType | ''>('')
 
   // Страницы копятся в `rows`, пока не сменился фильтр.
@@ -174,7 +178,12 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
             </label>
             <label>
               Показать: все / только изменённые
-              <select className="select" value={type} onChange={(event) => setType(event.target.value as ChangeType | '')}>
+              <select className="select" value={type} onChange={(event) => {
+                const next = event.target.value as ChangeType | ''
+                setType(next)
+                // «Без изменений» не бывает среди «только различий» — снимаем галочку, а не показываем пустоту
+                if (next === 'SAME' && onlyDiff) { setOnlyDiff(false); resetRows() }
+              }}>
                 <option value="">Все</option>
                 {Object.entries(CHANGE_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
               </select>
@@ -183,7 +192,7 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
 
           {result.status === 'error' && <ErrorBox message={result.message} onRetry={retry} />}
           {result.status === 'loading' && <p role="status">Загрузка атрибутов…</p>}
-          {result.status === 'ready' && visible.length === 0 && <p role="status">{emptyMessage(total, onlyDiff, search, type)}</p>}
+          {result.status === 'ready' && visible.length === 0 && <p role="status">{emptyMessage(total, hasMore, onlyDiff, search, type)}</p>}
 
           {visible.length > 0 && (
             <div className="table-scroll app-panel-table-scroll" tabIndex={0} aria-label="Таблица полей ответа, прокручиваемая область">

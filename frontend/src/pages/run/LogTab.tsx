@@ -179,10 +179,23 @@ export function LogTab() {
                   <div className="stage__code">
                     <Link
                       to={codeLink(procedureId, stage.code_ref?.line)}
-                      title="Покажет, как этап считает (код встроенной процедуры)"
+                      title="Код процедуры, которую исполнил этап"
                     >
                       Открыть код этапа →
                     </Link>
+                  </div>
+                )}
+
+                {stage.procedures !== undefined && stage.procedures.length > 0 && (
+                  // Этап «Проверки» исполняет несколько процедур — ссылка на код каждой.
+                  <div className="stage__code">
+                    Код проверок:{' '}
+                    {stage.procedures.map((proc, index) => (
+                      <span key={proc.id}>
+                        {index > 0 && ' · '}
+                        <Link to={codeLink(proc.id, 1)}>{proc.name}</Link>
+                      </span>
+                    ))}
                   </div>
                 )}
 

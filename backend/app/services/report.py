@@ -1,5 +1,6 @@
 """Самодостаточный HTML-отчёт по сохранённым результатам запуска."""
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -48,6 +49,14 @@ def headline(summary: dict) -> str:
     return text
 
 
+def _msk(iso: str | None) -> str:
+    """Время запуска по Москве, как в приложении (UTC+3, перехода на летнее время нет)."""
+    if not iso:
+        return "—"
+    moment = datetime.strptime(iso, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    return (moment + timedelta(hours=3)).strftime("%d.%m.%Y %H:%M") + " МСК"
+
+
 def render(run: dict, run_dir: Path, app_url: str) -> str:
     summary = json.loads(results.summary(run_dir))
     top_apps = results.apps(
@@ -56,7 +65,7 @@ def render(run: dict, run_dir: Path, app_url: str) -> str:
     )["apps"]
     # FAIL выше PASS; запуски без этапа checks (старые) — просто без таблицы
     try:
-        table = results.checks(run_dir, result="", page=1, size=None, include_refs=False)
+        table = results.checks(run_dir, result="", page=1, size=None, include_refs=False, with_app_ids=True)
         checks = sorted(table["rows"], key=lambda r: r["result"] != "FAIL")
         checks_total = table["total"]
     except ApiError:
@@ -73,6 +82,9 @@ def render(run: dict, run_dir: Path, app_url: str) -> str:
         top_apps=top_apps,
         checks=checks,
         checks_total=checks_total,
+        # в карточке — и строки с FAIL, и сколько разных проверок их дали: «33» без пояснения путает
+        checks_failed=len({c["check_name"] for c in checks if c["result"] == "FAIL"}),
+        created_msk=_msk(run["created_at"]),
         attributes_changed=sum(summary["attributes"].values()),
         changed_share=changed_share,
         app_url=app_url,

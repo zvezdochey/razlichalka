@@ -25,13 +25,13 @@
 .apps-table colgroup col:nth-child(2) { width: 90px; }    /* Решение · до */
 .apps-table colgroup col:nth-child(3) { width: 90px; }    /* Решение · после */
 .apps-table colgroup col:nth-child(4) { width: 110px; }   /* Изменено атр. */
-.apps-table colgroup col:nth-child(5) { width: 150px; }   /* Модель · до */
-.apps-table colgroup col:nth-child(6) { width: 150px; }   /* Модель · после */
-.apps-table colgroup col:nth-child(7) { width: 170px; }   /* Порог · до */
-.apps-table colgroup col:nth-child(8) { width: 170px; }   /* Порог · после */
-.apps-table colgroup col:nth-child(9) { width: 90px; }    /* Причина отказа · до */
-.apps-table colgroup col:nth-child(10) { width: 120px; }  /* Причина отказа · после */
-.apps-table colgroup col:nth-child(11) { width: 130px; }  /* Источник */
+.apps-table colgroup col:nth-child(5) { width: 130px; }   /* Почему изменилось */
+.apps-table colgroup col:nth-child(6) { width: 150px; }   /* Модель · до */
+.apps-table colgroup col:nth-child(7) { width: 150px; }   /* Модель · после */
+.apps-table colgroup col:nth-child(8) { width: 170px; }   /* Порог · до */
+.apps-table colgroup col:nth-child(9) { width: 170px; }   /* Порог · после */
+.apps-table colgroup col:nth-child(10) { width: 90px; }   /* Причина отказа · до */
+.apps-table colgroup col:nth-child(11) { width: 120px; }  /* Причина отказа · после */
 /* Граница между каждой парой соседних колонок — первая строка шапки (группы с colSpan),
    вторая строка (до/после) и тело таблицы размечены раздельно, т.к. у них разное
    число ячеек в строке, но колонка одна и та же. */

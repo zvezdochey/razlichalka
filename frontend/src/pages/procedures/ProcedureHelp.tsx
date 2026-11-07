@@ -88,24 +88,49 @@ def run(mart, params) -> list[dict]:
 }
 
 function DataProcedureHelp({ kind }: { kind: Exclude<ProcedureKind, 'check'> }) {
+  if (kind === 'compare') {
+    return (
+      <div className="proc-help__body">
+        <p>
+          Процедура объявляет <code>COMPARE</code> с функцией, которая получает две плоские таблицы
+          (pandas.DataFrame) — строки BEFORE и AFTER — и возвращает витрину сравнения.
+        </p>
+        <pre className="proc-help__code mono">{`def compare(before, after):
+    ...  # колонки входа: APP_ID, PREFIX, CLASS, SUFFIX, ARRAY_KEY, KEY, PATH, VALUE, ADJUSTED_VALUE
+    return out  # APP_ID … PATH, VALUE_BEFORE, VALUE_AFTER, ADJUSTED_BEFORE, ADJUSTED_AFTER, CHANGE_TYPE
+
+COMPARE = {"label": "Моё сравнение", "entrypoint": compare}`}</pre>
+        <p className="muted">
+          <code>CHANGE_TYPE</code> — <code>SAME</code>, <code>VALUE_CHANGED</code>,{' '}
+          <code>ATTRIBUTE_NEW</code> или <code>ATTRIBUTE_LOST</code>; <code>DIFF_FLAG</code> приложение
+          ставит само. Своя процедура исполняется в отдельном процессе; если результат не по
+          контракту, прогон остановится с понятной ошибкой.
+        </p>
+      </div>
+    )
+  }
   return (
     <div className="proc-help__body">
       {kind === 'normalize' ? (
         <p>
           Правила сопоставления массивов между срезами: словарь <code>ARRAY_RULES</code>, где для
           каждого массива указан режим — <code>key</code> (по полям из <code>key</code>),{' '}
-          <code>value</code> (по значению) или <code>index</code> (по позиции).
+          <code>value</code> (по значению) или <code>index</code> (по позиции). Рядом —{' '}
+          <code>BUCKETS</code> (границы диапазонов для сравнения и сводной по бакетам) и{' '}
+          <code>ID_PATH</code> (где в ответе id заявки).
         </p>
       ) : (
         <p>
-          Факты (подсчёты) опираются на карту полей для разрезов: для каждого поля разреза — путь в JSON-ответе, массив
-          помечается <code>[]</code>. Здесь же <code>INPUT_PREFIXES</code> — какие пути считаются
-          входом, а не логикой.
+          Факты (подсчёты) опираются на карту полей для разрезов: <code>FIELD_MAP</code> — для каждого поля
+          разреза путь в JSON-ответе, массив помечается <code>[]</code>. Здесь же{' '}
+          <code>INPUT_PREFIXES</code> — какие пути считаются входом, а не логикой.
         </p>
       )}
       <p className="muted">
-        Логики в файле нет, только данные — его читает конвейер. На один прогон правило массива
-        можно перекрыть в конфигурации (<code>array_rules</code>, <code>array_modes</code>).
+        Код процедуры исполняется в отдельном процессе, разбор берёт из него эти переменные. Скопируйте
+        встроенную процедуру, поправьте и выберите копию в форме «Новый прогон» → «Как считаем». На
+        один прогон правило массива можно перекрыть и в конфигурации (<code>array_rules</code>,{' '}
+        <code>array_modes</code>).
       </p>
     </div>
   )

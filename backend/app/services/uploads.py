@@ -12,7 +12,7 @@ from datetime import datetime
 
 from app import settings
 from app.errors import ApiError
-from pipeline.array_rules import default_array_rules
+from pipeline.array_rules import default_array_rules, get_by_path, id_path
 from pipeline.errors import BadFile
 from pipeline.ingest import EXTENSIONS, MAX_UNPACKED, iter_files, ext_of, split_apps
 
@@ -31,12 +31,13 @@ def _read_source(source: str, uploads: list[tuple[str, bytes]], array_paths: set
     apps: dict[str, dict] = {}
     origin: dict[str, str] = {}
     formats = {"json": 0, "xml": 0, "csv": 0}
+    id_field = id_path(settings.PROCEDURES_DIR)  # где в ответе id заявки — из процедуры приведения
     for upload_name, data in uploads:
         if ext_of(upload_name) not in (*EXTENSIONS, ".zip"):
             raise ApiError("bad_request", f"Файл {upload_name}: нужен .json, .xml, .csv или .zip")
         for name, ext, content in iter_files(upload_name, data, budget):
-            for doc in split_apps(name, ext, content, array_paths):
-                app_id = doc["appData"]["application_id"]
+            for doc in split_apps(name, ext, content, array_paths, id_field):
+                app_id = get_by_path(doc, id_field)
                 if app_id in apps:
                     raise BadFile(f"в срезе {source} заявка {app_id} встречается дважды: {origin[app_id]} и {name}")
                 if len(apps) >= MAX_APPS:

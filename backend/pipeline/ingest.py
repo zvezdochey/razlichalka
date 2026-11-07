@@ -16,6 +16,7 @@ import zipfile
 from collections.abc import Iterator
 from xml.etree import ElementTree
 
+from .array_rules import DEFAULT_ID_PATH, get_by_path
 from .errors import BadFile
 
 EXTENSIONS = (".json", ".xml", ".csv")
@@ -81,42 +82,49 @@ def iter_files(name: str, data: bytes, budget: list[int] | None = None) -> Itera
 
 # ─── Общее ───────────────────────────────────────────────────────────────────
 
-def split_apps(name: str, ext: str, data: bytes, array_paths: set[str]) -> list[dict]:
-    """Один файл -> список заявок (обычно одна). У каждой заявки уже есть appData.application_id."""
+def split_apps(name: str, ext: str, data: bytes, array_paths: set[str], id_field: str = DEFAULT_ID_PATH) -> list[dict]:
+    """Один файл -> список заявок (обычно одна). У каждой заявки уже есть id по пути `id_field` (ID_PATH процедуры)."""
     if len(data) > MAX_FILE:
         raise BadFile(f"файл {name} больше {MAX_FILE // 1024 // 1024} МБ")
     if ext in EXTENSIONS:
         try:
             docs = {".json": lambda: _json_docs(name, data), ".xml": lambda: [_xml_doc(name, data, array_paths)],
-                    ".csv": lambda: _csv_docs(name, data)}[ext]()
+                    ".csv": lambda: _csv_docs(name, data, id_field)}[ext]()
         except (RecursionError, ValueError, csv.Error) as e:  # вложенность, огромные числа, слишком длинные поля
             raise BadFile(f"файл {name} не разобрать: {type(e).__name__} (слишком глубокая вложенность или странные значения)") from None
     else:
         raise BadFile(f"файл {name}: формат {ext or 'без расширения'} не поддерживается (нужны .json, .xml, .csv, .zip)")
     stem = name.rsplit("/", 1)[-1].rsplit(".", 1)[0]
     for doc in docs:
-        _ensure_app_id(name, doc, stem if len(docs) == 1 else None)
+        _ensure_app_id(name, doc, stem if len(docs) == 1 else None, id_field)
     return docs
 
 
-def _ensure_app_id(name: str, doc: dict, stem: str | None) -> None:
-    """Приводит appData.application_id к строке. Нет id — берём имя файла (если заявка в файле одна)."""
-    app_data = doc.get("appData")
-    if app_data is None:
-        app_data = doc["appData"] = {}
-    if not isinstance(app_data, dict):
-        raise BadFile(f"файл {name}: appData должен быть объектом")
-    app_id = app_data.get("application_id")
+def _ensure_app_id(name: str, doc: dict, stem: str | None, id_field: str = DEFAULT_ID_PATH) -> None:
+    """Приводит id заявки (путь `id_field` — ID_PATH процедуры приведения) к строке.
+
+    Нет id — берём имя файла (если заявка в файле одна).
+    """
+    *parents, leaf = id_field.split(".")
+    holder = doc
+    for i, part in enumerate(parents):
+        child = holder.get(part)
+        if child is None:
+            child = holder[part] = {}
+        if not isinstance(child, dict):
+            raise BadFile(f"файл {name}: {'.'.join(parents[:i + 1])} должен быть объектом")
+        holder = child
+    app_id = holder.get(leaf)
     if app_id is None or app_id == "":
         if stem is None:
-            raise BadFile(f"файл {name}: у заявки нет appData.application_id")
+            raise BadFile(f"файл {name}: у заявки нет {id_field}")
         app_id = stem
     if isinstance(app_id, (dict, list, bool)):
-        raise BadFile(f"файл {name}: appData.application_id должен быть строкой или числом")
+        raise BadFile(f"файл {name}: {id_field} должен быть строкой или числом")
     app_id = str(app_id)
     if not _APP_ID.fullmatch(app_id) or not app_id.strip("."):
         raise BadFile(f"файл {name}: недопустимый id заявки {app_id!r} (буквы, цифры, _ - . и не длиннее 100 знаков)")
-    app_data["application_id"] = app_id
+    holder[leaf] = app_id
 
 
 def _text(name: str, data: bytes) -> str:
@@ -226,7 +234,7 @@ _VALUE_ALIASES = ("value", "значение")
 _ID_ALIASES = ("application_id", "app_id", "заявка")
 
 
-def _csv_docs(name: str, data: bytes) -> list[dict]:
+def _csv_docs(name: str, data: bytes, id_field: str = DEFAULT_ID_PATH) -> list[dict]:
     text = _text(name, data)
     first = text.lstrip().split("\n", 1)[0]
     delimiter = max(";,\t", key=first.count)
@@ -261,8 +269,8 @@ def _csv_docs(name: str, data: bytes) -> list[dict]:
     if not docs:
         raise BadFile(f"файл {name}: в CSV нет строк с данными")
     for key, doc in docs.items():
-        if key:  # id из колонки application_id попадает в сам ответ, как в JSON
-            doc.setdefault("appData", {}).setdefault("application_id", key)
+        if key and get_by_path(doc, id_field) is None:  # id из колонки попадает в сам ответ, как в JSON
+            _put(doc, id_field, key)
     return list(docs.values())
 
 

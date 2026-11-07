@@ -68,7 +68,10 @@ export function PivotGroupPanel({
             <ul className="pivot-group-list">
               {data.apps.map((id) => (
                 <li key={id}>
-                  <Link className="mono" to={`/runs/${encodeURIComponent(runId)}/apps?${new URLSearchParams({ app: id })}`}>
+                  <Link className="mono" to={`/runs/${encodeURIComponent(runId)}/apps?${new URLSearchParams({
+                    // список под карточкой — эта же группа (все её заявки, без фильтра «Только с различиями»)
+                    ref: group.ref, group: group.label, has_attr_change: '0', app: id, ...(group.path ? { attr: group.path } : {}),
+                  })}`}>
                     {id}
                   </Link>
                 </li>

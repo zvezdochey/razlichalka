@@ -5,7 +5,8 @@ import { DASH, formatNumber } from '../../lib/format'
 import { compareFactValues, factLabel, groupLabel, isOneGroupLayout, PIVOT_FIELD_HINTS, PIVOT_FIELDS } from './pivotLayout'
 import type { PivotField, PivotLayout } from './pivotLayout'
 
-export type PivotGroup = { ref: string; label: string; cellCount?: number; measure?: 'counts' | 'counts_distinct_apps' }
+/** `path` — атрибут группы (если он есть в раскладке): заявка откроется сразу на нём. */
+export type PivotGroup = { ref: string; label: string; cellCount?: number; measure?: 'counts' | 'counts_distinct_apps'; path?: string }
 
 const AVAILABLE_OFFERS_PATH = 'decisionResult.available_offers'
 const AVAILABLE_OFFERS_HINT = 'Пустой список офферов считается отдельным атрибутом: если офферы пропали, список «появился» (стал пустым); если появились — «исчез»'
@@ -147,6 +148,11 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
                   ))}
                   {visibleColumns.map(([key, column]) => {
                     const cell = row.cells.get(key)
+                    // Атрибут группы: из строки, колонки или единственного значения фильтра PATH
+                    const pathIndex = layout.rows.indexOf('PATH')
+                    const path = pathIndex >= 0 ? row.values[pathIndex]
+                      : layout.column === 'PATH' ? column.value
+                        : layout.filters.PATH?.length === 1 ? layout.filters.PATH[0] : undefined
                     const label = layout.column === null
                       ? groupLabel(layout.rows, row.values)
                       : groupLabel([...layout.rows, layout.column], [...row.values, column.value])
@@ -158,7 +164,7 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
                             type="button"
                             data-fact-ref={cell.app_ids_ref}
                             aria-label={`Заявки группы ${label}, ${metric.toLowerCase()}: ${formatNumber(cell.counts)}`}
-                            onClick={(event) => onOpenGroup({ ref: cell.app_ids_ref, label, cellCount: cell.counts, measure: layout.measure }, event.currentTarget)}
+                            onClick={(event) => onOpenGroup({ ref: cell.app_ids_ref, label, cellCount: cell.counts, measure: layout.measure, path: path === undefined || path === null ? undefined : String(path) }, event.currentTarget)}
                           >
                             {formatNumber(cell.counts)}
                           </button>

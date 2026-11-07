@@ -112,10 +112,14 @@ export type ConfigInput = {
   dataset: string
   /** id процедуры приведения (`kind: normalize`). */
   normalize: string
+  /** id процедуры сравнения (`kind: compare`). В старых конфигурациях поля нет — встроенная. */
+  compare?: string
   /** id процедуры агрегации (`kind: aggregate`). */
   aggregate: string
   /** id проверок (`kind: check`). */
   checks: string[]
+  /** Параметры проверок на этот прогон: `{id проверки: {параметр: значение}}`, перекрывают CHECK["params"]. */
+  check_params?: Record<string, Record<string, unknown>>
   /** Пути, которые не сравниваем. */
   ignore_paths: string[]
   /** Режим сравнения по пути массива. Без записи — `key`. */
@@ -221,6 +225,8 @@ export type Stage = {
   finished_at: string | null
   procedure_id: string | null
   code_ref: CodeRef | null
+  /** Только у этапа `checks`: подключённые проверки — к коду каждой можно перейти. */
+  procedures?: { id: string; name: string }[]
   /** Последние записи журнала. Полный журнал — отдельной ручкой. */
   log: StageLogEntry[]
 }
@@ -282,6 +288,8 @@ export type AppsParams = {
   has_attr_change?: boolean
   /** Поиск по APP_ID и текстовым полям разреза. */
   search?: string
+  /** Только заявки группы: `app_ids_ref` клетки сводной или строки проверки. */
+  ref?: string
   /** Поле сортировки, минус впереди — по убыванию: `-attributes_changed`. */
   sort?: string
   /** Нумерация с 1. */
@@ -398,8 +406,8 @@ export type ChecksParams = {
 
 // ─── 3. Процедуры и проверки ─────────────────────────────────────────────────
 
-/** Вид процедуры: приведение ответов, факты для сводной или проверка. */
-export type ProcedureKind = 'normalize' | 'aggregate' | 'check'
+/** Вид процедуры: приведение ответов, сравнение срезов, факты для сводной или проверка. */
+export type ProcedureKind = 'normalize' | 'compare' | 'aggregate' | 'check'
 
 /** Процедура в списке (п. 3.1). `path` есть только у `source: 'file'`. */
 export type Procedure = {
@@ -410,6 +418,8 @@ export type Procedure = {
   path?: string
   /** Встроенную нельзя ни изменить, ни удалить — только открыть на чтение. */
   builtin: boolean
+  /** Только у проверок: параметры по умолчанию из CHECK["params"]; `null` — не удалось прочитать без запуска. */
+  params?: Record<string, unknown> | null
   /** У встроенных — `null`. */
   updated_at: string | null
 }

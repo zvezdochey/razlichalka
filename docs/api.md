@@ -154,9 +154,15 @@
 
 | `kind` | Вход | Выход |
 |---|---|---|
-| `normalize` | JSON одного ответа | строки плоской таблицы (поля витрины) |
-| `aggregate` | витрина сравнения | факты `counts` для сводного отчёта |
+| `normalize` | — | `ARRAY_RULES`: правила сопоставления массивов, по ним общий разбор строит плоскую таблицу; необязательно `BUCKETS` (границы бакетов) и `ID_PATH` (путь к id заявки) |
+| `compare` | `COMPARE["entrypoint"](before, after)`: два DataFrame нормализованных строк | DataFrame витрины сравнения (колонки `comparison.csv`, `CHANGE_TYPE` из словаря) |
+| `aggregate` | — | `FIELD_MAP` (+ необязательный `INPUT_PREFIXES`): карта полей разрезов, по ней считаются факты `counts` |
 | `check` | факты и витрина | строки `PASS` / `FAIL` |
+
+Код пользовательских `normalize`, `compare`, `aggregate` (как и проверок) исполняется в отдельном процессе с таймаутом.
+У `normalize` и `aggregate` берутся переменные заглавными буквами; запуск записывает их файлом в `runs/<id>/procedures/` — его и читает разбор.
+Встроенные: `builtin_normalize`, `builtin_compare` (`procedures/builtin_compare.py`), `builtin_aggregate`. Скопировать можно любую.
+При сохранении `normalize`/`aggregate` код исполняется: упавший код — `bad_code` сразу. `compare` проверяется статически, результат — в запуске.
 
 ### 3.1. Список процедур
 
@@ -183,7 +189,7 @@
 
 Или с файлом: `{ "kind": "normalize", "name": "...", "source": "file", "path": "procedures/my_norm.py" }`.
 
-Ответ: объект процедуры (`201`). Если код не проходит проверку контракта, ответ — ошибка `bad_code` (см. «Ошибки»), в `message` — где именно.
+Ответ: объект процедуры (`201`). У проверок в списке и в `GET /api/procedures/{id}` есть `params` — параметры по умолчанию из `CHECK["params"]` (`null`, если их не прочитать без запуска). Если код не проходит проверку контракта, ответ — ошибка `bad_code` (см. «Ошибки»), в `message` — где именно.
 
 ### 3.3. Проверить код процедуры без запуска
 
@@ -236,6 +242,7 @@
   "name": "Прогон на 06.11",
   "dataset": "RUN-20260827-0001",
   "normalize": "builtin_normalize",
+  "compare": "builtin_compare",
   "aggregate": "builtin_aggregate",
   "checks": ["builtin_attribute_new_loss", "p_1"],
   "ignore_paths": ["appData.request_id", "appData.createDateTime"],
@@ -245,13 +252,14 @@
 }
 ```
 
-- `normalize`, `aggregate` — id процедуры нужного `kind`.
+- `normalize`, `compare`, `aggregate` — id процедуры нужного `kind` (другой вид — `bad_code`). `compare` необязателен, по умолчанию `builtin_compare`.
+- `check_params` — параметры проверок на этот прогон: `{ "<id проверки>": { "<параметр>": значение } }`, перекрывают `CHECK["params"]`. Только для проверок из `checks` (иначе `bad_code`). Необязательно. Если у проверки есть `app_ids_limit`, прогон по умолчанию ставит его «все заявки», чтобы из строки отчёта открывались все её заявки.
 - `checks` — список id проверок (`kind: "check"`).
 - `ignore_paths` — пути, которые не сравниваем. Два технических поля — из `manifest.json` датасета (`technical_fields_always_differ`): они различаются у всех 2002 заявок.
 - `array_rules` — правило массива по пути целиком: `{ "mode": "key", "key": ["поле", ...] }`, или `{ "mode": "value" }`, или `{ "mode": "index" }`. Перекрывает правило встроенной процедуры `builtin_normalize` (файл `backend/procedures/builtin_normalize.py`) и позволяет добавить правило для нового массива. Необязательно, по умолчанию `{}`. Для `key` нужен непустой `key`. Если массива нет ни в процедуре, ни в `array_rules`/`array_modes`, бэк берёт умолчание, а не падает: список скаляров сопоставляется по значению (если значения не повторяются), иначе — по позиции (`index`). То же, если встроенное правило процедуры не подходит к данным (нет поля ключа) и конфигурация его не переопределила; правило из `array_rules`/`array_modes` при несовпадении по-прежнему даёт `bad_file`. Каждый такой откат записывается предупреждением в журнал этапа `normalize` (список массивов), чтобы сравнение по позиции не случилось молча.
 - `array_modes` — только режим массива по пути: `key`, `value`, `index` (ключ остаётся из правила). Для `decisionResult.scoring[].value` режим `index` (вектор модели, позиция значима). Полный список массивов и их ключей — в `ФОРМАТ_ОТВЕТА.md` и в `builtin_normalize.py`.
 - Порядок перекрытия правил массивов: процедура → `array_rules` → `array_modes`. Путь можно писать без последних `[]`.
-- `buckets` — границы бакетов (для `ADJUSTED_VALUE`), одни и те же для обоих срезов. Пример: `pd.value` 0.42 попадает в `(0.3 – 0.6]`.
+- `buckets` — границы бакетов (для `ADJUSTED_VALUE`), одни и те же для обоих срезов. Пример: `pd.value` 0.42 попадает в `(0.3 – 0.6]`. Умолчания — `BUCKETS` процедуры приведения; `buckets` перекрывает их по пути (пустой список — без бакетов).
 
 Ответ: объект конфигурации (`201`).
 
@@ -338,18 +346,19 @@
       "started_at": "2026-11-06T12:00:01Z",
       "finished_at": "2026-11-06T12:01:10Z",
       "procedure_id": "builtin_normalize",
-      "code_ref": { "procedure_id": "builtin_normalize", "source": "file", "path": "procedures/normalize.py", "line": 1 },
+      "code_ref": { "procedure_id": "builtin_normalize", "source": "file", "path": "procedures/builtin_normalize.py", "line": 1 },
       "log": [ { "at": "2026-11-06T12:00:02Z", "level": "info", "message": "Обработано 500 из 4004" } ]
     },
-    { "name": "compare", "title": "Сравнение срезов", "status": "running", "started_at": "2026-11-06T12:01:11Z", "finished_at": null, "procedure_id": null, "code_ref": null, "log": [] },
-    { "name": "aggregate", "title": "Факты counts", "status": "pending", "started_at": null, "finished_at": null, "procedure_id": "builtin_aggregate", "code_ref": null, "log": [] },
-    { "name": "checks", "title": "Проверки", "status": "pending", "started_at": null, "finished_at": null, "procedure_id": null, "code_ref": null, "log": [] }
+    { "name": "compare", "title": "Сравнение срезов", "status": "running", "started_at": "2026-11-06T12:01:11Z", "finished_at": null, "procedure_id": "p_3c1a2b", "code_ref": { "procedure_id": "p_3c1a2b", "source": "inline", "path": null, "line": 1 }, "log": [] },
+    { "name": "aggregate", "title": "Факты counts", "status": "pending", "started_at": null, "finished_at": null, "procedure_id": "builtin_aggregate", "code_ref": { "procedure_id": "builtin_aggregate", "source": "file", "path": "procedures/builtin_segments.py", "line": 1 }, "log": [] },
+    { "name": "checks", "title": "Проверки", "status": "pending", "started_at": null, "finished_at": null, "procedure_id": null, "code_ref": null, "procedures": [ { "id": "builtin_attribute_new_loss", "name": "Изменился состав атрибутов" } ], "log": [] }
   ]
 }
 ```
 
 - Этапы идут в порядке: `normalize`, `compare`, `aggregate`, `checks`.
-- `code_ref` — куда перейти по клику: id процедуры, путь (для `file`) или `inline`, и номер строки.
+- `code_ref` — куда перейти по клику: процедура, которую исполняет этап (выбранная в конфигурации), путь (для `file`) или `inline`, и номер строки.
+- `procedures` — только у `checks`: подключённые проверки `{id, name}`, к коду каждой можно перейти.
 - `log` — последние записи этапа. Полный журнал: `GET /api/runs/{id}/stages/{name}/log?after=<индекс>`.
 
 `level` в журнале — `info`, `warn` или `error`.
@@ -404,6 +413,7 @@
 
 Параметры:
 - `dims` — от одного до трёх разных полей витрины или разреза через запятую. `ARRAY_KEY_1` — первый ключ массива из `ARRAY_KEY`.
+- Поля `SOURCE`, `VALUE`, `ADJUSTED_VALUE` (в `dims` или в фильтре) переключают расчёт на вертикальную витрину `union.csv` (строки BEFORE и AFTER, срез в `SOURCE`, у строки есть `DIFF_FLAG` и `CHANGE_TYPE` её атрибута). С полями «до/после» (`VALUE_BEFORE` и т. п.) их сочетать нельзя — `bad_file`. Прогон, запущенный до появления `union.csv`, — `bad_file` с просьбой перезапустить.
 - `filter` — строгое равенство `поле:значение`. Условия через `;` объединяются по И, значения одного условия через запятую — по ИЛИ. Пустой `filter` отключает фильтрацию, пустое значение после двоеточия выбирает пустые ячейки. Пустое условие, например завершающая `;`, даёт `400 bad_file`. Для `DIFF_FLAG` допустимы только `0` и `1`.
 - Если значение содержит запятую или точку с запятой, передайте в `filter` JSON-объект с непустым массивом строк на поле, например `{"PATH":["appData.key,with;separator"],"DIFF_FLAG":["1"]}`. Поля объединяются по И, элементы массива — по ИЛИ.
 - `measure` — `counts` (число строк, по умолчанию) или `counts_distinct_apps` (число уникальных заявок). В обоих случаях показатель возвращается в поле `counts`.
@@ -441,6 +451,8 @@
 ### 7.4. Список заявок с различиями
 
 `GET /api/runs/{id}/apps?decision_change=approve_to_reject&search=I32554&sort=-attributes_changed&page=1&size=50`
+
+`ref` (необязательно) — `app_ids_ref` клетки сводной или строки проверки: только заявки этой группы. Неизвестный `ref` — `404 not_found`. То же для `export.csv`.
 
 Параметры:
 - `decision_change` — один или несколько значений через запятую (словарь «Решение изменилось»).

@@ -10,16 +10,21 @@ from pathlib import Path
 
 from app import settings, store
 from app.errors import ApiError
-from pipeline.checks_runner import forbidden_code_problems, validate_check_code
+from pipeline.checks_runner import validate_check_code
+from pipeline.errors import BadFile
+from pipeline.user_procedures import load_constants, static_problems
 
 KIND = "procedures"
-KINDS = ("normalize", "aggregate", "check")
+KINDS = ("normalize", "compare", "aggregate", "check")
 
 # Встроенные процедуры этапов: id -> (вид, название, файл в procedures/)
 _STAGE_BUILTINS = {
     "builtin_normalize": ("normalize", "Правила разбора ответов", "builtin_normalize.py"),
+    "builtin_compare": ("compare", "Сравнение по ключу (APP_ID, PATH, ARRAY_KEY)", "builtin_compare.py"),
     "builtin_aggregate": ("aggregate", "Карта полей для разрезов", "builtin_segments.py"),
 }
+# Встроенная процедура этапа по умолчанию (в старых конфигурациях поля `compare` нет)
+STAGE_DEFAULTS = {"normalize": "builtin_normalize", "compare": "builtin_compare", "aggregate": "builtin_aggregate"}
 
 
 def _now() -> str:
@@ -62,6 +67,31 @@ def _check_header(file: Path) -> tuple[str, str] | None:
     return None
 
 
+def check_params(code: str) -> dict | None:
+    """Параметры проверки по умолчанию — `CHECK["params"]` без исполнения кода.
+
+    Понимает словарь прямо в CHECK и ссылку на словарь верхнего уровня (`"params": DEFAULTS`).
+    Не вышло (параметры вычисляются) — None: тогда форма просто не покажет поля параметров.
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return None
+    top = {t.id: node.value for node in tree.body if isinstance(node, ast.Assign)
+           for t in node.targets if isinstance(t, ast.Name)}
+    check = top.get("CHECK")
+    if not isinstance(check, ast.Dict):
+        return None
+    params = next((v for k, v in zip(check.keys, check.values) if isinstance(k, ast.Constant) and k.value == "params"), None)
+    if isinstance(params, ast.Name):
+        params = top.get(params.id)
+    try:
+        value = ast.literal_eval(params) if params is not None else None
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
 # --- встроенные ----------------------------------------------------------------
 
 def builtins() -> list[dict]:
@@ -100,17 +130,28 @@ def find(proc_id: str, user: str) -> dict:
     return _own(proc_id, user)
 
 
+def _with_params(proc: dict) -> dict:
+    """Проверке в списке — параметры по умолчанию (для формы «Новый прогон»); файла нет — без них."""
+    if proc["kind"] != "check":
+        return _public(proc)
+    try:
+        params = check_params(code_of(proc))
+    except (ApiError, OSError):
+        params = None
+    return {**_public(proc), "params": params}
+
+
 def list_all(kind: str | None, user: str) -> list[dict]:
-    mine = [_public(p) for p in store.list(KIND) if p.get("owner") == user]
+    mine = [p for p in store.list(KIND) if p.get("owner") == user]
     mine.sort(key=lambda p: p["updated_at"], reverse=True)
     items = builtins() + mine
-    return [p for p in items if kind is None or p["kind"] == kind]
+    return [_with_params(p) for p in items if kind is None or p["kind"] == kind]
 
 
 def validate(kind: str, source: str, code: str | None, path: str | None) -> list[dict]:
     """Список {line, message}; пустой — код годится. Исполнять код здесь не нужно: проверка статическая."""
     if kind not in KINDS:
-        return [{"line": 1, "message": f"Неизвестный вид процедуры «{kind}», нужен normalize, aggregate или check"}]
+        return [{"line": 1, "message": f"Неизвестный вид процедуры «{kind}», нужен normalize, compare, aggregate или check"}]
     if source == "file":
         try:
             text = resolve_path(path or "").read_text(encoding="utf-8")
@@ -124,11 +165,15 @@ def validate(kind: str, source: str, code: str | None, path: str | None) -> list
         return [{"line": 1, "message": "source — inline или file"}]
     if kind == "check":
         return validate_check_code(text)
+    problems = static_problems(kind, text)
+    if problems or kind == "compare":
+        return problems  # функцию сравнения проверит запуск: ей нужны данные всего датасета
     try:
-        tree = ast.parse(text)
-    except SyntaxError as exc:
-        return [{"line": exc.lineno or 1, "message": f"Синтаксическая ошибка: {exc.msg}"}]
-    return forbidden_code_problems(tree)
+        # процедура-данные: исполняем в отдельном процессе — так упавший код виден до запуска
+        load_constants(kind, text)
+    except BadFile as exc:
+        return [{"line": 1, "message": str(exc)}]
+    return []
 
 
 def _checked_fields(body: dict) -> dict:
@@ -169,10 +214,29 @@ def delete(proc_id: str, user: str) -> None:
 
 
 def with_code(proc: dict) -> dict:
-    """Объект процедуры + `code`: текст файла (только из procedures/ и checks/) или inline-код."""
+    """Объект процедуры + `code`: текст файла (только из procedures/ и checks/) или inline-код.
+
+    У проверки ещё `params` — параметры по умолчанию из CHECK (их можно перекрыть в конфигурации).
+    """
     if proc["source"] == "file":
-        return {**_public(proc), "code": resolve_path(proc["path"]).read_text(encoding="utf-8")}
-    return {**_public(proc), "code": proc["code"]}
+        out = {**_public(proc), "code": resolve_path(proc["path"]).read_text(encoding="utf-8")}
+    else:
+        out = {**_public(proc), "code": proc["code"]}
+    if proc["kind"] == "check":
+        out["params"] = check_params(out["code"])
+    return out
+
+
+def code_of(proc: dict) -> str:
+    """Текст кода процедуры: файл из procedures/ или checks/ либо inline."""
+    if proc["source"] == "file":
+        return resolve_path(proc["path"]).read_text(encoding="utf-8")
+    return proc["code"]
+
+
+def code_ref(proc: dict) -> dict:
+    """Куда вести из журнала (docs/api.md п. 6): в рабочую область этой процедуры."""
+    return {"procedure_id": proc["id"], "source": proc["source"], "path": proc.get("path"), "line": 1}
 
 
 def check_source(proc: dict) -> tuple[str, str]:
