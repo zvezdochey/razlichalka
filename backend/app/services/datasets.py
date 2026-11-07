@@ -1,4 +1,4 @@
-"""Датасеты: каждая подпапка DATASETS_DIR с manifest.json (docs/api.md п. 2.1)."""
+"""Датасеты: каждая подпапка DATASETS_DIR и UPLOADS_DIR с manifest.json (docs/api.md п. 2.1)."""
 import json
 import logging
 
@@ -24,12 +24,13 @@ def _read_manifest(folder) -> dict | None:
 
 def _scan() -> list[dict]:
     """Все датасеты вместе с путём к папке (`path` нужен только бэку, наружу его не отдаём)."""
-    root = settings.DATASETS_DIR
-    folders = sorted(root.iterdir()) if root.is_dir() else []
+    folders = []
+    for root in (settings.DATASETS_DIR, settings.UPLOADS_DIR):
+        folders += sorted(root.iterdir()) if root.is_dir() else []
     result, seen = [], {}
     for folder in folders:
-        if not (folder / "manifest.json").is_file():
-            continue
+        if folder.name.startswith(".") or not (folder / "manifest.json").is_file():
+            continue  # «.tmp-…» — загрузка ещё собирается (services/uploads.py)
         ds = _read_manifest(folder)
         if ds is None:
             continue

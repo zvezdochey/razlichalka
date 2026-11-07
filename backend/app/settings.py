@@ -11,6 +11,8 @@ STUB_RUN_DIR = BACKEND_DIR / "tests" / "fixtures" / "run_mini"
 DATASETS_DIR = Path(os.environ.get("DATASETS_DIR", REPO_DIR / "ПАКЕТ" / "ЗАДАНИЕ" / "data"))
 # Папка, куда пишет бэк: конфигурации, запуски, результаты
 DATA_DIR = Path(os.environ.get("DATA_DIR", BACKEND_DIR / "var"))
+# Загруженные через приложение датасеты (docs/api.md п. 2.2). DATASETS_DIR в Docker только для чтения, поэтому отдельно
+UPLOADS_DIR = Path(os.environ.get("UPLOADS_DIR", DATA_DIR / "uploads"))
 
 # Встроенные процедуры — файлы с правилами разбора; этапы передают эту папку в pipeline (services/stages.py)
 PROCEDURES_DIR = Path(os.environ.get("PROCEDURES_DIR", BACKEND_DIR / "procedures"))

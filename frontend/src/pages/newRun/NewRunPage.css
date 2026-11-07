@@ -204,3 +204,42 @@
   min-height: 20px;
   font-size: var(--fs-table);
 }
+
+/* --- Загрузка своих данных --- */
+.upload {
+  margin-bottom: var(--s-4);
+  padding: var(--s-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-control);
+}
+
+.upload__title {
+  margin: 0 0 var(--s-1);
+  font-size: var(--fs-body);
+}
+
+.upload__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--s-4);
+  margin-top: var(--s-3);
+}
+
+.upload__file {
+  width: 100%;
+}
+
+.upload__label-gap {
+  margin-top: var(--s-3);
+}
+
+.upload__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  margin-top: var(--s-3);
+}
+
+.field__reload {
+  margin-top: var(--s-2);
+}

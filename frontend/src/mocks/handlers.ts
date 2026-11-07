@@ -122,6 +122,26 @@ export const handlers = [
     return HttpResponse.json({ datasets: [DATASET] })
   }),
 
+  // 2.2. Загрузка датасета: мок ничего не разбирает и отдаёт единственный известный датасет
+  http.post('/api/datasets/upload', async ({ request }) => {
+    await delay(RESPONSE_DELAY_MS)
+    const form = await request.formData()
+    const count = (field: string) => form.getAll(field).length
+    if (count('before') === 0 || count('after') === 0) {
+      return error(400, 'bad_request', 'Неверный запрос — нужны файлы обоих срезов')
+    }
+    const received = (field: string) => ({ applications: DATASET.applications, json: count(field), xml: 0, csv: 0 })
+    return HttpResponse.json(
+      {
+        dataset: DATASET,
+        received: { BEFORE: received('before'), AFTER: received('after') },
+        applications_only_before: 0,
+        applications_only_after: 0,
+      },
+      { status: 201 },
+    )
+  }),
+
   // 4.2. Создать конфигурацию
   http.post('/api/configs', async ({ request }) => {
     await delay(RESPONSE_DELAY_MS)
