@@ -165,8 +165,9 @@ export function toRunStatus(run: MockRun): RunStatus {
 }
 
 export function toRunListItem(run: MockRun): RunListItem {
-  const { id, status, config_id, created_at } = toRunStatus(run)
-  return { id, status, config_id, created_at }
+  const { id, status, config_id, dataset, created_at } = toRunStatus(run)
+  // Моки не хранят сохранённые конфигурации — название подставляем по id.
+  return { id, status, config_id, name: `Конфигурация ${config_id}`, dataset, created_at }
 }
 
 export function listMockRuns(): RunListItem[] {

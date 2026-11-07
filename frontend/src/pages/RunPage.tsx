@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { RunStatus } from '../api'
-import { cancelRun, downloadReport, getRun, isAbortError } from '../api'
+import { cancelRun, downloadReport, getRun, isAbortError, openReport } from '../api'
 import { ErrorBox, Spinner, StatusBadge } from '../components'
 import { usePolling } from '../hooks/usePolling'
 import { DASH, formatDateTime } from '../lib/format'
@@ -29,6 +29,7 @@ export function RunPage() {
   const [actionError, setActionError] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [opening, setOpening] = useState(false)
 
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -112,6 +113,18 @@ export function RunPage() {
     }
   }
 
+  const onOpenReport = async () => {
+    setOpening(true)
+    setActionError(null)
+    try {
+      await openReport(id)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Не удалось открыть отчёт')
+    } finally {
+      setOpening(false)
+    }
+  }
+
   const running = run !== null && (run.status === 'pending' || run.status === 'running')
   const currentStage = run?.current_stage ?? null
   // Текст «что сейчас происходит» виден на любой вкладке, не только в журнале:
@@ -153,9 +166,14 @@ export function RunPage() {
             </button>
           )}
           {run?.status === 'ready' && (
-            <button type="button" className="btn btn--primary" onClick={onDownload} disabled={downloading}>
-              {downloading ? 'Готовим файл…' : 'Скачать HTML'}
-            </button>
+            <>
+              <button type="button" className="btn" onClick={onOpenReport} disabled={opening}>
+                {opening ? 'Открываем…' : 'Открыть отчёт в новой вкладке'}
+              </button>
+              <button type="button" className="btn btn--primary" onClick={onDownload} disabled={downloading}>
+                {downloading ? 'Готовим файл…' : 'Скачать HTML'}
+              </button>
+            </>
           )}
         </div>
       </div>
