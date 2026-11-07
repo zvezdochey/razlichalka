@@ -77,6 +77,8 @@ export function ChecksAppsPanel({ runId, row, appsRef, onClose }: ChecksAppsPane
   // говорим об этом прямо, а не обещаем полный список (DESIGN.md п. 9).
   const limited = data !== null && count !== null && data.total < count
 
+  const argument = displayArgument(row)
+
   return (
     <aside className="panel checks-apps" aria-labelledby="checks-apps-title">
       <div className="checks-apps-head">
@@ -95,7 +97,7 @@ export function ChecksAppsPanel({ runId, row, appsRef, onClose }: ChecksAppsPane
       </div>
       <p className="checks-apps-label muted">
         {row.check_name}
-        {displayArgument(row) !== null && ` · ${displayArgument(row)}`}
+        {argument !== null && ` · ${argument}`}
       </p>
 
       {state.status === 'loading' && <Spinner label="Загружаем заявки" />}

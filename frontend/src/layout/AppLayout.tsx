@@ -76,7 +76,11 @@ function UserSwitcher({ user }: { user: string }) {
           if (event.key === 'Escape') close()
         }}
       />
-      <span id="app-user-hint" className="app__user-hint">
+      <span
+        id="app-user-hint"
+        className={invalid ? 'app__user-hint app__user-hint--error' : 'app__user-hint'}
+        role={invalid ? 'alert' : undefined}
+      >
         Только латиница, цифры и _ - . ; у каждого имени свои прогоны и конфигурации
       </span>
       <button type="submit" className="btn app__user-btn">

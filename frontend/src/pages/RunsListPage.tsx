@@ -140,7 +140,7 @@ export function RunsListPage() {
                 const interrupted = typeof row === 'object' && 'reason' in row
                 const loaded = typeof row === 'object' && 'changed' in row
                 // Для ready ждём ответ — «…», при ошибке — «—». Для остальных статусов итогов нет.
-                const loading = run.status === 'ready' && row === undefined && index < PAGE_SIZE
+                const loading = run.status === 'ready' && row === undefined
                 const placeholder = loading ? '…' : '—'
                 return (
                 <tr

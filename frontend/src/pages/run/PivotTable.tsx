@@ -1,4 +1,5 @@
 import type { FactsResponse, FactsRow, FactValue } from '../../api'
+import { useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { DASH, formatNumber } from '../../lib/format'
 import { compareFactValues, factLabel, groupLabel, isOneGroupLayout, PIVOT_FIELD_HINTS, PIVOT_FIELDS } from './pivotLayout'
@@ -54,7 +55,7 @@ function PathText({ path }: { path: string }) {
 }
 
 export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTableProps) {
-  const { rows, columns, total } = makeMatrix(data.rows, layout.rows, layout.column)
+  const { rows, columns, total } = useMemo(() => makeMatrix(data.rows, layout.rows, layout.column), [data.rows, layout.rows, layout.column])
   const location = useLocation()
   const navigate = useNavigate()
   const rowPage: number = location.state?.pivotRowPage ?? 0
@@ -63,11 +64,14 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
     replace: true, preventScrollReset: true, state: { ...location.state, [key]: value },
   })
   // Порядок значений: решения и типы изменения — по фиксированному порядку, массив — по убыванию числа.
-  const sortedRows = [...rows].sort(([, a], [, b]) => compareFactValues(layout.rows, a.values, b.values) || (layout.rows.includes('ARRAY_KEY_1') ? b.total - a.total : 0))
-  const sortedColumns = [...columns].sort(([, a], [, b]) => {
+  const sortedRows = useMemo(
+    () => [...rows].sort(([, a], [, b]) => compareFactValues(layout.rows, a.values, b.values) || (layout.rows.includes('ARRAY_KEY_1') ? b.total - a.total : 0)),
+    [rows, layout.rows],
+  )
+  const sortedColumns = useMemo(() => [...columns].sort(([, a], [, b]) => {
     if (layout.column === null) return 0
     return compareFactValues([layout.column], [a.value], [b.value]) || (layout.column === 'ARRAY_KEY_1' ? b.total - a.total : 0)
-  })
+  }), [columns, layout.column])
   const visibleRows = sortedRows.slice(rowPage * ROW_PAGE_SIZE, (rowPage + 1) * ROW_PAGE_SIZE)
   const visibleColumns = sortedColumns.slice(columnPage * COLUMN_PAGE_SIZE, (columnPage + 1) * COLUMN_PAGE_SIZE)
   // Итоги суммируем, если показатель — строки витрины или заявка попадает ровно в одну группу.

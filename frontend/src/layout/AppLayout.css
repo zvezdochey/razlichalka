@@ -55,6 +55,10 @@
   color: #cfcfca;
 }
 
+.app__user-hint--error {
+  color: #ffd2cc;
+}
+
 .app__user-btn {
   font-size: var(--fs-caption);
   padding: 2px var(--s-2);

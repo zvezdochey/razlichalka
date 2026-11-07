@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { RunStatus } from '../api'
-import { ApiRequestError, cancelRun, downloadReport, getRun, isAbortError, listConfigs, openReport } from '../api'
+import { ApiRequestError, cancelRun, downloadReport, getConfig, getRun, isAbortError, openReport } from '../api'
 import { ErrorBox, Spinner, StatusBadge } from '../components'
 import { usePolling } from '../hooks/usePolling'
 import { DASH, formatDateTime } from '../lib/format'
@@ -80,10 +80,11 @@ export function RunPage() {
 
   const configId = run?.config_id ?? null
   useEffect(() => {
+    setConfigName(null) // имя прошлого прогона не должно висеть, пока грузится новое
     if (configId === null) return
     const controller = new AbortController()
-    listConfigs({ signal: controller.signal })
-      .then((list) => setConfigName(list.find((c) => c.id === configId)?.name ?? null))
+    getConfig(configId, { signal: controller.signal })
+      .then((config) => setConfigName(config.name))
       .catch(() => setConfigName(null))
     return () => controller.abort()
   }, [configId])

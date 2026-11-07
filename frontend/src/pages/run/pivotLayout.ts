@@ -27,7 +27,7 @@ export const PIVOT_FIELD_HINTS: Partial<Record<PivotField, string>> = {
 
 /** Поля, у которых одна заявка попадает ровно в одну группу — по ним итоги можно суммировать. */
 const ONE_GROUP_FIELDS: PivotField[] = ['DECISION_BEFORE', 'DECISION_AFTER', 'DECISION_CHANGED', 'CHANGE_SOURCE',
-  // Поля разреза: в segments у заявки по одному значению, поэтому она попадает ровно в одну ячейку.
+  // Поля разреза: в витрине segments одна строка на заявку (backend/pipeline), поэтому она попадает ровно в одну ячейку.
   'PD_MODEL_BEFORE', 'PD_MODEL_AFTER', 'PARTNER_TYPE', 'ROUTING_METHOD',
 ]
 

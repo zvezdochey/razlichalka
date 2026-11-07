@@ -106,7 +106,6 @@ export function plural(n: number, forms: [string, string, string]): string {
   return forms[2]
 }
 
-
 /** «20 из 130» — когда проверка сохранила не все заявки, иначе просто число. */
 export function examplesLabel(shown: number, count: number | null): string {
   if (count === null || shown >= count) return formatNumber(shown)
@@ -135,12 +134,12 @@ export function displayArgument(row: CheckRow): string | null {
 }
 
 /**
- * Номера вариантов для строк с одинаковыми (проверка, версия, аргумент, числа).
+ * Номера вариантов для строк с одинаковыми (проверка, версия, аргумент, числа, метрика).
  * Бэк отдаёт их как два случая под одним названием, но с разными заявками, поэтому не склеиваем.
  * Строки без дублей в карту не попадают.
  */
 export function variantsOf(rows: CheckRow[]): Map<CheckRow, number> {
-  const key = (r: CheckRow) => JSON.stringify([r.check_id ?? r.check_name, r.source, r.argument, r.numbers])
+  const key = (r: CheckRow) => JSON.stringify([r.check_id, r.check_name, r.source, r.argument, r.numbers, r.metric])
   const counts = new Map<string, number>()
   for (const row of rows) counts.set(key(row), (counts.get(key(row)) ?? 0) + 1)
   const seen = new Map<string, number>()
