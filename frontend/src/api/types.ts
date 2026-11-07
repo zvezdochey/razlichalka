@@ -292,6 +292,8 @@ export type AttributesResponse = {
 
 /** Параметры списка атрибутов. */
 export type AttributesParams = {
+  only_diff?: boolean
+  search?: string
   page?: number
   size?: number
 }
