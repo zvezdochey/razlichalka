@@ -32,7 +32,8 @@ def main(dataset_dir: Path) -> int:
     for f in files:
         try:
             doc = json.loads(f.read_text(encoding="utf-8"))
-            rows = flatten_response(doc, f.stem, "BEFORE", rules)
+            # как в прогоне без конфигурации: встроенные правила, не подошедшие к данным, откатываются на умолчание
+            rows = flatten_response(doc, f.stem, "BEFORE", rules, soft_paths=rules)
         except BadFile as e:
             kind = "нет правила" if "нет правила" in e.message else "дубль ключа" if "дубль" in e.message else "другое"
             errors[kind] += 1
