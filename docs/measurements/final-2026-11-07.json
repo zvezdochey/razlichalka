@@ -1,0 +1,130 @@
+{
+  "commit": "33ad03d",
+  "hardware": [
+    "- Платформа: `Windows-11-10.0.26300-SP0`",
+    "- Процессор: `Intel64 Family 6 Model 186 Stepping 3, GenuineIntel`, логических ядер: 12",
+    "- Память: 31.6 ГБ",
+    "- Python 3.14.7"
+  ],
+  "timing_kind": "direct actual final stage functions, not HTTP or browser",
+  "times_seconds": {
+    "normalize": 14.091774500004249,
+    "compare": 14.327538999990793,
+    "aggregate": 2.7201252000086242,
+    "checks": 13.963085700001102,
+    "warmup": 1.1597183999983827
+  },
+  "service_calls": {
+    "horizontal_warm": {
+      "seconds": 0.039733700003125705,
+      "groups": 39
+    },
+    "vertical_first": {
+      "seconds": 1.4496080999961123,
+      "groups": 10
+    },
+    "vertical_repeat": {
+      "seconds": 0.02230569999665022,
+      "groups": 10
+    }
+  },
+  "summary": {
+    "applications": 2002,
+    "applications_only_before": 0,
+    "applications_only_after": 0,
+    "applications_changed": 502,
+    "applications_changed_share": 0.251,
+    "decision_changed": 385,
+    "decision_changes": {
+      "same": 1617,
+      "approve_to_reject": 273,
+      "reject_to_approve": 112,
+      "decision_other": 0
+    },
+    "attributes": {
+      "VALUE_CHANGED": 7567,
+      "ATTRIBUTE_NEW": 4108,
+      "ATTRIBUTE_LOST": 3122
+    },
+    "change_sources": {
+      "logic": 218,
+      "data": 167,
+      "both": 0,
+      "none": 0
+    },
+    "checks_fail": 33
+  },
+  "comparison_rows": 291151,
+  "union_rows": 575072,
+  "checks_rows": 34,
+  "pass": 1,
+  "fail": 33,
+  "errors": [],
+  "date": "2026-11-07",
+  "pandas": "3.1.1",
+  "runs_measured": 1,
+  "docker": false,
+  "reference_validation": {
+    "OPEN": {
+      "applications": 2002,
+      "fields_per_app": 8,
+      "mismatches": 0,
+      "summary": {
+        "applications": 2002,
+        "applications_only_before": 0,
+        "applications_only_after": 0,
+        "applications_changed": 502,
+        "applications_changed_share": 0.251,
+        "decision_changed": 385,
+        "decision_changes": {
+          "same": 1617,
+          "approve_to_reject": 273,
+          "reject_to_approve": 112,
+          "decision_other": 0
+        },
+        "attributes": {
+          "VALUE_CHANGED": 7567,
+          "ATTRIBUTE_NEW": 4108,
+          "ATTRIBUTE_LOST": 3122
+        },
+        "change_sources": {
+          "logic": 218,
+          "data": 167,
+          "both": 0,
+          "none": 0
+        },
+        "checks_fail": 33
+      }
+    },
+    "HOLDOUT": {
+      "applications": 998,
+      "fields_per_app": 8,
+      "mismatches": 0,
+      "summary": {
+        "applications": 998,
+        "applications_only_before": 0,
+        "applications_only_after": 0,
+        "applications_changed": 248,
+        "applications_changed_share": 0.248,
+        "decision_changed": 186,
+        "decision_changes": {
+          "same": 812,
+          "approve_to_reject": 131,
+          "reject_to_approve": 55,
+          "decision_other": 0
+        },
+        "attributes": {
+          "VALUE_CHANGED": 3730,
+          "ATTRIBUTE_NEW": 2021,
+          "ATTRIBUTE_LOST": 1533
+        },
+        "change_sources": {
+          "logic": 103,
+          "data": 83,
+          "both": 0,
+          "none": 0
+        }
+      }
+    }
+  }
+}
