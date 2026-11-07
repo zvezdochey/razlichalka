@@ -108,6 +108,12 @@ export function RunsListPage() {
           Новый прогон
         </Link>
       </div>
+      {/* Новичок не знает, что тут сравнивается: одна фраза отвечает на «что это и зачем». */}
+      <p className="muted runs-intro">
+        Прогон — это одно сравнение: одни и те же заявки на кредит прошли через старую («до») и новую («после»)
+        версию системы принятия решений (СПР). В строке видно, у скольких заявок новая версия приняла другое решение
+        и сколько автопроверок не пройдено. Нажмите на строку, чтобы узнать подробности.
+      </p>
 
       {error !== null && <ErrorBox message={error} onRetry={() => void load()} />}
 
@@ -134,13 +140,13 @@ export function RunsListPage() {
           <table className="table">
             <thead>
               <tr>
-                <th scope="col">Прогон</th>
+                <th scope="col" title="Номер сравнения">Прогон</th>
                 <th scope="col">Статус</th>
-                <th scope="col">Конфигурация</th>
-                <th scope="col">Датасет</th>
+                <th scope="col" title="Сохранённые настройки, с которыми запускали сравнение">Конфигурация</th>
+                <th scope="col" title="Набор заявок с ответами старой и новой версии СПР">Датасет (заявки)</th>
                 <th scope="col">Создан</th>
-                <th scope="col">Сменили решение</th>
-                <th scope="col">FAIL</th>
+                <th scope="col" title="Сколько заявок получили от новой версии другое решение">Заявок сменили решение</th>
+                <th scope="col" title="Сколько результатов автопроверок не пройдено (FAIL); подробности — на вкладке «Проверки»">Проверки не пройдены</th>
               </tr>
             </thead>
             <tbody>
@@ -149,7 +155,8 @@ export function RunsListPage() {
                 const interrupted = typeof row === 'object' && 'reason' in row
                 const loaded = typeof row === 'object' && 'changed' in row
                 // Для ready ждём ответ — «…», при ошибке — «—». Для остальных статусов итогов нет.
-                const loading = run.status === 'ready' && row === undefined
+                // Итоги грузим только для первых PAGE_SIZE строк: ниже «…» висело бы вечно, ставим «—».
+                const loading = run.status === 'ready' && row === undefined && index < PAGE_SIZE
                 const placeholder = loading ? '…' : '—'
                 return (
                 <tr
