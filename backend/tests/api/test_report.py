@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from app import pipeline_stub, settings
 from app.main import create_app
+from app.services import warmup
 from pipeline.csvio import read_csv, write_csv
 
 CONFIG_NAME = "<script>alert(1)</script>"
@@ -89,6 +90,7 @@ def test_report_uses_only_top_20_apps(client, ready_id):
         {**row, "app_id": f"APP-{count:02d}", "attributes_changed": count}
         for count in range(25)
     ])
+    warmup.reset()  # файл готового запуска переписали — кэш, прогретый к ready, устарел
     page = client.get(f"/api/runs/{ready_id}/report")
     assert page.status_code == 200
     expected = [f"<code>APP-{count:02d}</code>" for count in range(24, 4, -1)]

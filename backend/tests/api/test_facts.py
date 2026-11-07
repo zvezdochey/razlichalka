@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from app import pipeline_stub, settings
 from app.main import create_app
 from app.services import facts as facts_service
+from app.services import warmup
 from app.services.facts import make_apps_ref
 from pipeline.csvio import read_csv, write_csv
 
@@ -181,6 +182,7 @@ def test_csv_exports_formula_like_cells_as_text(client, run):
     apps = read_csv(path)
     apps.loc[0, "pd_model_before"] = " =1+1"
     write_csv(path, list(apps.columns), apps.to_dict("records"))
+    warmup.reset()  # файл готового запуска переписали — кэш, прогретый к ready, устарел
 
     url = f"/api/runs/{run}"
     response = client.get(f"{url}/export.csv")

@@ -1,0 +1,267 @@
+.pivot {
+  display: grid;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+.pivot-editor-head,
+.pivot-group-head,
+.pivot-table-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.pivot-editor h2,
+.pivot-group h3 {
+  margin: 0;
+  font-size: var(--fs-panel);
+}
+
+.pivot-presets,
+.pivot-filter-list,
+.pivot-pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-2);
+}
+
+.pivot-presets .btn[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--surface-sunken);
+  font-weight: 600;
+}
+
+.pivot-axes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(9rem, .65fr);
+  gap: var(--s-4);
+  margin-top: var(--s-4);
+}
+
+.pivot fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: var(--s-2) var(--s-3) var(--s-3);
+  border: 1px solid var(--border);
+}
+
+.pivot legend {
+  padding: 0 var(--s-1);
+  font-weight: 600;
+}
+
+.pivot-axes fieldset,
+.pivot-filter-form label {
+  display: grid;
+  align-content: start;
+  gap: var(--s-2);
+}
+
+.pivot-axes label:not(.pivot-measure label),
+.pivot-filter-form label {
+  display: grid;
+  gap: var(--s-1);
+  color: var(--muted);
+  font-size: var(--fs-table);
+}
+
+.pivot select,
+.pivot input:not([type="radio"]) {
+  min-width: 0;
+  width: 100%;
+}
+
+.pivot-measure label {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.pivot-measure input {
+  margin: 0;
+  accent-color: var(--text);
+}
+
+.pivot .pivot-filter-fieldset {
+  margin-top: var(--s-4);
+}
+
+.pivot-filter-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--s-2);
+}
+
+.pivot-filter-list,
+.pivot-group-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pivot-filter-list:not(:empty) {
+  margin-top: var(--s-2);
+}
+
+.pivot-filter-chip {
+  overflow-wrap: anywhere;
+}
+
+.pivot-filter-error {
+  color: var(--danger);
+  margin: var(--s-2) 0 0;
+}
+
+.pivot-results {
+  display: grid;
+  gap: var(--s-4);
+  align-items: start;
+  min-width: 0;
+}
+
+.pivot-results--with-group {
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 19rem);
+}
+
+.pivot-data {
+  min-width: 0;
+  min-height: 12rem;
+}
+
+.pivot-table-meta {
+  margin-bottom: var(--s-2);
+  font-size: var(--fs-table);
+  font-weight: 500;
+}
+
+.pivot-note {
+  margin: var(--s-2) 0;
+  font-size: var(--fs-table);
+}
+
+.pivot-table-scroll {
+  max-height: min(55vh, 34rem);
+}
+
+.pivot-table th.num,
+.pivot-table td.num {
+  text-align: right;
+}
+
+.pivot-table tbody th,
+.pivot-table tfoot th {
+  position: static;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.pivot-table tbody th:first-child,
+.pivot-table thead th:first-child,
+.pivot-table tfoot th:first-child {
+  position: sticky;
+  left: 0;
+  border-right: 1px solid var(--border);
+  min-width: 8rem;
+}
+
+.pivot-table thead th {
+  z-index: 2;
+}
+
+.pivot-table thead th:first-child {
+  z-index: 3;
+}
+
+.pivot-table tbody th:first-child {
+  top: auto;
+  z-index: 1;
+  width: min(23vw, 18rem);
+  background: var(--surface);
+}
+
+.pivot-table tfoot th:first-child {
+  top: auto;
+  z-index: 1;
+}
+
+.pivot-table tfoot td {
+  background: var(--surface-sunken);
+  font-weight: 600;
+}
+
+.pivot-cell {
+  border: 0;
+  border-radius: var(--r-control);
+  padding: var(--s-1) var(--s-2);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: .2em;
+  cursor: pointer;
+}
+
+.pivot-cell:hover {
+  background: var(--surface-sunken);
+}
+
+.pivot-group {
+  min-width: 0;
+}
+
+.pivot-group-label {
+  overflow-wrap: anywhere;
+  margin: var(--s-2) 0 var(--s-3);
+}
+
+.pivot-group-list {
+  max-height: 20rem;
+  overflow: auto;
+  border-block: 1px solid var(--border);
+}
+
+.pivot-group-list a {
+  display: block;
+  padding: var(--s-2);
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.pivot-group-list li:last-child a {
+  border-bottom: 0;
+}
+
+.pivot-pagination {
+  justify-content: space-between;
+  margin-top: var(--s-3);
+}
+
+.pivot-pagination .btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1050px) {
+  .pivot-results--with-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
+  .pivot-editor-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .pivot-axes,
+  .pivot-filter-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
