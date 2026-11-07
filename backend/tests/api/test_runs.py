@@ -81,15 +81,16 @@ def test_cancel_in_the_middle(client):
                         "error": {"code": "cancelled", "message": "Остановлено пользователем"}}
     stages = client.get(f"/api/runs/{started['id']}/stages", headers=ANN).json()["stages"]
     assert stages[-1]["status"] == "pending"
-    # повторный cancel не ошибка
-    assert client.post(f"/api/runs/{started['id']}/cancel", headers=ANN).json()["status"] == "error"
+    # запуск уже остановлен — повторный cancel это 409
+    again = client.post(f"/api/runs/{started['id']}/cancel", headers=ANN)
+    assert again.status_code == 409 and again.json()["error"]["code"] == "conflict"
 
 
-def test_cancel_finished_run_returns_status(client):
+def test_cancel_finished_run_is_conflict(client):
     _, started = new_run(client)
     wait_for(client, started["id"], {"ready"})
     r = client.post(f"/api/runs/{started['id']}/cancel", headers=ANN)
-    assert r.status_code == 200 and r.json()["status"] == "ready" and r.json()["error"] is None
+    assert r.status_code == 409 and r.json()["error"]["code"] == "conflict"
 
 
 def test_other_user_gets_not_found(client):
@@ -126,7 +127,7 @@ def test_cancel_after_restart(client):
     wait_for(client, started["id"], {"ready"})
     again = TestClient(create_app())
     r = again.post(f"/api/runs/{started['id']}/cancel", headers=ANN)
-    assert r.status_code == 200 and r.json()["status"] == "ready"
+    assert r.status_code == 409 and r.json()["error"]["code"] == "conflict"
 
 
 def test_broken_run_json_does_not_stop_server(client, tmp_path):

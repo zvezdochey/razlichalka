@@ -37,7 +37,9 @@ def start_run(body: RunIn, user: str = Depends(current_user)):
 @router.get("/runs")
 def list_runs(user: str = Depends(current_user)):
     return {"runs": [
-        {k: r[k] for k in ("id", "status", "config_id", "created_at")} for r in runs.list_own(user)
+        {"id": r["id"], "status": r["status"], "config_id": r["config_id"],
+         "name": r["config"].get("name"), "dataset": r["dataset"], "created_at": r["created_at"]}
+        for r in runs.list_own(user)
     ]}
 
 
