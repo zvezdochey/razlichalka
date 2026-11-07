@@ -236,15 +236,15 @@ function Verdict({ runId, summary }: { runId: string; summary: Summary }) {
         </StripItem>
 
         <StripItem
-          label="С различиями"
-          hint={`доля от прогона — ${formatPercent(applications_changed_share)}`}
+          label="С любыми различиями"
+          hint={`в ответе СПР поменялось хоть что-то — ${formatPercent(applications_changed_share)} заявок`}
         >
           <Link className="strip__link num" to={appsLink('?has_attr_change=1')}>
             {formatNumber(applications_changed)}
           </Link>
         </StripItem>
 
-        <StripItem label="Сменили решение" hint="любая смена решения">
+        <StripItem label="Сменили решение" hint="новая версия решила иначе">
           <Link
             className="strip__link num"
             to={appsLink(`?decision_change=${ANY_DECISION_CHANGE}`)}
@@ -256,8 +256,8 @@ function Verdict({ runId, summary }: { runId: string; summary: Summary }) {
         {/* Источник смен: логика / данные. Без by_source (старый бэк) карточку не показываем. */}
         {showSources && extras.sources && (
           <StripItem
-            label="из-за логики / из-за входных данных"
-            hint="заявки со сменой решения"
+            label="Из них из-за правил / из-за данных"
+            hint="правила — те же данные посчитаны иначе; данные — у заявки другие входные данные"
             title="Логика — изменились правила или модель; входные данные — у заявки другие данные или ответ внешнего источника"
           >
             <span className="num">
@@ -276,17 +276,17 @@ function Verdict({ runId, summary }: { runId: string; summary: Summary }) {
           </StripItem>
         ) : (
           <StripItem
-            label="проверок не пройдено"
+            label="Автопроверки не пройдены"
             hint={
               extras.checksRows === null
                 ? `${formatNumber(summary.checks_fail)} ${plural(summary.checks_fail, 'строка', 'строки', 'строк')} результатов`
-                : `${formatNumber(summary.checks_fail)} из ${formatNumber(extras.checksRows)} строк результатов не пройдены`
+                : `проверка смотрит несколько продуктов и моделей: не пройдено ${formatNumber(summary.checks_fail)} из ${formatNumber(extras.checksRows)} таких строк`
             }
           >
             <Link className="strip__link num" to={{ pathname: '../checks', search: '?result=FAIL' }}>
               {extras.checksCount === null || extras.checksFailed === null
                 ? formatNumber(summary.checks_fail)
-                : `${formatNumber(extras.checksFailed)} из ${formatNumber(extras.checksCount)}`}
+                : `${formatNumber(extras.checksFailed)} из ${formatNumber(extras.checksCount)} проверок`}
             </Link>
           </StripItem>
         )}
@@ -400,7 +400,7 @@ function DecisionTransitions({ summary }: { summary: Summary }) {
                   to={appsLink('?decision_change=same&has_attr_change=1')}
                   title={`Считаем так: ${sameFormula}`}
                 >
-                  Различия есть, решение то же
+                  Решение то же, но в ответе что-то поменялось
                 </Link>
               </th>
               <td className="num">{formatNumber(changedSameDecision)}</td>
@@ -463,7 +463,7 @@ function AttributeBars({ summary }: { summary: Summary }) {
       </ul>
 
       <p className="attrs__note muted">
-        Считаем строки атрибутов, а не заявки: одна заявка входит во многие строки.
+        Атрибут — одно поле в ответе СПР: модель, порог, вероятность дефолта и т. п. Считаем строки атрибутов, а не заявки: одна заявка входит во многие строки.
       </p>
     </section>
   )
