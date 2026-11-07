@@ -94,3 +94,59 @@ def test_compare_from_server_file(tmp_path, monkeypatch):
     stage = client.get(f"/api/runs/{rid}/stages", headers=ANN).json()["stages"][1]
     assert stage["code_ref"] == {"procedure_id": r.json()["id"], "source": "file",
                                  "path": "procedures/example_compare_by_bucket.py", "line": 1}
+
+
+ECHO_CHECK = """DEFAULTS = {"threshold": 1, "app_ids_limit": 20}
+
+
+def run(mart, params):
+    return [{"LABEL": CHECK["label"], "SOURCE": "AFTER", "ARGUMENT": f"{params['threshold']}/{params['app_ids_limit']}",
+             "CNT": 0, "TOTAL": 0, "METRIC": 0, "APP_IDS": [], "RESULT": "PASS", "CONFIDENCE": "HIGH"}]
+
+
+CHECK = {"id": "echo", "label": "Эхо", "params": DEFAULTS, "entrypoint": run}
+"""
+
+
+def test_check_params_from_config(tmp_path, monkeypatch):
+    """Параметры проверки задаются в конфигурации, без правки кода; app_ids_limit по умолчанию — все заявки."""
+    client = make_client(tmp_path, monkeypatch, MINI)
+    check = _procedure(client, "check", ECHO_CHECK)
+    procs = client.get("/api/procedures?kind=check", headers=ANN).json()["procedures"]
+    assert next(p for p in procs if p["id"] == check)["params"] == {"threshold": 1, "app_ids_limit": 20}
+    assert next(p for p in procs if p["id"] == "builtin_attribute_new_loss")["params"]["min_share"] == 0.001
+
+    def argument(**extra):
+        rid, data = _run(client, checks=[check], **extra)
+        assert data["status"] == "ready", data["error"]
+        return client.get(f"/api/runs/{rid}/checks", headers=ANN).json()["rows"][0]["argument"]
+
+    assert argument() == "1/100000"
+    assert argument(check_params={check: {"threshold": 7, "app_ids_limit": 5}}) == "7/5"
+
+
+def test_check_params_need_connected_check(tmp_path, monkeypatch):
+    client = make_client(tmp_path, monkeypatch, MINI)
+    dataset = client.get("/api/datasets", headers=ANN).json()["datasets"][0]["id"]
+    r = client.post("/api/configs", json={"name": "c", "dataset": dataset, "checks": [],
+                                          "check_params": {"builtin_attribute_new_loss": {"min_share": 1}}}, headers=ANN)
+    assert r.status_code == 400 and "check_params" in r.json()["error"]["message"]
+
+
+def test_own_id_path_is_used(tmp_path, monkeypatch):
+    """Путь к id заявки — из процедуры приведения (ID_PATH), а не из кода приложения."""
+    client = make_client(tmp_path, monkeypatch, MINI)
+    proc = _procedure(client, "normalize", 'ARRAY_RULES = {}\nID_PATH = "appData.no_such_field"\n')
+    _, data = _run(client, normalize=proc)
+    assert data["status"] == "error" and "appData.no_such_field" in data["error"]["message"]
+
+
+def test_apps_filtered_by_group_ref(tmp_path, monkeypatch):
+    """Список заявок сужается до группы клетки сводной (`ref`)."""
+    client = make_client(tmp_path, monkeypatch, MINI)
+    rid, _ = _run(client)
+    facts = client.get(f"/api/runs/{rid}/facts?dims=DECISION_CHANGED&measure=counts_distinct_apps", headers=ANN).json()
+    row = facts["rows"][0]
+    apps = client.get(f"/api/runs/{rid}/apps?ref={row['app_ids_ref']}", headers=ANN).json()
+    assert apps["total"] == row["counts"]
+    assert client.get(f"/api/runs/{rid}/apps?ref=f_nope", headers=ANN).status_code == 404

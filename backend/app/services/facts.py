@@ -175,16 +175,19 @@ def facts(run_dir: Path, *, dims: str, filter_: str, measure: str, limit: int) -
     return {"dims": names, "rows": rows, "total_groups": len(counts)}
 
 
-def fact_apps(run_dir: Path, ref: str, *, page: int, size: int) -> dict:
+def group_app_ids(run_dir: Path, ref: str) -> list[str]:
+    """Все заявки группы по ссылке `app_ids_ref` (клетка сводной или строка проверки)."""
     definition = _load_ref(run_dir, ref)
     if definition is None:
         raise ApiError("not_found", "Группа заявок не найдена")
-
     if "app_ids" in definition:
-        app_ids = definition["app_ids"]
-    else:
-        conditions = definition["filter"] + [[name, [value]] for name, value in definition["group"]]
-        app_ids = sorted(_filter_rows(_facts_base(run_dir), conditions)["APP_ID"].unique().tolist())
+        return definition["app_ids"]
+    conditions = definition["filter"] + [[name, [value]] for name, value in definition["group"]]
+    return sorted(_filter_rows(_facts_base(run_dir), conditions)["APP_ID"].unique().tolist())
+
+
+def fact_apps(run_dir: Path, ref: str, *, page: int, size: int) -> dict:
+    app_ids = group_app_ids(run_dir, ref)
 
     start = (page - 1) * size
     return {"page": page, "size": size, "total": len(app_ids), "apps": app_ids[start:start + size]}

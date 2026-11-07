@@ -118,6 +118,8 @@ export type ConfigInput = {
   aggregate: string
   /** id проверок (`kind: check`). */
   checks: string[]
+  /** Параметры проверок на этот прогон: `{id проверки: {параметр: значение}}`, перекрывают CHECK["params"]. */
+  check_params?: Record<string, Record<string, unknown>>
   /** Пути, которые не сравниваем. */
   ignore_paths: string[]
   /** Режим сравнения по пути массива. Без записи — `key`. */
@@ -286,6 +288,8 @@ export type AppsParams = {
   has_attr_change?: boolean
   /** Поиск по APP_ID и текстовым полям разреза. */
   search?: string
+  /** Только заявки группы: `app_ids_ref` клетки сводной или строки проверки. */
+  ref?: string
   /** Поле сортировки, минус впереди — по убыванию: `-attributes_changed`. */
   sort?: string
   /** Нумерация с 1. */
@@ -414,6 +418,8 @@ export type Procedure = {
   path?: string
   /** Встроенную нельзя ни изменить, ни удалить — только открыть на чтение. */
   builtin: boolean
+  /** Только у проверок: параметры по умолчанию из CHECK["params"]; `null` — не удалось прочитать без запуска. */
+  params?: Record<string, unknown> | null
   /** У встроенных — `null`. */
   updated_at: string | null
 }

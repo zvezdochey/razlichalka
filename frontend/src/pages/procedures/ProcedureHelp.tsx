@@ -115,7 +115,9 @@ COMPARE = {"label": "Моё сравнение", "entrypoint": compare}`}</pre>
         <p>
           Правила сопоставления массивов между срезами: словарь <code>ARRAY_RULES</code>, где для
           каждого массива указан режим — <code>key</code> (по полям из <code>key</code>),{' '}
-          <code>value</code> (по значению) или <code>index</code> (по позиции).
+          <code>value</code> (по значению) или <code>index</code> (по позиции). Рядом —{' '}
+          <code>BUCKETS</code> (границы диапазонов для сравнения и сводной по бакетам) и{' '}
+          <code>ID_PATH</code> (где в ответе id заявки).
         </p>
       ) : (
         <p>

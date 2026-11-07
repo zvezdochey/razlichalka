@@ -19,7 +19,11 @@ export const DEFAULT_ARRAY_MODES: Record<string, ArrayMode> = {
   'decisionResult.scoring[].value': 'index',
 }
 
-/** Границы бакетов в MVP не настраиваем: отправляем пусто, бэк берёт свои. */
+/**
+ * Свои границы бакетов форма не задаёт: пусто — значит берутся границы из процедуры приведения
+ * (`BUCKETS` в `backend/procedures/builtin_normalize.py` или в своей копии). Поле `buckets` конфигурации
+ * их перекрывает по пути.
+ */
 export const DEFAULT_BUCKETS: Record<string, number[]> = {}
 
 /** Название по умолчанию — «Прогон 07.11 10:06»: дата и время создания. */

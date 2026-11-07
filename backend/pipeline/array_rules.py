@@ -14,14 +14,54 @@
 Повторов (APP_ID, PATH, ARRAY_KEY) нет. В AFTER на 2 PATH больше — это новые атрибуты версии BETA.
 """
 
-from .procedures import load_builtin
+from .errors import BadFile
+from .procedures import load_builtin_value
 
 BUILTIN = "builtin_normalize"
+DEFAULT_ID_PATH = "appData.application_id"  # если в процедуре нет ID_PATH (старые процедуры пользователя)
 
 
 def default_array_rules(procedures_dir=None) -> dict:
-    """Правила встроенной процедуры «Приведение ответов» (свежая копия при каждом вызове)."""
-    return load_builtin(BUILTIN, procedures_dir)
+    """Правила процедуры «Приведение ответов» (свежая копия при каждом вызове)."""
+    rules = load_builtin_value(BUILTIN, "ARRAY_RULES", procedures_dir)
+    if not isinstance(rules, dict):
+        raise BadFile(f"процедура {BUILTIN}: ARRAY_RULES должен быть словарём")
+    return rules
+
+
+def _optional(name: str, procedures_dir, default):
+    """Необязательная переменная процедуры: нет её — умолчание (у своих процедур её может не быть)."""
+    try:
+        return load_builtin_value(BUILTIN, name, procedures_dir)
+    except BadFile as e:
+        if "нет переменной" in e.message:
+            return default
+        raise
+
+
+def default_buckets(procedures_dir=None) -> dict:
+    """Границы бакетов процедуры (BUCKETS): путь -> границы. Конфигурация их перекрывает по пути."""
+    buckets = _optional("BUCKETS", procedures_dir, {})
+    if not isinstance(buckets, dict):
+        raise BadFile(f"процедура {BUILTIN}: BUCKETS должен быть словарём «путь -> границы»")
+    return buckets
+
+
+def id_path(procedures_dir=None) -> str:
+    """Путь к id заявки в ответе (ID_PATH процедуры): по нему сверяем имя файла и заявку."""
+    path = _optional("ID_PATH", procedures_dir, DEFAULT_ID_PATH)
+    if not isinstance(path, str) or not path.strip():
+        raise BadFile(f"процедура {BUILTIN}: ID_PATH должен быть непустой строкой, например «{DEFAULT_ID_PATH}»")
+    return path
+
+
+def get_by_path(doc, path: str):
+    """Значение по пути через точку (`appData.application_id`); нет поля — None."""
+    for part in path.split("."):
+        if not isinstance(doc, dict):
+            return None
+        doc = doc.get(part)
+    return doc
 
 
 def _rule_path(path: str, rules: dict) -> str:

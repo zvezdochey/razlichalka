@@ -132,12 +132,14 @@ def _filter_apps(
 
 def apps(
     run_dir: Path, *, decision_change: str, has_attr_change: bool, search: str,
-    sort: str, page: int, size: int, change_source: str = "",
+    sort: str, page: int, size: int, change_source: str = "", app_ids: set[str] | None = None,
 ) -> dict:
     rows = _filter_apps(
         run_dir, decision_change=decision_change, has_attr_change=has_attr_change, search=search, sort=sort,
         change_source=change_source,
     )
+    if app_ids is not None:  # только заявки группы (ref из сводной или проверки)
+        rows = rows[rows["app_id"].isin(app_ids)]
     return _page(rows, "apps", page, size)
 
 
@@ -150,12 +152,14 @@ def _excel_value(value):
 
 def export_apps(
     run_dir: Path, *, decision_change: str, has_attr_change: bool, search: str, sort: str,
-    change_source: str = "",
+    change_source: str = "", app_ids: set[str] | None = None,
 ) -> bytes:
     rows = _filter_apps(
         run_dir, decision_change=decision_change, has_attr_change=has_attr_change, search=search, sort=sort,
         change_source=change_source,
     )
+    if app_ids is not None:  # та же группа, что в таблице
+        rows = rows[rows["app_id"].isin(app_ids)]
     records = ({name: _excel_value(value) for name, value in row.items()} for row in rows.to_dict("records"))
     output = StringIO(newline="")
     writer = DictWriter(output, fieldnames=APP_FIELDS, delimiter=";")

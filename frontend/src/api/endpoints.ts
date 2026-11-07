@@ -161,6 +161,7 @@ function appsFilters(params: AppsParams) {
     change_source: params.change_source,
     has_attr_change: params.has_attr_change,
     search: params.search,
+    ref: params.ref,
     sort: params.sort,
   }
 }

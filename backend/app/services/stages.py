@@ -37,7 +37,7 @@ RUN_PROCEDURES = "procedures"  # папка запуска с файлами п�
 
 # Процедура-данные этапа: какой файл читает разбор и какие переменные в нём нужны
 DATA_PROCEDURES = {
-    "normalize": ("builtin_normalize", "Правила массивов для приведения ответов", ["ARRAY_RULES"]),
+    "normalize": ("builtin_normalize", "Правила приведения ответов", ["ARRAY_RULES", "BUCKETS", "ID_PATH"]),
     "aggregate": ("builtin_segments", "Карта полей для разрезов", ["FIELD_MAP", "INPUT_PREFIXES"]),
 }
 
@@ -142,6 +142,27 @@ def stage_aggregate(ctx) -> None:
     ctx.progress(1, 1)
 
 
+FULL_APP_IDS = 100_000  # «все заявки»: больше, чем заявок в любом датасете
+
+
+def _check_overrides(loaded: list[dict], config: dict, log) -> dict:
+    """Параметры проверок на этот прогон: `check_params` конфигурации поверх CHECK["params"].
+
+    Если у проверки есть `app_ids_limit`, по умолчанию просим все заявки, а не первые 20: из строки отчёта
+    пользователь переходит ко всем заявкам, которые она насчитала. Конфигурация может задать свой лимит.
+    """
+    overrides = {}
+    for check in loaded:
+        params = {}
+        if "app_ids_limit" in (check.get("params") or {}):
+            params["app_ids_limit"] = FULL_APP_IDS
+        own = (config.get("check_params") or {}).get(check["id"]) or {}
+        if own:
+            log("info", f"Параметры проверки «{check['label']}» из конфигурации: {own}")
+        overrides[check["id"]] = {**params, **own}
+    return overrides
+
+
 def stage_checks(ctx) -> None:
     """Подключённые проверки -> checks.csv. Сломанная проверка пользователя не валит запуск:
     в журнале ошибка, в таблице строка FAIL с текстом (так делает run_checks)."""
@@ -168,7 +189,8 @@ def stage_checks(ctx) -> None:
             rows.append({"LABEL": proc_id, "SOURCE": "AFTER", "ARGUMENT": text, "RESULT": "FAIL", "CONFIDENCE": "LOW"})
             index[proc_id] = proc_id
     if loaded:
-        rows += run_checks(Mart(ctx.run_dir / COMPARISON, ctx.run_dir / SEGMENTS), loaded, log=ctx.log)
+        rows += run_checks(Mart(ctx.run_dir / COMPARISON, ctx.run_dir / SEGMENTS), loaded,
+                           params_override=_check_overrides(loaded, ctx.config, ctx.log), log=ctx.log)
     write_checks_csv(rows, ctx.run_dir / CHECKS)
     (ctx.run_dir / CHECKS_INDEX).write_text(
         json.dumps(index, ensure_ascii=False), encoding="utf-8")

@@ -67,6 +67,31 @@ def _check_header(file: Path) -> tuple[str, str] | None:
     return None
 
 
+def check_params(code: str) -> dict | None:
+    """Параметры проверки по умолчанию — `CHECK["params"]` без исполнения кода.
+
+    Понимает словарь прямо в CHECK и ссылку на словарь верхнего уровня (`"params": DEFAULTS`).
+    Не вышло (параметры вычисляются) — None: тогда форма просто не покажет поля параметров.
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return None
+    top = {t.id: node.value for node in tree.body if isinstance(node, ast.Assign)
+           for t in node.targets if isinstance(t, ast.Name)}
+    check = top.get("CHECK")
+    if not isinstance(check, ast.Dict):
+        return None
+    params = next((v for k, v in zip(check.keys, check.values) if isinstance(k, ast.Constant) and k.value == "params"), None)
+    if isinstance(params, ast.Name):
+        params = top.get(params.id)
+    try:
+        value = ast.literal_eval(params) if params is not None else None
+    except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
 # --- встроенные ----------------------------------------------------------------
 
 def builtins() -> list[dict]:
@@ -105,11 +130,22 @@ def find(proc_id: str, user: str) -> dict:
     return _own(proc_id, user)
 
 
+def _with_params(proc: dict) -> dict:
+    """Проверке в списке — параметры по умолчанию (для формы «Новый прогон»); файла нет — без них."""
+    if proc["kind"] != "check":
+        return _public(proc)
+    try:
+        params = check_params(code_of(proc))
+    except (ApiError, OSError):
+        params = None
+    return {**_public(proc), "params": params}
+
+
 def list_all(kind: str | None, user: str) -> list[dict]:
-    mine = [_public(p) for p in store.list(KIND) if p.get("owner") == user]
+    mine = [p for p in store.list(KIND) if p.get("owner") == user]
     mine.sort(key=lambda p: p["updated_at"], reverse=True)
     items = builtins() + mine
-    return [p for p in items if kind is None or p["kind"] == kind]
+    return [_with_params(p) for p in items if kind is None or p["kind"] == kind]
 
 
 def validate(kind: str, source: str, code: str | None, path: str | None) -> list[dict]:
@@ -178,10 +214,17 @@ def delete(proc_id: str, user: str) -> None:
 
 
 def with_code(proc: dict) -> dict:
-    """Объект процедуры + `code`: текст файла (только из procedures/ и checks/) или inline-код."""
+    """Объект процедуры + `code`: текст файла (только из procedures/ и checks/) или inline-код.
+
+    У проверки ещё `params` — параметры по умолчанию из CHECK (их можно перекрыть в конфигурации).
+    """
     if proc["source"] == "file":
-        return {**_public(proc), "code": resolve_path(proc["path"]).read_text(encoding="utf-8")}
-    return {**_public(proc), "code": proc["code"]}
+        out = {**_public(proc), "code": resolve_path(proc["path"]).read_text(encoding="utf-8")}
+    else:
+        out = {**_public(proc), "code": proc["code"]}
+    if proc["kind"] == "check":
+        out["params"] = check_params(out["code"])
+    return out
 
 
 def code_of(proc: dict) -> str:

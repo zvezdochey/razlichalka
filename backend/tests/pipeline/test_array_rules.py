@@ -31,8 +31,18 @@ def test_merge_path_without_trailing_brackets():
 
 def test_rules_live_in_procedure_file():
     # правила — данные процедуры, а не код pipeline
-    from pipeline.procedures import load_builtin
-    assert load_builtin("builtin_normalize") == DEFAULT_ARRAY_RULES
+    from pipeline.procedures import load_builtin_value
+    assert load_builtin_value("builtin_normalize", "ARRAY_RULES") == DEFAULT_ARRAY_RULES
+
+
+def test_buckets_and_id_path_live_in_procedure_file():
+    # границы бакетов и путь к id заявки — тоже данные процедуры; конфигурация перекрывает бакеты по пути
+    from pipeline.array_rules import default_buckets, id_path
+    from pipeline.buckets import merge_buckets
+    buckets = default_buckets()
+    assert "characteristics.score_okb" in buckets and id_path() == "appData.application_id"
+    merged = merge_buckets(buckets, {"characteristics.score_okb[]": [], "x.y": [1]})
+    assert "characteristics.score_okb" not in merged and merged["characteristics.score_okb[]"] == [] and merged["x.y"] == [1]
 
 
 def test_array_rules_override_key():
