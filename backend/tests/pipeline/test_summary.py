@@ -6,6 +6,7 @@ import pytest
 
 from pipeline.compare import COLUMNS as CMP_COLUMNS, compare_csv
 from pipeline.csvio import read_csv, write_csv
+from pipeline.dataset import list_source_files
 from pipeline.errors import BadFile
 from pipeline.normalize import normalize_dataset
 from pipeline.segments import COLUMNS as SEG_COLUMNS, build_segments
@@ -68,6 +69,8 @@ def test_mini_counts(tmp_path):
 
     assert summary == {
         "applications": 5,
+        "applications_only_before": 0,
+        "applications_only_after": 0,
         "applications_changed": 3,
         "applications_changed_share": 0.6,
         "decision_changed": 3,
@@ -134,15 +137,32 @@ def test_real_dataset(tmp_path):
     cfg = {"ignore_paths": ["appData.request_id", "appData.createDateTime"]}  # иначе вход «другой» у всех
     normalize_dataset(REAL, "BEFORE", nb, cfg)
     normalize_dataset(REAL, "AFTER", na, cfg)
-    compare_csv(nb, na, cmp_)
+    unp = tmp_path / "unpaired.json"
+    compare_csv(nb, na, cmp_, unpaired_json=unp)
     build_segments(REAL, seg, comparison_csv=cmp_)
 
-    s = build_summary(cmp_, seg, tmp_path / "summary.json", tmp_path / "apps.csv")
+    s = build_summary(cmp_, seg, tmp_path / "summary.json", tmp_path / "apps.csv", unpaired_json=unp)
     print("\nREAL SUMMARY:", json.dumps(s, ensure_ascii=False))
     assert s["applications"] == 2002
+    # E15: все заявки из обоих срезов = с парой + только BEFORE + только AFTER
+    files = {side: {f.stem for f in list_source_files(REAL, side)} for side in ("BEFORE", "AFTER")}
+    assert (s["applications"] + s["applications_only_before"] + s["applications_only_after"]
+            == len(files["BEFORE"] | files["AFTER"]))
+    assert s["applications_only_before"] == len(files["BEFORE"] - files["AFTER"])
+    assert s["applications_only_after"] == len(files["AFTER"] - files["BEFORE"])
     assert s["decision_changed"] == 385
     assert s["decision_changes"] == {
         "same": 1617, "approve_to_reject": 273, "reject_to_approve": 112, "decision_other": 0}
     # E10: у 167 смен решения поменялся вход (ext_data[] score_okb), у 218 — только то, что посчитала СПР
     assert s["change_sources"] == {"logic": 218, "data": 167, "both": 0, "none": 0}
     assert len(read_csv(tmp_path / "apps.csv")) == 2002
+
+
+def test_unpaired_counters_from_file(tmp_path):
+    """E15: счётчики заявок без пары берутся из unpaired.json, остальные числа не меняются."""
+    cmp_, seg = _mini(tmp_path)
+    unp = tmp_path / "unpaired.json"
+    unp.write_text(json.dumps({"only_before": ["B1"], "only_after": ["C1", "C2"]}), encoding="utf-8")
+    s = build_summary(cmp_, seg, tmp_path / "summary.json", tmp_path / "apps.csv", unpaired_json=unp)
+    assert s["applications_only_before"] == 1 and s["applications_only_after"] == 2
+    assert s["applications"] == 5

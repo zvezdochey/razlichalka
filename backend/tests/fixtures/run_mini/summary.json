@@ -1,5 +1,7 @@
 {
   "applications": 6,
+  "applications_only_before": 0,
+  "applications_only_after": 0,
   "applications_changed": 4,
   "applications_changed_share": 0.667,
   "decision_changed": 3,

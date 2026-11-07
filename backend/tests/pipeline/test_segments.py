@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from pipeline.compare import compare_csv
-from pipeline.csvio import read_csv
+from pipeline.csvio import read_csv, write_csv
 from pipeline.errors import BadFile, Cancelled
 from pipeline.normalize import normalize_dataset
 from pipeline.segments import COLUMNS, build_segments, input_prefixes, is_input_path
@@ -149,12 +149,30 @@ def test_top_offer_product_missing_in_trials(tmp_path):
     assert df.loc["X", "PD_MODEL_BEFORE"] == ""  # продукта в прогонах нет — пусто, не падаем
 
 
-def test_app_missing_in_after_is_bad_file(tmp_path):
+def test_app_without_pair_is_skipped(tmp_path):
+    """E15: заявка только в BEFORE / только в AFTER в разрезы не попадает, запуск не падает."""
     (tmp_path / "ds").mkdir()
-    ds = make_dataset(tmp_path / "ds", {"X": (doc("X", "APPROVE", []), doc("X", "APPROVE", []))})
+    pairs = {i: (doc(i, "APPROVE", []), doc(i, "APPROVE", [])) for i in ("X", "Y", "Z")}
+    ds = make_dataset(tmp_path / "ds", pairs)
     (ds / "A" / "X.json").unlink()
-    with pytest.raises(BadFile):
-        build_segments(ds, tmp_path / "s.csv")
+    (ds / "B" / "Y.json").unlink()
+    msgs = []
+    assert build_segments(ds, tmp_path / "s.csv", log=lambda lvl, m: msgs.append((lvl, m))) == 1
+    assert list(read_csv(tmp_path / "s.csv")["APP_ID"]) == ["Z"]
+    assert any(lvl == "warn" and "без пары в срезах: 2" in m for lvl, m in msgs)
+
+
+def test_paired_apps_taken_from_comparison(tmp_path):
+    """С витриной список заявок — из неё: битый ответ (нет строк в витрине) не читаем."""
+    (tmp_path / "ds").mkdir()
+    pairs = {i: (doc(i, "APPROVE", []), doc(i, "APPROVE", [])) for i in ("X", "Y")}
+    ds = make_dataset(tmp_path / "ds", pairs)
+    (ds / "B" / "Y.json").write_text("{не json", encoding="utf-8")
+    cmp_ = tmp_path / "cmp.csv"
+    write_csv(cmp_, ["APP_ID", "PATH", "DIFF_FLAG"],
+              [{"APP_ID": "X", "PATH": "decisionResult.decision", "DIFF_FLAG": "0"}])
+    assert build_segments(ds, tmp_path / "s.csv", comparison_csv=cmp_) == 1
+    assert list(read_csv(tmp_path / "s.csv")["APP_ID"]) == ["X"]
 
 
 def test_cancel_leaves_no_file(tmp_path):

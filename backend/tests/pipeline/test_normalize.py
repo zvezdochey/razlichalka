@@ -60,12 +60,16 @@ def test_cancelled(tmp_path):
         run(tmp_path, is_cancelled=lambda: True)
 
 
-def test_broken_json(tmp_path):
+def test_broken_json_is_skipped(tmp_path):
+    """E15: битый ответ не валит запуск — заявку пропускаем, в журнале предупреждение."""
     ds = tmp_path / "ds"
     shutil.copytree(MINI, ds)
     (ds / "RESULTS" / "BEFORE" / "A2.json").write_text("{не json", encoding="utf-8")
-    with pytest.raises(BadFile, match="A2.json"):
-        run(tmp_path, dataset=ds)
+    msgs, progress = [], []
+    _, df = run(tmp_path, dataset=ds, log=lambda lvl, m: msgs.append((lvl, m)), on_progress=progress.append)
+    assert set(df["APP_ID"]) == {"A1", "A3"}
+    assert any(lvl == "warn" and "A2.json" in m for lvl, m in msgs)
+    assert progress[-1] == 3  # прогресс доходит до конца, даже если файл пропущен
 
 
 def test_app_id_mismatch(tmp_path):
@@ -116,7 +120,7 @@ def test_no_partial_csv_on_failure(tmp_path):
     assert not out.exists() and not list(tmp_path.glob("*.tmp"))
     ds = tmp_path / "ds"
     shutil.copytree(MINI, ds)
-    (ds / "RESULTS" / "BEFORE" / "A3.json").write_text("{не json", encoding="utf-8")
+    (ds / "RESULTS" / "BEFORE" / "A3.json").write_text('{"appData": {"application_id": "ZZZ"}}', encoding="utf-8")
     with pytest.raises(BadFile):
         normalize_dataset(ds, "BEFORE", out, CFG)
     assert not out.exists() and not list(tmp_path.glob("*.tmp"))
@@ -126,3 +130,15 @@ def test_bad_buckets_is_bad_file(tmp_path):
     # кривые границы в старой конфигурации — понятная ошибка этапа, а не internal
     with pytest.raises(BadFile, match="бакеты"):
         run(tmp_path, cfg={**CFG, "buckets": {"a[].b": [1], "a.b": [2]}})
+
+
+@pytest.mark.parametrize("text", ["null", "[]", '"строка"'])
+def test_not_an_object_is_skipped(tmp_path, text):
+    """Валидный JSON, но не объект ответа — тоже «не разобрался»: пропуск с предупреждением."""
+    ds = tmp_path / "ds"
+    shutil.copytree(MINI, ds)
+    (ds / "RESULTS" / "BEFORE" / "A2.json").write_text(text, encoding="utf-8")
+    msgs = []
+    _, df = run(tmp_path, dataset=ds, log=lambda lvl, m: msgs.append((lvl, m)))
+    assert set(df["APP_ID"]) == {"A1", "A3"}
+    assert any(lvl == "warn" and "A2.json" in m for lvl, m in msgs)

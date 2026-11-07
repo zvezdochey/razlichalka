@@ -7,12 +7,16 @@
 в витрине тоже попадают в apps.csv — с attributes_changed=0.
 `change_source` (logic / data / none) переносим из segments.csv как есть; `change_sources` в summary.json —
 только по заявкам, где решение изменилось (их сумма = decision_changed).
+Заявки без пары (E15) в витрину и разрезы не попадают: `applications` — только заявки с парой,
+а исключённые — счётчиками `applications_only_before` / `applications_only_after` из unpaired.json
+(его пишет этап сравнения; нет файла — нули).
 """
 
 import json
 import os
 from pathlib import Path
 
+from pipeline.compare import read_unpaired
 from pipeline.csvio import read_csv, write_csv
 from pipeline.errors import BadFile
 from pipeline.segments import CHANGE_SOURCES  # словарь «Откуда смена» — один на весь pipeline
@@ -62,7 +66,7 @@ def _need(df, columns: list[str], name: str) -> None:
 
 
 def build_summary(comparison_csv: Path, segments_csv: Path, out_summary_json: Path,
-                  out_apps_csv: Path, log=None) -> dict:
+                  out_apps_csv: Path, log=None, unpaired_json: Path | None = None) -> dict:
     """Пишет summary.json и apps.csv. Возвращает тот же словарь, что записан в summary.json."""
     comparison = read_csv(comparison_csv)
     segments = read_csv(segments_csv)
@@ -102,8 +106,11 @@ def build_summary(comparison_csv: Path, segments_csv: Path, out_summary_json: Pa
 
     total = len(segments)
     changed = int(segments["APP_ID"].isin(per_app).sum())
+    unpaired = read_unpaired(unpaired_json)
     summary = {
         "applications": total,
+        "applications_only_before": unpaired["only_before"],
+        "applications_only_after": unpaired["only_after"],
         "applications_changed": changed,
         "applications_changed_share": round(changed / total, 3) if total else 0.0,
         "decision_changed": total - changes["same"],

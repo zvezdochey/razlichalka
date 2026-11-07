@@ -5,7 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from pipeline.compare import COLUMNS, compare_csv
+import json
+
+from pipeline.compare import COLUMNS, compare_csv, read_unpaired
 from pipeline.csvio import read_csv, write_csv
 from pipeline.errors import BadFile
 
@@ -97,9 +99,47 @@ def test_null_string_differs_from_missing(mini):
     assert r["VALUE_BEFORE"] == "null"
 
 
-def test_app_only_in_after(mini):
-    r = row(mini, "2", "company.decisionResult.decision")
-    assert r["CHANGE_TYPE"] == "ATTRIBUTE_NEW"
+def test_app_only_in_after_is_excluded(mini):
+    """E15: заявки 2 нет в BEFORE — в витрину она не попадает совсем."""
+    assert "2" not in mini.index.get_level_values("APP_ID")
+
+
+def _rows(src, ids):
+    return [dict(zip(NORM_COLS, [i, src, "p", "c", "", "", "k", "p.c.k", "1", "1"])) for i in ids]
+
+
+def test_unpaired_apps_excluded_and_counted(tmp_path):
+    """E15: заявка только в BEFORE, только в AFTER и в обоих срезах."""
+    b, a, out, unp = tmp_path / "b.csv", tmp_path / "a.csv", tmp_path / "c.csv", tmp_path / "unpaired.json"
+    write_csv(b, NORM_COLS, _rows("BEFORE", ["both", "only_b"]))
+    write_csv(a, NORM_COLS, _rows("AFTER", ["both", "only_a1", "only_a2"]))
+    msgs = []
+    compare_csv(b, a, out, log=lambda lvl, m: msgs.append((lvl, m)), unpaired_json=unp)
+    df = read_csv(out)
+    assert set(df["APP_ID"]) == {"both"}
+    assert set(df["CHANGE_TYPE"]) == {"SAME"}  # нет ATTRIBUTE_NEW/LOST от заявок без пары
+    assert json.loads(unp.read_text(encoding="utf-8")) == {
+        "only_before": ["only_b"], "only_after": ["only_a1", "only_a2"]}
+    assert read_unpaired(unp) == {"only_before": 1, "only_after": 2}
+    warns = [m for lvl, m in msgs if lvl == "warn"]
+    assert len(warns) == 2 and "только в BEFORE" in warns[0] and "только в AFTER" in warns[1]
+
+
+def test_all_paired_no_warn(tmp_path):
+    msgs = []
+    unp = tmp_path / "u.json"
+    b, a = tmp_path / "b.csv", tmp_path / "a.csv"
+    write_csv(b, NORM_COLS, _rows("BEFORE", ["1"]))
+    write_csv(a, NORM_COLS, _rows("AFTER", ["1"]))
+    compare_csv(b, a, tmp_path / "c.csv", log=lambda lvl, m: msgs.append((lvl, m)), unpaired_json=unp)
+    assert [lvl for lvl, _ in msgs] == ["info"]
+    assert read_unpaired(unp) == {"only_before": 0, "only_after": 0}
+
+
+def test_read_unpaired_without_file(tmp_path):
+    """Старый запуск без unpaired.json — нули."""
+    assert read_unpaired(tmp_path / "nope.json") == {"only_before": 0, "only_after": 0}
+    assert read_unpaired(None) == {"only_before": 0, "only_after": 0}
 
 
 def test_only_four_change_types(mini):
@@ -110,8 +150,9 @@ def test_only_four_change_types(mini):
 def test_log_summary(tmp_path):
     msgs = []
     compare_csv(FIX / "before.csv", FIX / "after.csv", tmp_path / "c.csv", log=lambda lvl, m: msgs.append((lvl, m)))
-    assert len(msgs) == 1 and msgs[0][0] == "info"
-    assert "SAME=1" in msgs[0][1] and "ATTRIBUTE_LOST=1" in msgs[0][1]
+    info = [m for lvl, m in msgs if lvl == "info"]
+    assert len(info) == 1 and "SAME=1" in info[0] and "ATTRIBUTE_LOST=1" in info[0]
+    assert [lvl for lvl, _ in msgs].count("warn") == 1  # заявка 2 — только в AFTER
 
 
 def test_empty_sides(tmp_path):
@@ -120,10 +161,9 @@ def test_empty_sides(tmp_path):
     out = tmp_path / "c.csv"
     assert compare_csv(empty, empty, out) == 0
     assert list(read_csv(out).columns) == COLUMNS
-    assert compare_csv(empty, FIX / "after.csv", out) == 6
-    assert set(read_csv(out)["CHANGE_TYPE"]) == {"ATTRIBUTE_NEW"}
-    assert compare_csv(FIX / "before.csv", empty, out) == 5
-    assert set(read_csv(out)["CHANGE_TYPE"]) == {"ATTRIBUTE_LOST"}
+    # E15: один срез пустой — пар нет, витрина пустая
+    assert compare_csv(empty, FIX / "after.csv", out) == 0
+    assert compare_csv(FIX / "before.csv", empty, out) == 0
 
 
 def test_duplicate_key_is_error(tmp_path):
