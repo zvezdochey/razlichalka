@@ -7,7 +7,6 @@ import type {
   AttributesResponse,
   Config,
   ConfigInput,
-  DecisionChange,
   ErrorCode,
 } from '../api/types'
 import { APPS, DATASET, REASONS, SUMMARY, buildAppCard, buildAttributes, mockReasonApps } from './data'
@@ -97,7 +96,7 @@ function sortApps(rows: AppRow[], sort: string | null): AppRow[] {
 
 function filterApps(params: URLSearchParams): AppRow[] {
   const rawChanges = params.get('decision_change')
-  const changes = rawChanges === null ? null : (rawChanges.split(',') as DecisionChange[])
+  const changes = rawChanges === null ? null : rawChanges.split(',')
   const onlyAttrChange = params.get('has_attr_change') === '1'
   const sources = params.get('change_source')?.split(',')
   const search = params.get('search')?.trim().toLowerCase() ?? ''
