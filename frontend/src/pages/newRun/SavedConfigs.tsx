@@ -76,7 +76,7 @@ export function SavedConfigs({ refreshKey, activeId, onDeleted, onLoad }: SavedC
           disabled={loading}
           onChange={(event) => void handleChange(event.target.value)}
         >
-          <option value={activeId ?? ''}>Выберите конфигурацию</option>
+          <option value="">Выберите конфигурацию</option>
           {configs.map((config) => (
             <option key={config.id} value={config.id}>
               {config.name}

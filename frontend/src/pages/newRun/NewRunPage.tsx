@@ -140,6 +140,11 @@ export function NewRunPage() {
 
   /** Выбрана сохранённая конфигурация: подставляем поля формы. Сохранение создаст новую копию. */
   function handleLoadConfig(config: ConfigDetail) {
+    // Датасет могли удалить — запуск по такой конфигурации всё равно упал бы на сервере.
+    if (datasets?.some((dataset) => dataset.id === config.dataset) !== true) {
+      setSubmitError(`Датасет конфигурации «${config.name}» больше не доступен — выберите другой.`)
+      return
+    }
     setBase(config)
     setName(config.name)
     setDatasetId(config.dataset)
@@ -197,7 +202,10 @@ export function NewRunPage() {
    */
   async function ensureConfig(): Promise<Config> {
     if (savedConfig !== null && !changedSinceSave) return savedConfig
-    const config = await createConfig(buildInput())
+    const input = buildInput()
+    const config = await createConfig(input)
+    // Копия становится открытой конфигурацией: «Обновить» и «Удалить» теперь относятся к ней.
+    if (base !== null) setBase({ ...input, id: config.id, updated_at: config.updated_at })
     setSavedConfig(config)
     setChangedSinceSave(false)
     setListVersion((v) => v + 1)
