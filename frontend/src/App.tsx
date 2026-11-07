@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { AppLayout } from './layout/AppLayout'
 import { NewRunPage } from './pages/newRun/NewRunPage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { ProceduresPage } from './pages/ProceduresPage'
 import { RunPage } from './pages/RunPage'
 import { RunsListPage } from './pages/RunsListPage'
 import { AppsTab } from './pages/run/AppsTab'
@@ -29,6 +30,7 @@ export function App() {
           <Route path="checks" element={<ChecksTab />} />
           <Route path="log" element={<LogTab />} />
         </Route>
+        <Route path="procedures" element={<ProceduresPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

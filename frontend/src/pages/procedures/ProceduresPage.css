@@ -1,0 +1,358 @@
+/* Рабочая область процедур: список слева, редактор справа. Панели плоские, без теней. */
+
+.procs__layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: var(--s-4);
+  align-items: start;
+}
+
+/* --- Список процедур --- */
+.procs__list {
+  padding: var(--s-3) 0;
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - var(--h-header) - 2 * var(--s-6));
+  overflow: auto;
+}
+
+.procs__group + .procs__group {
+  margin-top: var(--s-3);
+}
+
+.procs__group .overline {
+  padding: 0 var(--s-4);
+  font-weight: 400;
+}
+
+.procs__group ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.procs__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px var(--s-4);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.procs__item:hover {
+  background: var(--surface-sunken);
+}
+
+/* Активная — тем же маркером, что и раздел в меню */
+.procs__item--active {
+  box-shadow: inset 3px 0 0 var(--accent);
+  background: var(--surface-sunken);
+  font-weight: 500;
+}
+
+.procs__name {
+  font-size: var(--fs-table);
+}
+
+.procs__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-caption);
+  font-weight: 400;
+}
+
+.procs__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+/* --- Редактор процедуры --- */
+.proc {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.proc__head {
+  display: flex;
+  gap: var(--s-4);
+  align-items: flex-end;
+}
+
+.proc__field {
+  display: flex;
+  flex-direction: column;
+}
+
+.proc__field--name {
+  flex: 1 1 auto;
+  max-width: 480px;
+}
+
+.proc__kind {
+  padding: 6px 0;
+}
+
+.proc__note {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.proc__source {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.proc__source legend {
+  float: left;
+  margin: 0 var(--s-2) 0 0;
+  padding: 0;
+}
+
+.proc__source label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+}
+
+.proc__path {
+  flex: 1 1 260px;
+  max-width: 420px;
+}
+
+.proc__hint {
+  margin: 0;
+  font-size: var(--fs-caption);
+}
+
+.proc__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.proc__status {
+  color: var(--muted);
+  font-size: var(--fs-table);
+}
+
+.proc__delete {
+  margin-left: auto;
+}
+
+.proc__ok {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* Ошибки кода — ошибки приложения, поэтому --danger, а не --fail (тот только для вердиктов) */
+.proc__errors {
+  padding: var(--s-3) var(--s-4);
+  background: var(--danger-bg);
+  border-left: 3px solid var(--danger);
+  color: var(--danger);
+}
+
+.proc__errors-title {
+  font-weight: 600;
+  margin-bottom: var(--s-1);
+}
+
+.proc__errors ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.proc__error-line {
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--fs-table);
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* --- Поле кода: номера строк + textarea, подсветка лежит слоем под текстом.
+   Высота строки 20 px и отступ 8 px — те же числа, что в CodeEditor.tsx. --- */
+.code {
+  position: relative;
+  display: flex;
+  height: min(60vh, 560px);
+  min-height: 280px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-control);
+  background: var(--surface);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--fs-table);
+  line-height: 20px;
+}
+
+.code--readonly {
+  background: var(--surface-sunken);
+}
+
+.code:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.code__marks {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.code__marks > div {
+  position: relative;
+}
+
+.code__mark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 20px;
+}
+
+.code__mark--error {
+  background: var(--danger-bg);
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.code__mark--target {
+  background: var(--bg);
+  box-shadow: inset 3px 0 0 var(--info);
+}
+
+.code__gutter {
+  position: relative;
+  flex: 0 0 48px;
+  overflow: hidden;
+  padding: 8px var(--s-2) 8px 0;
+  border-right: 1px solid var(--border);
+  color: var(--faint);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.code__num--error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.code__text {
+  position: relative;
+  flex: 1 1 auto;
+  margin: 0;
+  padding: 8px var(--s-3);
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  line-height: inherit;
+  white-space: pre;
+  tab-size: 4;
+}
+
+/* --- Подключить к прогону --- */
+.proc-run {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.proc-run p {
+  margin: 0;
+}
+
+.proc-run__row {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+}
+
+.proc-run__field {
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  max-width: 480px;
+}
+
+.proc-run__error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+/* --- Справка --- */
+.proc-help summary {
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.proc-help__body {
+  margin-top: var(--s-3);
+}
+
+.proc-help__body h3 {
+  margin: var(--s-4) 0 var(--s-2);
+  font-size: var(--fs-body);
+}
+
+.proc-help__code {
+  margin: 0 0 var(--s-3);
+  padding: var(--s-3);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  font-size: var(--fs-table);
+  overflow-x: auto;
+}
+
+.proc-help__fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--s-1) var(--s-4);
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-table);
+}
+
+.proc-help__fields dt {
+  font-family: var(--font-mono);
+}
+
+.proc-help__fields dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+@media (max-width: 1100px) {
+  .procs__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .procs__list {
+    position: static;
+    max-height: 260px;
+  }
+}

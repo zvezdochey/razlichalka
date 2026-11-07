@@ -1,7 +1,14 @@
 import { useSyncExternalStore } from 'react'
+import type { MouseEvent } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
+import { confirmLeave } from '../lib/leaveGuard'
 import { getCurrentUser, subscribeUser } from '../lib/user'
 import './AppLayout.css'
+
+/** Ссылка меню не ведёт дальше, если человек отказался терять несохранённое. */
+function guardLeave(event: MouseEvent<HTMLAnchorElement>) {
+  if (!confirmLeave()) event.preventDefault()
+}
 
 /** Шапка 48 px + левое меню 180 px + область контента. Ориентир — ноутбук 1366×768. */
 export function AppLayout() {
@@ -18,8 +25,11 @@ export function AppLayout() {
 
       <div className="app__body">
         <nav className="app__nav" aria-label="Разделы">
-          <NavLink to="/runs" className="app__nav-item">
+          <NavLink to="/runs" className="app__nav-item" onClick={guardLeave}>
             Прогоны
+          </NavLink>
+          <NavLink to="/procedures" className="app__nav-item" onClick={guardLeave}>
+            Процедуры
           </NavLink>
           {/* Конфигурации как отдельный раздел — после MVP (PLAN п. 4) */}
           <span className="app__nav-item app__nav-item--disabled" aria-disabled="true">
