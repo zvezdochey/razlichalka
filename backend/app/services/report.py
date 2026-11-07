@@ -13,6 +13,40 @@ templates = Environment(
 )
 
 
+# Словарь перевода кодов для людей: в отчёте руководителя нет approve_to_reject и VALUE_CHANGED.
+# Один на весь отчёт; в шаблоне используется как фильтр `ru`. Неизвестный код выводим как есть.
+LABELS = {
+    "approve_to_reject": "Одобрение → отказ",
+    "reject_to_approve": "Отказ → одобрение",
+    "VALUE_CHANGED": "Значение изменилось",
+    "ATTRIBUTE_NEW": "Атрибут появился",
+    "ATTRIBUTE_LOST": "Атрибут пропал",
+    "same": "Без изменений",
+    "decision_other": "Другое изменение",
+    "approve": "Одобрение",
+    "reject": "Отказ",
+    "other": "Другое",
+}
+templates.filters["ru"] = lambda code: LABELS.get(code, code)
+
+
+def headline(summary: dict) -> str:
+    """Итоговая фраза наверху отчёта. Все числа берём из summary, ничего не считаем сами."""
+    changed = summary["decision_changed"]
+    if not changed:
+        text = "Решение не сменила ни одна заявка"
+    else:
+        moves = summary["decision_changes"]
+        sources = summary.get("change_sources", {})
+        text = (f"Решение сменили {changed} заявок: {moves['approve_to_reject']} потеряли одобрение, "
+                f"{moves['reject_to_approve']} получили; логика {sources.get('logic', 0)} / данные {sources.get('data', 0)}")
+        if sources.get("both"):
+            text += f" / вместе {sources['both']}"
+    if "checks_fail" in summary:  # поля нет у запусков без этапа checks
+        text += f"; проверки: {summary['checks_fail']} FAIL"
+    return text
+
+
 def render(run: dict, run_dir: Path, app_url: str) -> str:
     summary = json.loads(results.summary(run_dir))
     top_apps = results.apps(
@@ -34,6 +68,7 @@ def render(run: dict, run_dir: Path, app_url: str) -> str:
     return templates.get_template("report.html").render(
         run=run,
         summary=summary,
+        headline=headline(summary),
         top_apps=top_apps,
         checks=checks,
         checks_total=checks_total,

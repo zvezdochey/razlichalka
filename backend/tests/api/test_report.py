@@ -1,3 +1,4 @@
+import json
 import time
 
 import pytest
@@ -5,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app import pipeline_stub, settings
 from app.main import create_app
-from app.services import warmup
+from app.services import report, warmup
 from pipeline.csvio import read_csv, write_csv
 
 CONFIG_NAME = "<script>alert(1)</script>"
@@ -66,6 +67,30 @@ def test_report_view_and_download(client, ready_id):
     assert "Проверки не подключены" in page.text
     assert CONFIG_NAME not in page.text
     assert "&lt;script&gt;alert(1)&lt;/script&gt;" in page.text
+
+
+def test_report_has_headline_and_russian_labels(client, ready_id):
+    run_dir = settings.DATA_DIR / "runs" / ready_id
+    summary = json.loads((run_dir / "summary.json").read_text(encoding="utf-8"))
+    page = client.get(f"/api/runs/{ready_id}/report").text
+    moves = summary["decision_changes"]
+    assert (f"Решение сменили {summary['decision_changed']} заявок: {moves['approve_to_reject']} потеряли одобрение, "
+            f"{moves['reject_to_approve']} получили") in page
+    assert "Одобрение → отказ" in page and "Отказ → одобрение" in page and "Значение изменилось" in page
+    for code in ("approve → reject", "reject → approve", "VALUE_CHANGED", "ATTRIBUTE_NEW", "ATTRIBUTE_LOST"):
+        assert code not in page
+
+
+def test_headline_uses_only_summary_numbers():
+    summary = {
+        "decision_changed": 385, "decision_changes": {"approve_to_reject": 273, "reject_to_approve": 112},
+        "change_sources": {"logic": 218, "data": 167, "both": 0, "none": 0}, "checks_fail": 33,
+    }
+    assert report.headline(summary) == (
+        "Решение сменили 385 заявок: 273 потеряли одобрение, 112 получили; логика 218 / данные 167; проверки: 33 FAIL")
+    assert report.headline({**summary, "decision_changed": 0}) == "Решение не сменила ни одна заявка; проверки: 33 FAIL"
+    del summary["checks_fail"]
+    assert "FAIL" not in report.headline(summary)
 
 
 def test_report_links_use_forwarded_scheme_and_reject_malformed_host(client, ready_id):

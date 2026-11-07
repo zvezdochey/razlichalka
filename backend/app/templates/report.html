@@ -28,7 +28,9 @@
     h1, td, dd { overflow-wrap: anywhere; }
     .metadata, .metrics, .breakdown { display: grid; gap: .75rem; margin: 0; }
     .metadata { grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); }
-    .metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .metrics { grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); }
+    .headline { margin: 1.25rem 0 0; padding: .9rem 1rem; border-left: 4px solid var(--accent); background: white; font-size: 1.15rem; font-weight: 600; }
+    .fail .value { color: var(--accent); }
     .breakdown { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     section, footer { margin-top: 1.5rem; }
     .card {
@@ -83,6 +85,8 @@
       </dl>
     </header>
 
+    <p class="headline">{{ headline }}</p>
+
     <section aria-label="Итоги прогона">
       <dl class="metrics">
         <div class="card">
@@ -102,6 +106,12 @@
           <dt>Изменённых атрибутов</dt>
           <dd class="value">{{ attributes_changed }}</dd>
         </div>
+        {% if summary.checks_fail is defined %}
+        <div class="card fail">
+          <dt>Проверки с FAIL</dt>
+          <dd class="value">{{ summary.checks_fail }}</dd>
+        </div>
+        {% endif %}
       </dl>
     </section>
 
@@ -111,10 +121,10 @@
         <table aria-labelledby="decisions">
           <thead><tr><th scope="col">Переход</th><th scope="col" class="numeric">Заявок</th></tr></thead>
           <tbody>
-            <tr><th scope="row">approve → reject</th><td class="numeric">{{ summary.decision_changes.approve_to_reject }}</td></tr>
-            <tr><th scope="row">reject → approve</th><td class="numeric">{{ summary.decision_changes.reject_to_approve }}</td></tr>
-            <tr><th scope="row">Без изменений</th><td class="numeric">{{ summary.decision_changes.same }}</td></tr>
-            <tr><th scope="row">Другое изменение</th><td class="numeric">{{ summary.decision_changes.decision_other }}</td></tr>
+            <tr><th scope="row">{{ "approve_to_reject" | ru }}</th><td class="numeric">{{ summary.decision_changes.approve_to_reject }}</td></tr>
+            <tr><th scope="row">{{ "reject_to_approve" | ru }}</th><td class="numeric">{{ summary.decision_changes.reject_to_approve }}</td></tr>
+            <tr><th scope="row">{{ "same" | ru }}</th><td class="numeric">{{ summary.decision_changes.same }}</td></tr>
+            <tr><th scope="row">{{ "decision_other" | ru }}</th><td class="numeric">{{ summary.decision_changes.decision_other }}</td></tr>
           </tbody>
         </table>
       </div>
@@ -123,9 +133,9 @@
         <table aria-labelledby="changes">
           <thead><tr><th scope="col">Тип изменения</th><th scope="col" class="numeric">Строк</th></tr></thead>
           <tbody>
-            <tr><th scope="row">VALUE_CHANGED</th><td class="numeric">{{ summary.attributes.VALUE_CHANGED }}</td></tr>
-            <tr><th scope="row">ATTRIBUTE_NEW</th><td class="numeric">{{ summary.attributes.ATTRIBUTE_NEW }}</td></tr>
-            <tr><th scope="row">ATTRIBUTE_LOST</th><td class="numeric">{{ summary.attributes.ATTRIBUTE_LOST }}</td></tr>
+            <tr><th scope="row">{{ "VALUE_CHANGED" | ru }}</th><td class="numeric">{{ summary.attributes.VALUE_CHANGED }}</td></tr>
+            <tr><th scope="row">{{ "ATTRIBUTE_NEW" | ru }}</th><td class="numeric">{{ summary.attributes.ATTRIBUTE_NEW }}</td></tr>
+            <tr><th scope="row">{{ "ATTRIBUTE_LOST" | ru }}</th><td class="numeric">{{ summary.attributes.ATTRIBUTE_LOST }}</td></tr>
           </tbody>
         </table>
       </div>
@@ -142,7 +152,7 @@
           {% for app in top_apps %}
           <tr>
             <th scope="row"><code>{{ app.app_id }}</code></th>
-            <td>{{ app.decision_before }} → {{ app.decision_after }}</td>
+            <td>{{ app.decision_before | ru }} → {{ app.decision_after | ru }}</td>
             <td class="numeric">{{ app.attributes_changed }}</td>
           </tr>
           {% endfor %}
