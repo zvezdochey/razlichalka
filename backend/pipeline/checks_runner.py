@@ -5,6 +5,8 @@
 
 Код пользователя исполняется в отдельном процессе с таймаутом: зависшая проверка убивается,
 остальные продолжают работать. Процесс не получает переменных окружения (там могут быть секреты).
+Кроме окружения, дочерний процесс работает во временной папке и с лимитами ОС (`_limit_resources`):
+память, процессорное время, запрет на новые процессы и потоки. Это не полноценная песочница, а защита от очевидного.
 Если проверка не из кода (нет `source`) или у `mart` нет путей к CSV — идём в обычном процессе, без таймаута.
 """
 
@@ -13,6 +15,9 @@ import builtins
 import multiprocessing as mp
 import os
 import queue
+import sys
+import shutil
+import tempfile
 import time
 import types
 from pathlib import Path
@@ -34,6 +39,39 @@ def _restrict_env() -> None:
     keep = {k: v for k, v in os.environ.items() if k.upper() in ("SYSTEMROOT", "PATH", "TEMP", "TMP")}
     os.environ.clear()
     os.environ.update(keep)
+
+
+MEMORY_LIMIT = 6 * 1024 ** 3   # байт адресного пространства на процесс
+CPU_LIMIT = 900                # секунд процессорного времени на весь процесс проверок
+
+
+def _limit_resources() -> None:
+    """Лимиты ОС для дочернего процесса (только Linux/macOS; на Windows модуля resource нет — пропускаем).
+
+    NPROC=0 запрещает создавать новые процессы и потоки, поэтому `os.system` и `subprocess` у пользовательского
+    кода падают. Для root лимит NPROC не действует, но в Docker бэк работает от обычного пользователя.
+    Вызываем после того, как процесс запустил свои служебные потоки (очередь результатов) и загрузил витрину.
+    """
+    try:
+        import resource
+    except ImportError:
+        return
+    for name, value in (("RLIMIT_AS", MEMORY_LIMIT), ("RLIMIT_CPU", CPU_LIMIT), ("RLIMIT_NPROC", 0)):
+        limit = getattr(resource, name, None)
+        if limit is None:
+            continue
+        try:
+            resource.setrlimit(limit, (value, value))
+        except (ValueError, OSError) as exc:
+            # лимит не поставился (контейнер запретил) — работаем без него, а не падаем, но говорим об этом
+            print(f"Предупреждение: лимит {name} не поставился: {exc}", file=sys.stderr)
+
+
+def _enter_temp_dir() -> str:
+    """Рабочая папка процесса — временная, а не папка бэка. Возвращает путь, чтобы её потом удалить."""
+    folder = tempfile.mkdtemp(prefix="razlichalka_check_")
+    os.chdir(folder)
+    return folder
 
 
 def _exec_check(code: str, name: str) -> dict:
@@ -66,11 +104,16 @@ def _read_code(path_or_code, kind: str) -> tuple[str, str]:
 
 def _load_worker(code, name, out):
     _restrict_env()
+    out.put(("up", None))  # поднимает служебный поток очереди до запрета на новые потоки
+    folder = _enter_temp_dir()
+    _limit_resources()
     try:
         check = _exec_check(code, name)
         out.put(("ok", {"id": check["id"], "label": check["label"], "params": check["params"]}))
     except BaseException as e:  # noqa: BLE001
         out.put(("err", str(e) if isinstance(e, BadFile) else f"{type(e).__name__}: {e}"))
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 def load_check(path_or_code, kind: str = "file", timeout: float = LOAD_TIMEOUT) -> dict:
@@ -82,6 +125,8 @@ def load_check(path_or_code, kind: str = "file", timeout: float = LOAD_TIMEOUT) 
     (в `run_checks` с настоящим `Mart` это тоже происходит в дочернем процессе).
     В CHECK добавляется `source` = (kind, значение) — по нему проверку грузит дочерний процесс запуска.
     """
+    if kind == "file":
+        path_or_code = str(Path(path_or_code).resolve())  # рабочий процесс уходит во временную папку: путь нужен абсолютный
     code, name = _read_code(path_or_code, kind)
     problems = validate_check_code(code)
     if problems:
@@ -92,6 +137,7 @@ def load_check(path_or_code, kind: str = "file", timeout: float = LOAD_TIMEOUT) 
     proc = ctx.Process(target=_load_worker, args=(code, name, out), daemon=True)
     proc.start()
     try:
+        out.get(timeout=timeout)  # ("up", None): процесс стартовал
         status, payload = out.get(timeout=timeout)
     except queue.Empty:
         raise BadFile(f"Код проверки не загрузился за {timeout:g} с (бесконечный цикл на верхнем уровне?)") from None
@@ -107,6 +153,39 @@ def load_check(path_or_code, kind: str = "file", timeout: float = LOAD_TIMEOUT) 
     return {**payload, "entrypoint": entrypoint, "source": (kind, path_or_code)}
 
 
+# Модули, которые пользовательскому коду не нужны: через них можно выйти за пределы проверки.
+FORBIDDEN_MODULES = ("os", "subprocess", "socket", "shutil", "ctypes", "posix", "pathlib", "importlib", "sys",
+                     "builtins", "pty", "multiprocessing", "signal", "_socket")
+
+
+def forbidden_code_problems(tree: ast.AST) -> list[dict]:
+    """Явно опасное в коде: импорт os/subprocess/socket/shutil/ctypes, __import__, open() с абсолютным путём.
+
+    Это не защита от злоумышленника (обойти можно), а понятный отказ на очевидное. Настоящее ограничение —
+    отдельный процесс с лимитами (`_limit_resources`). Смотрим дерево разбора, а не текст: слово в строке не мешает.
+    """
+    problems = []
+    for node in ast.walk(tree):
+        line = getattr(node, "lineno", 1)
+        if isinstance(node, ast.Import):
+            names = [a.name for a in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            names = [node.module or ""]
+        else:
+            names = []
+        for name in names:
+            if name.split(".")[0] in FORBIDDEN_MODULES:
+                problems.append({"line": line, "message": f"Нельзя подключать модуль «{name}»: пользовательский код не работает с системой, файлами и сетью"})
+        if isinstance(node, ast.Name) and node.id == "__import__":
+            problems.append({"line": line, "message": "Нельзя вызывать __import__: подключайте модули обычным import"})
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "open":
+            first = node.args[0] if node.args else None
+            if isinstance(first, ast.Constant) and isinstance(first.value, str) and \
+                    (first.value.startswith(("/", "\\", "~")) or ":" in first.value[:3]):
+                problems.append({"line": line, "message": "Нельзя открывать файлы по абсолютному пути: данные проверки приходят через mart"})
+    return problems
+
+
 def validate_check_code(code: str) -> list[dict]:
     """Проверка кода без запуска: компилируется ли, есть ли CHECK с нужными ключами и функция проверки.
 
@@ -116,6 +195,9 @@ def validate_check_code(code: str) -> list[dict]:
         tree = ast.parse(code)
     except SyntaxError as e:
         return [{"line": e.lineno or 1, "message": f"Синтаксическая ошибка: {e.msg}"}]
+    forbidden = forbidden_code_problems(tree)
+    if forbidden:
+        return forbidden
     funcs = {n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))}
     known = set(funcs) | set(dir(builtins))  # что можно указать в entrypoint: функции, импорты, присваивания
     for n in ast.walk(tree):
@@ -181,9 +263,12 @@ def _worker(comparison_csv, segments_csv, tasks, results):
     from .mart import Mart
     mart = Mart(comparison_csv, segments_csv)
     results.put(("ready", None, None))
+    folder = _enter_temp_dir()
+    _limit_resources()
     while True:
         task = tasks.get()
         if task is None:
+            shutil.rmtree(folder, ignore_errors=True)
             return
         i, (kind, value), params = task
         try:

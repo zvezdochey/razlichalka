@@ -92,6 +92,16 @@ def test_bad_code(client):
     assert ok == {"ok": True, "errors": []}
 
 
+def test_dangerous_code_is_rejected_on_save(client):
+    r = new_check(client, "import os\n" + GOOD_CHECK)
+    assert r.status_code == 400 and r.json()["error"]["code"] == "bad_code"
+    assert "os" in r.json()["error"]["message"] and "Строка 1" in r.json()["error"]["message"]
+    body = {"kind": "normalize", "source": "inline", "name": "п", "code": "import subprocess\nX = 1\n"}
+    r = client.post("/api/procedures", json=body, headers=ANN)
+    assert r.status_code == 400 and r.json()["error"]["code"] == "bad_code"
+    assert new_check(client, GOOD_CHECK + "\nopen('/etc/hostname')\n").status_code == 400
+
+
 def test_builtin_not_deletable_and_code_readable(client):
     r = client.delete("/api/procedures/builtin_demo", headers=ANN)
     assert r.status_code == 409 and r.json()["error"]["code"] == "conflict"

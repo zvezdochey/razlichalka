@@ -13,6 +13,41 @@ templates = Environment(
 )
 
 
+# Словарь перевода кодов для людей: в отчёте руководителя нет approve_to_reject и VALUE_CHANGED.
+# Один на весь отчёт; в шаблоне используется как фильтр `ru`. Неизвестный код выводим как есть.
+from app.services.labels import LABELS  # noqa: E402
+templates.filters["ru"] = lambda code: LABELS.get(code, code)
+
+
+def _plural(n: int, one: str, few: str, many: str) -> str:
+    """1 заявка, 2 заявки, 5 заявок."""
+    if n % 100 in range(11, 15):
+        return many
+    return one if n % 10 == 1 else few if n % 10 in (2, 3, 4) else many
+
+
+def headline(summary: dict) -> str:
+    """Итоговая фраза наверху отчёта. Все числа берём из summary, ничего не считаем сами."""
+    changed = summary.get("decision_changed", 0)
+    if not changed:
+        text = "Решение не сменила ни одна заявка"
+    else:
+        moves = summary.get("decision_changes", {})
+        sources = summary.get("change_sources", {})
+        word = _plural(changed, "заявка", "заявки", "заявок")
+        verb = "сменила" if changed % 10 == 1 and changed % 100 != 11 else "сменили"
+        text = (f"Решение {verb} {changed} {word}: {moves.get('approve_to_reject', 0)} потеряли одобрение, "
+                f"{moves.get('reject_to_approve', 0)} получили")
+        if moves.get("decision_other"):
+            text += f", у {moves['decision_other']} другое решение"
+        text += f"; логика {sources.get('logic', 0)} / данные {sources.get('data', 0)}"
+        if sources.get("both"):
+            text += f" / вместе {sources['both']}"
+    if "checks_fail" in summary:  # поля нет у запусков без этапа checks
+        text += f"; проверки: {summary['checks_fail']} FAIL"
+    return text
+
+
 def render(run: dict, run_dir: Path, app_url: str) -> str:
     summary = json.loads(results.summary(run_dir))
     top_apps = results.apps(
@@ -34,6 +69,7 @@ def render(run: dict, run_dir: Path, app_url: str) -> str:
     return templates.get_template("report.html").render(
         run=run,
         summary=summary,
+        headline=headline(summary),
         top_apps=top_apps,
         checks=checks,
         checks_total=checks_total,
