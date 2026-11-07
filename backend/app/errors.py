@@ -11,6 +11,7 @@ log = logging.getLogger("razlichalka")
 # code -> HTTP-статус (таблица «Ошибки» в docs/api.md)
 HTTP_BY_CODE = {
     "bad_file": 400,
+    "bad_request": 400,
     "bad_code": 400,
     "no_id_column": 400,
     "not_found": 404,
@@ -39,13 +40,12 @@ def register_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def on_validation_error(request: Request, exc: RequestValidationError):
-        # FastAPI по умолчанию отдаёт 422, а у нас в договоре 400 bad_file
-        # (отдельного кода для кривого запроса в api.md нет)
+        # FastAPI по умолчанию отдаёт 422, а у нас в договоре 400 bad_request
         parts = []
         for err in exc.errors():
             field = ".".join(str(p) for p in err["loc"])
             parts.append(f"{field}: {err['msg']}")
-        return error_response("bad_file", "Неверный запрос — " + "; ".join(parts), 400)
+        return error_response("bad_request", "Неверный запрос — " + "; ".join(parts), 400)
 
     @app.exception_handler(StarletteHTTPException)
     async def on_http_error(request: Request, exc: StarletteHTTPException):

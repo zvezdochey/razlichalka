@@ -140,16 +140,16 @@ def test_attributes_sort_filter_and_paginate(client, ready_run):
     ]
 
 
-@pytest.mark.parametrize(("path", "params"), [
-    ("apps", {"sort": "-unknown"}),
-    ("apps", {"page": 0}),
-    ("apps", {"size": 501}),
-    ("apps/MINI-001/attributes", {"size": 501}),
+@pytest.mark.parametrize(("path", "params", "code"), [
+    ("apps", {"sort": "-unknown"}, "bad_file"),
+    ("apps", {"page": 0}, "bad_request"),
+    ("apps", {"size": 501}, "bad_request"),
+    ("apps/MINI-001/attributes", {"size": 501}, "bad_request"),
 ])
-def test_invalid_results_query(client, ready_run, path, params):
+def test_invalid_results_query(client, ready_run, path, params, code):
     response = client.get(f"{ready_run}/{path}", params=params)
     assert response.status_code == 400
-    assert response.json()["error"]["code"] == "bad_file"
+    assert response.json()["error"]["code"] == code
     assert response.json()["error"]["message"]
 
 

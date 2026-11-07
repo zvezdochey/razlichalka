@@ -253,6 +253,8 @@ def ready_dir(run_id: str, user: str) -> Path:
 
 def cancel(run_id: str, user: str) -> dict:
     run = get_own(run_id, user)
+    if run["status"] not in ("pending", "running"):
+        raise ApiError("conflict", "Запуск уже завершён, останавливать нечего")
     with _lock:
         _cancel[run_id].set()
         if run["status"] == "pending":  # ещё не стартовал — останавливаем сразу

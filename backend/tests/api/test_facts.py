@@ -127,7 +127,9 @@ def test_explicit_app_ids_and_concurrent_ref_writes(client, run):
 def test_bad_facts_queries(client, run, params):
     response = client.get(f"/api/runs/{run}/facts", params=params)
     assert response.status_code == 400
-    assert response.json()["error"]["code"] == "bad_file"
+    # limit вне диапазона ловит проверка запроса FastAPI, остальное — сервис фактов
+    expected = "bad_request" if params.get("limit") == 5001 else "bad_file"
+    assert response.json()["error"]["code"] == expected
 
 
 def test_results_require_owner_and_ready(client, monkeypatch):

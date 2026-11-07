@@ -51,5 +51,5 @@ def test_validation_error_is_400_with_field():
     r = make_client().get("/api/_need/abc")
     assert r.status_code == 400
     err = r.json()["error"]
-    assert err["code"] == "bad_file"
+    assert err["code"] == "bad_request"
     assert "n" in err["message"]
