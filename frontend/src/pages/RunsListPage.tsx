@@ -65,8 +65,8 @@ export function RunsListPage() {
               <tr>
                 <th scope="col">Прогон</th>
                 <th scope="col">Статус</th>
-                {/* Названия и датасета в п. 5.3 нет — расхождение №2. Показываем конфигурацию. */}
                 <th scope="col">Конфигурация</th>
+                <th scope="col">Датасет</th>
                 <th scope="col">Создан</th>
               </tr>
             </thead>
@@ -91,7 +91,8 @@ export function RunsListPage() {
                     {/* В списке поля `error` нет, поэтому отмену от падения не отличить. */}
                     <StatusBadge status={run.status} errorKnown={false} />
                   </td>
-                  <td className="mono">{run.config_id}</td>
+                  <td>{run.name}</td>
+                  <td className="mono">{run.dataset}</td>
                   <td>{formatDateTime(run.created_at)}</td>
                 </tr>
               ))}

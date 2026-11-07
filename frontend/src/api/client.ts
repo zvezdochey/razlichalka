@@ -128,6 +128,36 @@ export async function downloadFile(url: string, filename: string): Promise<void>
 }
 
 /**
+ * Открыть отчёт в новой вкладке. Как и `downloadFile`, обычная ссылка `<a href target="_blank">`
+ * не годится — нужен X-User. Вкладку открываем сразу синхронно (иначе браузер считает
+ * `window.open` после `await` попапом и блокирует), адрес подставляем, когда файл готов.
+ */
+export async function openInNewTab(url: string, downloadName: string): Promise<void> {
+  const tab = window.open('', '_blank')
+  try {
+    const res = await send(url)
+    const objectUrl = URL.createObjectURL(await res.blob())
+    if (tab === null) {
+      // Попап заблокирован — скачиваем как обычный файл, это лучше, чем ничего не показать.
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = downloadName
+      document.body.append(link)
+      link.click()
+      link.remove()
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+      return
+    }
+    // revokeObjectURL здесь не вызываем: вкладка продолжает ссылаться на этот blob,
+    // освобождать его раньше, чем вкладка закрыта, нельзя — отчёт в ней перестанет открываться.
+    tab.location.href = objectUrl
+  } catch (e) {
+    tab?.close()
+    throw e
+  }
+}
+
+/**
  * Запуск остановил пользователь, а не сломался. В договоре это тот же `status: 'error'`
  * (п. 5.4), отличается только кодом — и показывать это надо нейтрально, не как аварию.
  */

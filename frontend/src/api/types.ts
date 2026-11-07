@@ -170,6 +170,9 @@ export type RunListItem = {
   id: string
   status: Status
   config_id: string
+  /** Имя конфигурации на момент запуска. */
+  name: string
+  dataset: string
   created_at: string
 }
 
