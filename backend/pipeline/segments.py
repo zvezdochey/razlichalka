@@ -69,6 +69,16 @@ def _text(value) -> str:
     return str(value)
 
 
+def normalize_decision(raw: str) -> str:
+    """APPROVE → approve, REJECT → reject, всё остальное (VERIFICATION, пусто...) → other.
+
+    Одно правило на весь pipeline: по нему и DECISION_CHANGED в segments.csv, и decision_change
+    в summary.json — иначе разрезы и итоги показали бы жюри разные цифры (VERIFICATION → MANUAL).
+    """
+    value = (raw or "").strip().lower()
+    return value if value in ("approve", "reject") else "other"
+
+
 def _dicts(value) -> list[dict]:
     return [x for x in value if isinstance(x, dict)] if isinstance(value, list) else []
 
@@ -252,7 +262,8 @@ def _read(file: Path) -> dict:
 
 
 def _row(app_id: str, before: dict, after: dict, change_source: str) -> dict:
-    changed = before["decision"] != after["decision"]
+    # по приведённым решениям, как в summary.json: VERIFICATION → MANUAL — это не смена (обе other)
+    changed = normalize_decision(before["decision"]) != normalize_decision(after["decision"])
     # партнёр и маршрутизация — из среза, где есть выдача (в BEFORE приоритет)
     partner_src = after if (not before["top_offer"] and after["top_offer"]) else before
     partner_alt = before if partner_src is after else after

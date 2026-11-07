@@ -59,7 +59,7 @@ backend/
 
 `APP_ID;DECISION_BEFORE;DECISION_AFTER;DECISION_CHANGED;PRODUCTS;TOP_OFFER_BEFORE;TOP_OFFER_AFTER;PARTNER_TYPE;ROUTING_METHOD;PD_MODEL_BEFORE;PD_MODEL_AFTER;CUTOFF_BEFORE;CUTOFF_AFTER;REJECT_REASON_BEFORE;REJECT_REASON_AFTER;SCORE_OKB_BEFORE;SCORE_OKB_AFTER;CHANGE_SOURCE`
 
-`DECISION_*` — как в данных (`APPROVE`/`REJECT`), `DECISION_CHANGED` — `0`/`1`. Список `PRODUCTS` — id через `|`.
+`DECISION_*` — как в данных (`APPROVE`/`REJECT`), `DECISION_CHANGED` — `0`/`1`: по приведённым решениям (`approve` / `reject` / всё остальное — `other`), как `decision_change` в summary.json; `VERIFICATION → MANUAL` — `0`. Список `PRODUCTS` — id через `|`.
 `CHANGE_SOURCE` (E10) — `logic` / `data` / `none` (словарь «Откуда смена» в api.md), у всех заявок. Считается по
 `comparison.csv`: есть `DIFF_FLAG=1` в пути с префиксом из `INPUT_PREFIXES` (`builtin_segments.py`) → `data`,
 иначе есть различия → `logic`, различий нет → `none`. Без витрины (`comparison_csv=None`) колонка пустая.
