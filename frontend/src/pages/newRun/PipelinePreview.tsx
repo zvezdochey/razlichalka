@@ -161,6 +161,13 @@ export function PipelinePreview({ procedures, error, onReload, value, onChange }
           Выбрано {value.checks.length - missing.length} из {checks.length}. Каждая проверка даёт строки PASS / FAIL
           во вкладке «Проверки» прогона.
         </p>
+        {value.checks.length - missing.length === 0 && (
+          // Пустой выбор допустим, но без предупреждения «Запустить» молча даст 0 FAIL.
+          <p className="section__note" role="status">
+            <span className="chip chip--low">Проверки не выбраны</span> Прогон посчитает различия,
+            но отчёт PASS / FAIL будет пустым.
+          </p>
+        )}
 
         <ul className="steps">
           {checks.map((proc) => (
