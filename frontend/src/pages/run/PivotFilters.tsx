@@ -1,21 +1,23 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { factLabel, isPivotField, PIVOT_FIELDS } from './pivotLayout'
 import type { PivotField } from './pivotLayout'
 
 type PivotFiltersProps = {
   filters: Record<string, string[]>
+  field: PivotField
+  onFieldChange: (field: PivotField) => void
+  dragHandle: ReactNode
   onChange: (filters: Record<string, string[]>) => void
 }
 
-export function PivotFilters({ filters, onChange }: PivotFiltersProps) {
-  const [field, setField] = useState<PivotField>('DIFF_FLAG')
+export function PivotFilters({ filters, field, onFieldChange, dragHandle, onChange }: PivotFiltersProps) {
   const applied = filters[field]?.join(', ') ?? (field === 'DIFF_FLAG' ? '1' : '')
-  const [draft, setDraft] = useState({ applied, value: applied })
+  const [draft, setDraft] = useState({ field, applied, value: applied })
   const [error, setError] = useState('')
 
-  if (draft.applied !== applied) {
-    setDraft({ applied, value: applied })
+  if (draft.field !== field || draft.applied !== applied) {
+    setDraft({ field, applied, value: applied })
     setError('')
   }
   const { value } = draft
@@ -46,16 +48,14 @@ export function PivotFilters({ filters, onChange }: PivotFiltersProps) {
       <form className="pivot-filter-form" onSubmit={apply}>
         <label>
           <span>Поле фильтра</span>
+          {dragHandle}
           <select
             className="select"
             value={field}
             onChange={(event) => {
               const next = event.target.value
               if (!isPivotField(next)) return
-              setField(next)
-              const nextValue = filters[next]?.join(', ') ?? (next === 'DIFF_FLAG' ? '1' : '')
-              setDraft({ applied: nextValue, value: nextValue })
-              setError('')
+              onFieldChange(next)
             }}
           >
             {Object.entries(PIVOT_FIELDS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
@@ -66,7 +66,7 @@ export function PivotFilters({ filters, onChange }: PivotFiltersProps) {
           <input
             className="input"
             value={value}
-            onChange={(event) => { setDraft({ applied, value: event.target.value }); setError('') }}
+            onChange={(event) => { setDraft({ field, applied, value: event.target.value }); setError('') }}
             placeholder="Например VALUE_CHANGED"
           />
         </label>
