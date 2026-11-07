@@ -1,0 +1,17 @@
+backend-1  | INFO:     Started server process [1]
+backend-1  | INFO:     Waiting for application startup.
+backend-1  | INFO:     Application startup complete.
+backend-1  | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+backend-1  | INFO:     127.0.0.1:46052 - "GET /api/health HTTP/1.1" 200 OK
+backend-1  | INFO:     172.20.0.3:57650 - "GET /api/runs/r_a8f0ba HTTP/1.1" 404 Not Found
+backend-1  | INFO:     172.20.0.3:57662 - "GET /api/runs/r_a8f0ba HTTP/1.1" 404 Not Found
+backend-1  | INFO:     172.20.0.3:51974 - "GET /api/runs/r_a8f0ba HTTP/1.1" 404 Not Found
+backend-1  | INFO:     172.20.0.3:51978 - "GET /api/runs/r_a8f0ba HTTP/1.1" 404 Not Found
+backend-1  | INFO:     172.20.0.3:51994 - "GET /api/runs/r_a8f0ba HTTP/1.1" 404 Not Found
+backend-1  | INFO:     127.0.0.1:49140 - "GET /api/health HTTP/1.1" 200 OK
+backend-1  | INFO:     172.20.0.3:52004 - "GET /api/runs/r_a8f0ba HTTP/1.1" 404 Not Found
+backend-1  | INFO:     172.20.0.1:57600 - "GET /api/health HTTP/1.1" 200 OK
+backend-1  | INFO:     172.20.0.3:56784 - "GET /api/runs/r_a8f0ba HTTP/1.1" 404 Not Found
+backend-1  | INFO:     172.20.0.3:56790 - "GET /api/runs/r_a8f0ba HTTP/1.1" 404 Not Found
+backend-1  | INFO:     172.20.0.3:56798 - "GET /api/runs/r_a8f0ba HTTP/1.1" 404 Not Found
+backend-1  | INFO:     172.20.0.3:56806 - "GET /api/runs/r_a8f0ba HTTP/1.1" 404 Not Found
