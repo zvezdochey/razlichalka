@@ -70,22 +70,25 @@ export function DataSection({
         <label className="field__label" htmlFor="dataset">
           Датасет
         </label>
-        <select
-          id="dataset"
-          className="select field__control"
-          value={selectedId}
-          onChange={(event) => onSelect(event.target.value)}
-        >
-          <option value="">Выберите датасет</option>
-          {datasets.map((dataset) => (
-            <option key={dataset.id} value={dataset.id}>
-              {datasetLabel(dataset)}
-            </option>
-          ))}
-        </select>
-        <button type="button" className="btn field__reload" onClick={onReload}>
-          Обновить список
-        </button>
+        {/* Список и кнопка — в одной строке с зазором; на узком экране кнопка уходит вниз. */}
+        <div className="field__row">
+          <select
+            id="dataset"
+            className="select field__control"
+            value={selectedId}
+            onChange={(event) => onSelect(event.target.value)}
+          >
+            <option value="">Выберите датасет</option>
+            {datasets.map((dataset) => (
+              <option key={dataset.id} value={dataset.id}>
+                {datasetLabel(dataset)}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="btn field__reload" onClick={onReload}>
+            Обновить список
+          </button>
+        </div>
         {selectedId === '' && (
           <p className="field__hint muted">
             {datasets.length === 0
