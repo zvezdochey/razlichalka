@@ -181,3 +181,35 @@ def test_requires_ready_and_owner(client, monkeypatch, ready_id):
         assert response.status_code == 409 and response.json()["error"]["code"] == "not_ready"
     finally:
         client.post(f"/api/runs/{slow}/cancel")
+
+
+# --- проверка процентов (QA №1) ---
+
+SHARES = {
+    "applications": 2002, "decision_changed": 385, "decision_changed_share": 0.192,
+    "applications_changed": 502, "applications_changed_share": 0.251,
+    "reasons": {"top": [{"share_of_product_rows": 0.4}]},
+}
+
+
+def test_check_percents_removes_wrong_share_of_385():
+    text = "Итог: решение сменили 385 заявок — 25,1% от 2002.\nДоля data 40%."
+    assert ai_review.check_percents(text, SHARES) == "Доля data 40%."
+
+
+def test_check_percents_keeps_correct_numbers():
+    text = "Итог: решение сменили 385 заявок (19,2%), различия у 502 (25,1%).\nПричина — 40,0% строк."
+    assert ai_review.check_percents(text, SHARES) == text
+
+
+def test_check_percents_drops_only_bad_sentence_in_line():
+    text = "Решение сменили 385 заявок (19,2%). Это 77% всех заявок."
+    assert ai_review.check_percents(text, SHARES) == "Решение сменили 385 заявок (19,2%)."
+
+
+def test_input_has_ready_shares(client, ready_id):
+    run_dir = settings.DATA_DIR / "runs" / ready_id
+    data, _ = ai_review.build_input(run_dir, settings.DATASETS_DIR / "missing")
+    assert data["decision_changed_share"] == round(data["decision_changed"] / data["applications"], 3)
+    assert "applications_changed_share" in data
+    assert "не вычисляй проценты" in ai_review.SYSTEM_PROMPT.lower()
