@@ -183,7 +183,10 @@ function ReadyPivot({ runId }: { runId: string }) {
         </div>
 
         <p className="pivot-note muted">
-          Выберите поля в списках или перетащите их за метку. Для фильтра затем укажите значение и нажмите «Применить фильтр».
+          Сводная считает заявки по двум признакам: что стоит в строках и что в колонках, в клетке — сколько заявок.
+          Проще всего начать с готовых кнопок сверху: например, «Кто сменил решение» — решение старой версии в строках,
+          новой — в колонках. Поля можно менять в списках ниже или перетаскивать за метку; для фильтра укажите значение
+          и нажмите «Применить фильтр».
         </p>
         <div className="pivot-axes">
           <fieldset>
@@ -204,7 +207,7 @@ function ReadyPivot({ runId }: { runId: string }) {
             <legend>Показатель</legend>
             <label>
               <input type="radio" name="pivot-measure" checked={layout.measure === 'counts'} onChange={() => update({ ...layout, measure: 'counts' })} />
-              Строк витрины
+              Строк данных (у заявки их много)
             </label>
             <label>
               <input type="radio" name="pivot-measure" checked={layout.measure === 'counts_distinct_apps'} onChange={() => update({ ...layout, measure: 'counts_distinct_apps' })} />

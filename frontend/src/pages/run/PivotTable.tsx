@@ -77,14 +77,14 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
   // Итоги суммируем, если показатель — строки витрины или заявка попадает ровно в одну группу.
   const additive = layout.measure === 'counts' || isOneGroupLayout([...layout.rows, layout.column])
   const truncated = data.total_groups > data.rows.length
-  const metric = layout.measure === 'counts' ? 'Строк витрины' : 'Заявок'
+  const metric = layout.measure === 'counts' ? 'Строк данных' : 'Заявок'
   const totalLabel = truncated ? 'Итого по показанным группам' : 'Итого'
 
   return (
     <>
       <div className="pivot-table-meta">
         <span>{metric}</span>
-        <span className="muted">Ответ за {RESPONSE_TIME.format(elapsed / 1000)} с</span>
+        <span className="muted">Посчитано за {RESPONSE_TIME.format(elapsed / 1000)} с</span>
       </div>
       {truncated && (
         <p className="pivot-note" role="status">
