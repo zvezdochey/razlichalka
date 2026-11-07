@@ -6,6 +6,7 @@ import { ErrorBox, Spinner, StatusBadge } from '../components'
 import { usePolling } from '../hooks/usePolling'
 import { DASH, formatDateTime } from '../lib/format'
 import './RunPage.css'
+import { RetryRunButton } from './run/RetryRunButton'
 import { ProgressBar } from './run/ProgressBar'
 import type { RunContext } from './run/runContext'
 import { STAGE_ACTIVE_TEXT } from './run/stages'
@@ -185,6 +186,13 @@ export function RunPage() {
         </div>
       )}
 
+      {/* Сервер перезапустили посреди расчёта: показываем причину и даём запустить заново */}
+      {run?.error?.code === 'interrupted' && (
+        <div className="run-notice">
+          <p>{run.error.message}</p>
+          <RetryRunButton configId={run.config_id} />
+        </div>
+      )}
       {loadError !== null && (
         <div className="run-notice">
           <ErrorBox message={loadError} onRetry={() => void load()} />

@@ -36,6 +36,7 @@ export type ErrorCode =
   | 'not_ready'
   | 'conflict'
   | 'cancelled'
+  | 'interrupted'
   | 'internal'
 
 // ─── Ошибки ──────────────────────────────────────────────────────────────────
