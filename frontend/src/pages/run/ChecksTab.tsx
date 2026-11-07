@@ -216,13 +216,19 @@ export function ChecksTab() {
         </div>
       )}
 
+      {/* Новичок не знает, что такое FAIL и что с ним делать: сначала смысл, потом числа. */}
       <p className="checks-summary">
+        Автопроверки ищут подозрительные последствия новой версии СПР. <b>FAIL</b> — проверка нашла
+        проблему, её стоит разобрать до выпуска; <b>PASS</b> — всё в норме.{' '}
+        {fails > 0 ? 'Есть непройденные проверки — разберите их перед выпуском.' : 'Все проверки пройдены.'}
+      </p>
+      <p className="checks-summary muted">
+        Не пройдено{' '}
         <b className="num">
           {formatNumber(fails)} из {formatNumber(rows.length)}
         </b>{' '}
-        строк результатов не пройдены
-        (проверок: {formatNumber(checksCount(rows))}). Это строки результатов, а не заявки: одна проверка
-        может дать несколько строк — по версии и по тому, что проверяли.
+        строк (проверок: {formatNumber(checksCount(rows))}). Одна проверка даёт несколько строк — по каждому
+        продукту, модели или атрибуту, который она смотрела.
       </p>
 
       <div className="checks-bar">
@@ -265,13 +271,13 @@ export function ChecksTab() {
               <thead>
                 <tr>
                   <th scope="col">Проверка</th>
-                  <th scope="col">Версия</th>
-                  <th scope="col">Объект проверки</th>
-                  <th scope="col" className="num">Затронуто / из</th>
-                  <th scope="col" className="num">Метрика (значение)</th>
+                  <th scope="col" title="К какой версии СПР относится результат: «до» — старая, «после» — новая">Версия</th>
+                  <th scope="col" title="Что именно проверяли: продукт, модель или атрибут">Объект проверки</th>
+                  <th scope="col" className="num" title="Сколько заявок задело / из скольких проверяли">Заявок задето / из</th>
+                  <th scope="col" className="num" title="Что посчитала проверка">Что намерили</th>
                   <th scope="col">Результат</th>
-                  <th scope="col">Уверенность</th>
-                  <th scope="col" className="num">Заявки</th>
+                  <th scope="col" title="Насколько можно доверять результату: низкая — заявок слишком мало для вывода">Уверенность</th>
+                  <th scope="col" className="num" title="Открыть заявки, на которых сработала проверка">Заявки</th>
                 </tr>
               </thead>
               <tbody>
