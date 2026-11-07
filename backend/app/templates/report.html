@@ -76,7 +76,7 @@
         </div>
         <div>
           <dt>Датасет</dt>
-          <dd>{{ run.dataset }} · BEFORE = MASTER, AFTER = BETA</dd>
+          <dd>{{ run.dataset }}{% if sources %} · BEFORE = {{ sources.BEFORE }}, AFTER = {{ sources.AFTER }}{% endif %}</dd>
         </div>
       </dl>
     </header>

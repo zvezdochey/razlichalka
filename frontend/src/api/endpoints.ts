@@ -1,6 +1,6 @@
 // По функции на каждую ручку MVP из docs/api.md. Экраны зовут только это,
 // про fetch и адреса знает client.ts.
-import { request } from './client'
+import { downloadFile, request } from './client'
 import type {
   AppsParams,
   AppsResponse,
@@ -174,16 +174,24 @@ export function getAttributes(
 }
 
 // ─── 11. Отчёт ───────────────────────────────────────────────────────────────
-// Это не fetch, а адреса для <a href>: отчёт открывает и скачивает сам браузер.
 
-/** HTML-страница отчёта — открыть в новой вкладке. */
-export function reportUrl(runId: string): string {
-  return `/api/runs/${encodeURIComponent(runId)}/report`
+/** Скачать HTML-отчёт: через fetch, чтобы ушёл заголовок X-User. */
+export function downloadReport(runId: string): Promise<void> {
+  return downloadFile(`/runs/${encodeURIComponent(runId)}/report.html`, `report-${runId}.html`)
 }
 
-/** То же, но с заголовком на скачивание. */
-export function reportDownloadUrl(runId: string): string {
-  return `/api/runs/${encodeURIComponent(runId)}/report.html`
+// ─── 13. Экспорт ─────────────────────────────────────────────────────────────
+
+/** Все заявки с теми же фильтрами и сортировкой, что в таблице (без пагинации) — CSV. */
+export function downloadAppsCsv(runId: string, params: Omit<AppsParams, 'page' | 'size'> = {}): Promise<void> {
+  const query = toQuery({
+    decision_change: params.decision_change,
+    change_source: params.change_source,
+    has_attr_change: params.has_attr_change,
+    search: params.search,
+    sort: params.sort,
+  })
+  return downloadFile(`/runs/${encodeURIComponent(runId)}/export.csv${query}`, `apps-${runId}.csv`)
 }
 
 // ─── 7.2–7.3. Факты и заявки группы ──────────────────────────────────────────

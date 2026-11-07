@@ -63,12 +63,10 @@ async function readError(res: Response): Promise<ApiRequestError> {
 }
 
 /**
- * Запрос к API. `T` — тип ожидаемого тела ответа.
- *
- * Бросает `ApiRequestError` на любой неуспешный ответ и на сетевую ошибку.
+ * Сам запрос: подставляет X-User и превращает неуспешный ответ в `ApiRequestError`.
  * Отмену (`AbortError`) пробрасывает как есть, чтобы вызывающий мог её не показывать.
  */
-export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function send(path: string, init?: RequestInit): Promise<Response> {
   const headers = new Headers(init?.headers)
   // Авторизации нет: бэк различает людей по этому заголовку.
   headers.set('X-User', getCurrentUser())
@@ -86,6 +84,16 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!res.ok) throw await readError(res)
+  return res
+}
+
+/**
+ * Запрос к API. `T` — тип ожидаемого тела ответа.
+ *
+ * Бросает `ApiRequestError` на любой неуспешный ответ и на сетевую ошибку.
+ */
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await send(path, init)
 
   // 204 (например удаление) — тела нет, парсить нечего.
   if (res.status === 204) return undefined as T
@@ -95,6 +103,24 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   } catch {
     throw new ApiRequestError('internal', 'Сервер вернул не JSON')
   }
+}
+
+/**
+ * Скачать файл (отчёт, CSV). Обычная ссылка `<a href download>` не годится:
+ * браузер не пришлёт X-User, и бэк ответит «не найдено» — запуск чужой.
+ * Поэтому забираем файл через fetch и отдаём браузеру как blob.
+ */
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const res = await send(path)
+  const url = URL.createObjectURL(await res.blob())
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.append(link)
+  link.click()
+  link.remove()
+  // Даём браузеру начать скачивание, потом освобождаем память.
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 /**

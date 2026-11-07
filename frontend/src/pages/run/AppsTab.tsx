@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useSearchParams } from 'react-router-dom'
-import { getApps } from '../../api'
+import { downloadAppsCsv, getApps } from '../../api'
 import type { ChangeSource, DecisionChange } from '../../api'
 import { EmptyState, ErrorBox } from '../../components'
 import { DASH, formatNumber } from '../../lib/format'
@@ -67,6 +67,21 @@ function ReadyApps({ runId }: { runId: string }) {
     has_attr_change: hasAttr, search, sort, page, size,
   }, { signal }), [runId, decision, source, hasAttr, search, sort, page, size])
   const { result, retry } = usePivotRequest(load)
+  const [csv, setCsv] = useState<{ busy: boolean; error: string | null }>({ busy: false, error: null })
+  // CSV — та же выборка, что в таблице (фильтры, поиск, сортировка), но целиком, без страниц
+  const exportCsv = async () => {
+    setCsv({ busy: true, error: null })
+    try {
+      await downloadAppsCsv(runId, {
+        decision_change: decision ? decision.split(',') as DecisionChange[] : undefined,
+        change_source: source ? source.split(',') as ChangeSource[] : undefined,
+        has_attr_change: hasAttr, search, sort,
+      })
+      setCsv({ busy: false, error: null })
+    } catch (e) {
+      setCsv({ busy: false, error: e instanceof Error ? e.message : 'Не удалось скачать CSV' })
+    }
+  }
 
   const update = useCallback((key: string, value: string, resetPage = true) => {
     setParams((previous) => {
@@ -107,7 +122,8 @@ function ReadyApps({ runId }: { runId: string }) {
 
   return <section className="apps" aria-labelledby="apps-title">
     <div className="panel apps-controls">
-      <div className="apps-heading"><h2 id="apps-title">Заявки</h2><button className="btn" disabled>Скачать CSV · скоро</button></div>
+      <div className="apps-heading"><h2 id="apps-title">Заявки</h2><button className="btn" onClick={exportCsv} disabled={csv.busy}>{csv.busy ? 'Готовим CSV…' : 'Скачать CSV'}</button></div>
+      {csv.error !== null && <ErrorBox message={csv.error} />}
       <fieldset className="apps-filter"><legend>Решение</legend>
         {Object.entries(DECISIONS).map(([value, label]) => <label key={value}><input type="checkbox"
           checked={decision.split(',').includes(value)} onChange={() => toggle('decision_change', decision, value)} />{label}</label>)}

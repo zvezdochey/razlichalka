@@ -5,7 +5,7 @@ from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from app.errors import ApiError
-from app.services import results
+from app.services import datasets, results
 
 templates = Environment(
     loader=FileSystemLoader(Path(__file__).resolve().parents[1] / "templates"),
@@ -26,6 +26,9 @@ def render(run: dict, run_dir: Path, app_url: str) -> str:
         checks_total = table["total"]
     except ApiError:
         checks, checks_total = [], 0
+    # метки срезов берём из манифеста: у загруженных датасетов они свои, не MASTER/BETA
+    dataset = datasets.get_dataset(run["dataset"])
+    sources = dataset["sources"] if dataset else None
     changed_share = f"{summary['applications_changed_share'] * 100:.1f}".replace(".", ",")
 
     return templates.get_template("report.html").render(
@@ -37,4 +40,5 @@ def render(run: dict, run_dir: Path, app_url: str) -> str:
         attributes_changed=sum(summary["attributes"].values()),
         changed_share=changed_share,
         app_url=app_url,
+        sources=sources,
     )

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { RunStatus } from '../api'
-import { cancelRun, getRun, isAbortError, reportDownloadUrl } from '../api'
+import { cancelRun, downloadReport, getRun, isAbortError } from '../api'
 import { ErrorBox, Spinner, StatusBadge } from '../components'
 import { usePolling } from '../hooks/usePolling'
 import { DASH, formatDateTime } from '../lib/format'
@@ -28,17 +28,26 @@ export function RunPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   const navigate = useNavigate()
   const { pathname } = useLocation()
 
+  // Какой прогон сейчас открыт. Ответ для прежнего id мог прийти уже после перехода
+  // на другой прогон — его выбрасываем, иначе на экране застрянет чужой статус.
+  const currentId = useRef(id)
+  useEffect(() => {
+    currentId.current = id
+  }, [id])
+
   const load = useCallback(async () => {
     try {
       const next = await getRun(id)
+      if (currentId.current !== id) return
       setRun(next)
       setLoadError(null)
     } catch (e) {
-      if (isAbortError(e)) return
+      if (isAbortError(e) || currentId.current !== id) return
       setLoadError(e instanceof Error ? e.message : 'Не удалось получить статус запуска')
     }
   }, [id])
@@ -91,6 +100,18 @@ export function RunPage() {
     }
   }
 
+  const onDownload = async () => {
+    setDownloading(true)
+    setActionError(null)
+    try {
+      await downloadReport(id)
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Не удалось скачать отчёт')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   const running = run !== null && (run.status === 'pending' || run.status === 'running')
   const currentStage = run?.current_stage ?? null
   // Текст «что сейчас происходит» виден на любой вкладке, не только в журнале:
@@ -132,9 +153,9 @@ export function RunPage() {
             </button>
           )}
           {run?.status === 'ready' && (
-            <a className="btn btn--primary" href={reportDownloadUrl(run.id)} download>
-              Скачать HTML
-            </a>
+            <button type="button" className="btn btn--primary" onClick={onDownload} disabled={downloading}>
+              {downloading ? 'Готовим файл…' : 'Скачать HTML'}
+            </button>
           )}
         </div>
       </div>

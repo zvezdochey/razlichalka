@@ -120,3 +120,13 @@ def test_report_requires_ready(client, monkeypatch):
             assert "content-disposition" not in response.headers
     finally:
         client.post(f"{url}/cancel")
+
+
+def test_report_shows_dataset_labels(client, ready_id, monkeypatch):
+    # у загруженного датасета метки срезов свои — в отчёте они, а не зашитые MASTER/BETA
+    from app.services import datasets
+    real = datasets.get_dataset
+    monkeypatch.setattr(datasets, "get_dataset", lambda ds_id: {**real(ds_id), "sources": {"BEFORE": "v1", "AFTER": "v2"}})
+    page = client.get(f"/api/runs/{ready_id}/report")
+    assert "RUN-MINI · BEFORE = v1, AFTER = v2" in page.text
+    assert "MASTER" not in page.text
