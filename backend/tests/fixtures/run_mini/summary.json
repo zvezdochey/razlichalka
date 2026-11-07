@@ -9,5 +9,6 @@
     "reject_to_approve": 1,
     "decision_other": 0
   },
-  "attributes": { "VALUE_CHANGED": 13, "ATTRIBUTE_NEW": 1, "ATTRIBUTE_LOST": 2 }
+  "attributes": { "VALUE_CHANGED": 13, "ATTRIBUTE_NEW": 1, "ATTRIBUTE_LOST": 2 },
+  "change_sources": { "logic": 2, "data": 1, "both": 0, "none": 0 }
 }

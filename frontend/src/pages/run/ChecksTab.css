@@ -1,0 +1,235 @@
+/* Вкладка «Проверки» — единственное место в продукте, где цвет означает оценку.
+   Только токены вердиктов (--pass / --fail / --low), своих цветов не заводим. */
+
+.checks {
+  display: grid;
+  gap: var(--s-4);
+  min-width: 0;
+}
+
+/* Ошибка кода проверки — отдельно от вердиктов: это не FAIL, а «не выполнилась». */
+.checks-errors {
+  padding: var(--s-3) var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--danger);
+}
+
+.checks-errors p {
+  margin: 0;
+}
+
+.checks-errors p + p {
+  margin-top: var(--s-1);
+}
+
+.checks-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s-4);
+}
+
+.checks-bar p {
+  margin: 0;
+}
+
+.checks-filter {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.checks-filter .btn[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--surface-sunken);
+  font-weight: 600;
+}
+
+.checks-count {
+  font-weight: 500;
+}
+
+.checks-updated {
+  margin-left: auto;
+  font-size: var(--fs-table);
+}
+
+.checks-results {
+  display: grid;
+  /* Без явной колонки грид растянется по ширине таблицы и страница уедет вбок. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--s-4);
+  align-items: start;
+  min-width: 0;
+}
+
+.checks-results--with-apps {
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 19rem);
+}
+
+.checks-scroll {
+  /* relative — чтобы скрытые подписи для диктора (position: absolute) не раздували страницу. */
+  position: relative;
+  max-height: min(62vh, 40rem);
+}
+
+.checks-table th.num,
+.checks-table td.num {
+  text-align: right;
+}
+
+.checks-table td {
+  height: auto;
+  min-height: var(--row-h);
+  padding-block: var(--s-1);
+  vertical-align: top;
+}
+
+.checks-name {
+  max-width: 15rem;
+  font-weight: 500;
+}
+
+.checks-id {
+  color: var(--faint);
+  font-size: var(--fs-caption);
+}
+
+/* Аргумент — часто путь атрибута: даём ему место, а переносим только совсем длинные. */
+.checks-arg {
+  min-width: 11rem;
+  max-width: 20rem;
+  overflow-wrap: break-word;
+}
+
+.checks-arg--error {
+  font-size: var(--fs-caption);
+}
+
+/* Уверенный FAIL — выраженный красный: подложка строки и полоса слева. */
+.checks-row--fail td {
+  background: var(--fail-bg);
+}
+
+.checks-row--fail td:first-child {
+  box-shadow: inset 3px 0 0 var(--fail);
+}
+
+/* На красной подложке обычный чип FAIL сливается — у уверенного FAIL он сплошной. */
+.checks-row--fail .chip--fail {
+  background: var(--fail);
+  border-color: var(--fail);
+  color: var(--surface);
+  font-weight: 600;
+}
+
+/* FAIL с низкой уверенностью — бледная подложка, текст приглушён. Остаётся FAIL. */
+.checks-row--low td {
+  background: var(--low-bg);
+  color: var(--low);
+}
+
+/* Чип бледного FAIL на такой же подложке не виден — обводим его. */
+.checks-row--low .chip--low {
+  border-color: var(--low);
+}
+
+.checks-confidence {
+  white-space: nowrap;
+}
+
+.checks-table tbody tr.checks-row--fail:hover td,
+.checks-table tbody tr.checks-row--low:hover td {
+  filter: brightness(0.98);
+}
+
+.checks-row--opened td {
+  border-bottom-color: var(--border-strong);
+}
+
+.checks-row--opened td:last-child {
+  box-shadow: inset -3px 0 0 var(--focus);
+}
+
+.checks-error-label {
+  font-weight: 500;
+}
+
+/* Число заявок — ссылка в разбор: выглядит как ссылка, работает как кнопка. */
+.checks-apps-link {
+  border: 0;
+  border-radius: var(--r-control);
+  padding: 0 var(--s-1);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.checks-apps-link:hover {
+  background: var(--surface);
+}
+
+.checks-apps {
+  min-width: 0;
+}
+
+.checks-apps-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.checks-apps-head h3 {
+  margin: 0;
+  font-size: var(--fs-panel);
+}
+
+.checks-apps-label {
+  overflow-wrap: anywhere;
+  margin: var(--s-2) 0 var(--s-3);
+}
+
+.checks-apps-list {
+  max-height: 20rem;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  border-block: 1px solid var(--border);
+}
+
+.checks-apps-list a {
+  display: block;
+  padding: var(--s-2);
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.checks-apps-list li:last-child a {
+  border-bottom: 0;
+}
+
+.checks-apps-pages {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  margin-top: var(--s-3);
+}
+
+.checks-apps-pages .btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 1050px) {
+  .checks-results--with-apps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

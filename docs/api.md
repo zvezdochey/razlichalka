@@ -51,6 +51,17 @@
 | `ATTRIBUTE_NEW` | атрибута нет в BEFORE, есть в AFTER |
 | `ATTRIBUTE_LOST` | атрибут есть в BEFORE, нет в AFTER |
 
+**Откуда смена** (`change_source`) — сценарий 4 ТЗ: «это из-за изменения логики или из-за входных данных?»:
+
+| Значение | Что значит |
+|---|---|
+| `logic` | вход тот же, различия только в том, что посчитала СПР — изменение из-за новой версии |
+| `data` | у заявки другой вход: есть различие в данных заявки (`appData`) или в ответах внешних источников (`ext_data[]`). Для проверки логики это ложная тревога |
+| `both` | вход другой, и решение поменялось сильнее, чем объясняет вход. **Пока не считаем**: честного критерия нет, а на датасете у всех заявок с другим входом смена решения им и объясняется. Значение зарезервировано, сейчас всегда `0` |
+| `none` | различий нет совсем. У заявки со сменой решения так быть не должно (бэк пишет предупреждение в журнал этапа) |
+
+Что считается входом — список префиксов `INPUT_PREFIXES` в процедуре `backend/procedures/builtin_segments.py` (сейчас `appData`, `ext_data`). `characteristics` — уже этап 1 СПР (готовые скоры), поэтому это логика. Технические поля из `ignore_paths` не считаются: их нет в витрине.
+
 **Статус** (`status`) у датасета, конфигурации этапа и запуска: `pending`, `running`, `ready`, `error`.
 
 ---
@@ -77,6 +88,8 @@
     {
       "id": "RUN-20260827-0001",
       "applications": 2002,
+  "applications_only_before": 0,
+  "applications_only_after": 0,
       "sources": { "BEFORE": "MASTER", "AFTER": "BETA" },
       "technical_fields": ["appData.request_id", "appData.createDateTime"]
     }
@@ -109,7 +122,7 @@
 {
   "procedures": [
     { "id": "p_1", "kind": "check", "name": "Approval Rate продукта <10%", "source": "inline", "builtin": false, "updated_at": "2026-11-06T12:00:00Z" },
-    { "id": "builtin_missing_attrs", "kind": "check", "name": "Отсутствующие атрибуты", "source": "file", "path": "checks/check_attribute_new_loss.py", "builtin": true, "updated_at": null }
+    { "id": "builtin_attribute_new_loss", "kind": "check", "name": "Изменился состав атрибутов", "source": "file", "path": "checks/check_attribute_new_loss.py", "builtin": true, "updated_at": null }
   ]
 }
 ```
@@ -121,7 +134,7 @@
 `POST /api/procedures`
 
 ```json
-{ "kind": "check", "name": "Approval Rate продукта <10%", "source": "inline", "code": "def run(ctx):\n    ...\n" }
+{ "kind": "check", "name": "Approval Rate продукта <10%", "source": "inline", "code": "def run(mart, params):\n    return []\n\nCHECK = {\"id\": \"my\", \"label\": \"Моя\", \"params\": {}, \"entrypoint\": run}\n" }
 ```
 
 Или с файлом: `{ "kind": "normalize", "name": "...", "source": "file", "path": "procedures/my_norm.py" }`.
@@ -133,7 +146,7 @@
 `POST /api/procedures/validate`
 
 ```json
-{ "kind": "check", "source": "inline", "code": "def run(ctx):\n    ...\n" }
+{ "kind": "check", "source": "inline", "code": "def run(mart, params):\n    return []\n\nCHECK = {\"id\": \"my\", \"label\": \"Моя\", \"params\": {}, \"entrypoint\": run}\n" }
 ```
 
 ```json
@@ -142,9 +155,10 @@
 
 Нужна, чтобы фронт показал ошибки до запуска.
 
-### 3.4. Изменить и удалить
+### 3.4. Получить, изменить и удалить
 
-- `PUT /api/procedures/{id}` — то же тело, что при создании.
+- `GET /api/procedures/{id}` — объект процедуры **и поле `code`**: текст файла (для `source: "file"`) или код из тела (`inline`). Файлы отдаются только из `procedures/` и `checks/`; через `..` и абсолютные пути не выйти (`bad_code`). По этому коду фронт показывает «код этапа» из журнала.
+- `PUT /api/procedures/{id}` — то же тело, что при создании. Встроенную изменить нельзя (`409 conflict`).
 - `DELETE /api/procedures/{id}` — `204`. Встроенные (`builtin: true`) не удаляются, ответ `409` с кодом `conflict`.
 
 ### 3.5. Журнал исполнения процедуры
@@ -179,9 +193,10 @@
   "dataset": "RUN-20260827-0001",
   "normalize": "builtin_normalize",
   "aggregate": "builtin_aggregate",
-  "checks": ["builtin_missing_attrs", "p_1"],
+  "checks": ["builtin_attribute_new_loss", "p_1"],
   "ignore_paths": ["appData.request_id", "appData.createDateTime"],
   "array_modes": { "decisionResult.scoring[].value": "index" },
+  "array_rules": { "decisionResult.product_trials[]": { "mode": "key", "key": ["product_id"] } },
   "buckets": { "decisionResult.product_trials[].scoring.pd.value": [0.3, 0.6] }
 }
 ```
@@ -189,7 +204,9 @@
 - `normalize`, `aggregate` — id процедуры нужного `kind`.
 - `checks` — список id проверок (`kind: "check"`).
 - `ignore_paths` — пути, которые не сравниваем. Два технических поля — из `manifest.json` датасета (`technical_fields_always_differ`): они различаются у всех 2002 заявок.
-- `array_modes` — режим сравнения массива по пути: `key`, `value`, `index`. Без записи — `key`. Для `decisionResult.scoring[].value` режим `index` (вектор модели, позиция значима). Полный список массивов и их ключей — в `ФОРМАТ_ОТВЕТА.md`.
+- `array_rules` — правило массива по пути целиком: `{ "mode": "key", "key": ["поле", ...] }`, или `{ "mode": "value" }`, или `{ "mode": "index" }`. Перекрывает правило встроенной процедуры `builtin_normalize` (файл `backend/procedures/builtin_normalize.py`) и позволяет добавить правило для нового массива. Необязательно, по умолчанию `{}`. Для `key` нужен непустой `key`.
+- `array_modes` — только режим массива по пути: `key`, `value`, `index` (ключ остаётся из правила). Для `decisionResult.scoring[].value` режим `index` (вектор модели, позиция значима). Полный список массивов и их ключей — в `ФОРМАТ_ОТВЕТА.md` и в `builtin_normalize.py`.
+- Порядок перекрытия правил массивов: процедура → `array_rules` → `array_modes`. Путь можно писать без последних `[]`.
 - `buckets` — границы бакетов (для `ADJUSTED_VALUE`), одни и те же для обоих срезов. Пример: `pd.value` 0.42 попадает в `(0.3 – 0.6]`.
 
 Ответ: объект конфигурации (`201`).
@@ -306,8 +323,8 @@
 ```json
 {
   "applications": 2002,
-  "applications_changed": 2002,
-  "applications_changed_share": 1.0,
+  "applications_changed": 502,
+  "applications_changed_share": 0.251,
   "decision_changed": 385,
   "decision_changes": {
     "same": 1617,
@@ -315,50 +332,64 @@
     "reject_to_approve": 112,
     "decision_other": 0
   },
-  "attributes": { "VALUE_CHANGED": 11571, "ATTRIBUTE_NEW": 4108, "ATTRIBUTE_LOST": 3122 }
+  "attributes": { "VALUE_CHANGED": 7567, "ATTRIBUTE_NEW": 4108, "ATTRIBUTE_LOST": 3122 },
+  "change_sources": { "logic": 218, "data": 167, "both": 0, "none": 0 },
+  "checks_fail": 33
 }
 ```
 
-Числа посчитаны конвейером (`pipeline/`) на настоящем датасете с пустым `ignore_paths`: ключи массивов по правилам E2, сравнение по `VALUE`. Служебные поля (id запроса, даты) отличаются у каждой заявки, поэтому `applications_changed` = все 2002 и пока ничего не показывает. `applications_changed` и `attributes` — **не эталон**: они изменятся, когда в конфиге появится `ignore_paths`. Решения (`decision_*`) от конфига не зависят.
+`change_sources` — откуда взялась смена решения (словарь «Откуда смена»), **только по заявкам, где решение изменилось**: сумма всегда равна `decision_changed`. Все четыре ключа есть всегда.
+
+Все числа примера — реальные, с настоящего датасета, `ignore_paths = ["appData.request_id", "appData.createDateTime"]` и пятью проверками организаторов. Технические поля надо исключать всегда: иначе они различаются у всех 2002 заявок и все 385 смен решения получат `data`.
+
+Из 385 смен решения **167 — из-за входных данных**: у всех внешний источник `score_okb` вернул другое значение (в `ext_data[].body.params.data`, следом в `characteristics.score_okb` и в предикторе модели), скор упал, СПР выбрала порог `MFO_ZAIMER_2026_LOW`/`_MID` вместо `MFO_ZAIMER_2026` — и `APPROVE → REJECT`. Остальные 218 — из-за логики (вход тот же). `ATTRIBUTE_NEW`/`ATTRIBUTE_LOST` объясняются составом атрибутов: у разных веток ответа разный набор полей; дублей ключей нет.
+
+`checks_fail` — число строк проверок с `FAIL` (для карточки «Проверки с FAIL»). Поле появляется после этапа `checks`: пока этап не прошёл, его нет. Если проверок в конфигурации нет — `0`.
+
+`applications_only_before` / `applications_only_after` — заявки, которые есть только в одном срезе (сломанный JSON, нет ответа). В витрину, факты и список заявок они не попадают: по просьбе организаторов анализируем только заявки с парой before/after, остальные видны лишь этими счётчиками.
 
 Решения (`decision_changes`) уже совпадают с тем, что видно в данных: `APPROVE → REJECT` 273, `REJECT → APPROVE` 112, остальные 1617 заявок с тем же решением.
 
 ### 7.2. Факты для сводной таблицы
 
-`GET /api/runs/{id}/facts?dims=REJECT_REASON_AFTER&measure=counts&filter=DECISION_CHANGED:1`
+`GET /api/runs/{id}/facts?dims=CHANGE_TYPE&filter=DIFF_FLAG:1`
 
 Факты — это агрегат «заявки по измерениям». Пользователь сам выбирает измерения.
 
 Параметры:
-- `dims` — измерения через запятую: поля витрины или поля разреза (`PRODUCT`, `PARTNER_TYPE`, `PD_MODEL_BEFORE` и т.п.).
-- `filter` — `поле:значение`, можно несколько через `;`.
-- `measure` — `counts` (количество строк) или `counts_distinct_apps`.
+- `dims` — от одного до трёх разных полей витрины или разреза через запятую. `ARRAY_KEY_1` — первый ключ массива из `ARRAY_KEY`.
+- `filter` — строгое равенство `поле:значение`. Условия через `;` объединяются по И, значения одного условия через запятую — по ИЛИ. Пустой `filter` отключает фильтрацию, пустое значение после двоеточия выбирает пустые ячейки. Пустое условие, например завершающая `;`, даёт `400 bad_file`. Для `DIFF_FLAG` допустимы только `0` и `1`.
+- `measure` — `counts` (число строк, по умолчанию) или `counts_distinct_apps` (число уникальных заявок). В обоих случаях показатель возвращается в поле `counts`.
+- `limit` — число групп в ответе, от 1 до 5000 (по умолчанию 1000). Группы отсортированы по убыванию показателя. `total_groups` — количество групп после фильтрации до применения `limit`.
+- Пустые значения измерений возвращаются как `null`. Неизвестное поле или некорректные параметры дают `400 bad_file`.
 
-Пример: причины отказа по продуктам, у которых решение изменилось. Счёт по строкам продуктов в заявках, где решение сменилось (`decision_changed`):
+Пример формы ответа на мини-данных: число строк с различиями по типам.
 
 ```json
 {
-  "dims": ["REJECT_REASON_AFTER"],
+  "dims": ["CHANGE_TYPE"],
+  "total_groups": 3,
   "rows": [
-    { "REJECT_REASON_AFTER": "CUTOFF:MFO_ZAIMER_2026_LOW", "counts": 274, "app_ids_ref": "f_low" },
-    { "REJECT_REASON_AFTER": "HARDCHECK:DOCS_EXPIRED", "counts": 134, "app_ids_ref": "f_docs" },
-    { "REJECT_REASON_AFTER": "CUTOFF:MFO_ZAIMER_2026_V3", "counts": 119, "app_ids_ref": "f_v3" },
-    { "REJECT_REASON_AFTER": "CUTOFF:MFO_ZAIMER_2026_MID", "counts": 118, "app_ids_ref": "f_mid" }
+    { "CHANGE_TYPE": "VALUE_CHANGED", "counts": 13, "app_ids_ref": "f_000000000001" },
+    { "CHANGE_TYPE": "ATTRIBUTE_LOST", "counts": 2, "app_ids_ref": "f_000000000002" },
+    { "CHANGE_TYPE": "ATTRIBUTE_NEW", "counts": 1, "app_ids_ref": "f_000000000003" }
   ]
 }
 ```
 
-`app_ids_ref` — ключ для списка заявок (ручка 7.3). Так список заявок не тянем в каждой строке.
+`app_ids_ref` — ключ для списка заявок (ручка 7.3). Список заявок загружается отдельным запросом. Для новых запросов сохраняются последние 20 000 ссылок сводной на запуск. Ранее сохранённые ссылки из JSON остаются доступны. Если ссылка устарела, повторите запрос фактов.
 
 ### 7.3. Заявки по группе фактов
 
 `GET /api/runs/{id}/facts/{app_ids_ref}/apps?page=1&size=50`
 
 ```json
-{ "page": 1, "size": 50, "total": 274, "apps": [ "I32554362", "I32554358" ] }
+{ "page": 1, "size": 50, "total": 2, "apps": [ "MINI-001", "MINI-002" ] }
 ```
 
-Форма ответа. Конкретные id из группы `f_low` ещё не сверены: в примере взяты заявки с `approve → reject`.
+Заявки уникальны и отсортированы по возрастанию id. По умолчанию `page=1` и `size=50`, максимальный `size=500`. Для неизвестной ссылки возвращается `404 not_found`.
+
+Пример для группы `ATTRIBUTE_LOST` из ответа выше.
 
 ### 7.4. Список заявок с различиями
 
@@ -367,6 +398,7 @@
 Параметры:
 - `decision_change` — один или несколько значений через запятую (словарь «Решение изменилось»).
 - `has_attr_change` — `1`: только заявки с хотя бы одним различием атрибута.
+- `change_source` — одно или несколько значений через запятую (словарь «Откуда смена»): `change_source=logic`, `change_source=logic,data`.
 - `search` — подстрока в `APP_ID` и текстовых полях разреза, без учёта регистра.
 - `sort` — поле из строки ответа, минус = по убыванию. Неизвестное поле → `400 bad_file`.
 - `page` с 1 (по умолчанию 1), `size` от 1 до 500 (по умолчанию 50). `total` учитывает фильтры и не зависит от страницы.
@@ -389,7 +421,8 @@
       "cutoff_before": "MFO_ZAIMER_2026",
       "cutoff_after": "MFO_ZAIMER_2026_MID",
       "reject_reason_before": null,
-      "reject_reason_after": "CUTOFF"
+      "reject_reason_after": "CUTOFF",
+      "change_source": "data"
     },
     {
       "app_id": "I32554354",
@@ -402,13 +435,14 @@
       "cutoff_before": "MFO_ZAIMER_2026",
       "cutoff_after": "MFO_ZAIMER_2026",
       "reject_reason_before": "HARDCHECK",
-      "reject_reason_after": null
+      "reject_reason_after": null,
+      "change_source": "logic"
     }
   ]
 }
 ```
 
-Значения заявок (`decision`, модели, пороги, `reject_reason`) — из датасета. `attributes_changed` — по нашему подсчёту (см. 7.1).
+Значения заявок (`decision`, модели, пороги, `reject_reason`) — из датасета. `attributes_changed` — по нашему подсчёту (см. 7.1). `change_source` — есть у каждой заявки, и у заявок без смены решения (`logic` / `data` / `none`).
 
 ---
 
@@ -468,7 +502,7 @@
 
 `GET /api/runs/{id}/apps/{app_id}`
 
-Для окна «почему»: решение, офферы, стоп-факторы, модели и пороги в каждом срезе. Пример — `I32554354` (reject → approve):
+Для окна «почему»: решение, офферы, стоп-факторы, модели и пороги в каждом срезе. Сокращённый пример для `I32554354` (reject → approve):
 
 ```json
 {
@@ -486,17 +520,18 @@
     "decision": "approve",
     "offers": [ { "product_id": 15210, "type": "standard" }, { "product_id": 5123, "type": "standard" }, { "product_id": 15210, "type": "manual" } ],
     "products": [
-      { "product_id": 15210, "decision": "approve", "reject_reason": null, "pd_model": "ML_MICRO_LOAN_V1", "pd": 0.637, "cutoff": { "name": "MFO_ZAIMER_2026", "value": 0.55 }, "rules": [ { "name": "AGELOW@21", "hit": false } ] },
-      { "product_id": 5123, "decision": "approve", "reject_reason": null, "pd_model": "ML_MICRO_LOAN_V1", "pd": 0.637, "cutoff": { "name": "MFO_ZAIMER_2026", "value": 0.55 }, "rules": [ { "name": "AGELOW@21", "hit": false } ] }
+      { "product_id": 15210, "decision": "approve", "reject_reason": null, "reject_reason_code": null, "pd_model": "ML_MICRO_LOAN_V1", "pd": 0.637, "cutoff": { "name": "MFO_ZAIMER_2026", "value": 0.55 }, "rules": [] },
+      { "product_id": 5123, "decision": "approve", "reject_reason": null, "reject_reason_code": null, "pd_model": "ML_MICRO_LOAN_V1", "pd": 0.637, "cutoff": { "name": "MFO_ZAIMER_2026", "value": 0.55 }, "rules": [] }
     ]
   },
-  "reasons": [ { "text": "Сработал стоп-фактор AGELOW@21 в BEFORE, в AFTER не сработал", "source": "rule", "confidence": "high" } ]
+  "reasons": [ { "text": "Стоп-фактор AGELOW@21 сработал в BEFORE, в AFTER правило отсутствует", "source": "rule", "confidence": "high" } ]
 }
 ```
 
-- В `after.offers` у продукта `15210` два оффера: `standard` и `manual`. Ключ оффера — пара `product_id` + `type`, по одному `product_id` они склеятся.
-- `reasons[].source`: `rule` (стоп-фактор), `score` (сдвиг балла), `cutoff` (сдвиг порога), `product` (сменился продукт), `unknown`.
+- В `after.offers` у продукта `15210` два оффера: `standard` и `manual`. Ключ оффера — пара `product_id` + `type`, по одному `product_id` они склеятся. Идентификатор продукта сохраняет исходное представление, число или строку.
+- `reasons[].source`: `rule` (стоп-фактор), `score` (смена модели или пересечение порога), `cutoff` (сдвиг порога), `product` (сменился продукт), `data` (возможное влияние входных данных), `unknown`.
 - `confidence`: `high` — причина видна в данных, `low` — наша догадка.
+- Пустое решение приводится к `other`. Отсутствующие `reject_reason`, `reject_reason_code`, `pd_model`, `pd` и отдельные поля `cutoff` возвращаются как `null`. `rules[].hit = null` означает, что правило не вычислялось. Если заявки нет в запуске или отсутствует её файл в одном из доступных срезов, ответ — `404 not_found`. Отсутствующий манифест или каталог среза даёт `400 bad_file`.
 
 ---
 
@@ -509,16 +544,20 @@
 ```json
 {
   "reasons": [
-    { "text": "Отсечка MFO_ZAIMER_2026_LOW (порог 0.7)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_LOW", "affected": 274, "share": 0.425 },
-    { "text": "Стоп-фактор DOCS_EXPIRED", "source": "rule", "rule": "DOCS_EXPIRED", "affected": 134, "share": 0.208 },
-    { "text": "Отсечка MFO_ZAIMER_2026_V3 (порог 0.62)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_V3", "affected": 119, "share": 0.184 },
-    { "text": "Отсечка MFO_ZAIMER_2026_MID (порог 0.62)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_MID", "affected": 118, "share": 0.183 }
+    { "text": "Отсечка MFO_ZAIMER_2026_LOW (порог 0.7)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_LOW", "affected": 274, "share": 0.425, "app_ids_ref": "f_000000000001" },
+    { "text": "Стоп-фактор DOCS_EXPIRED", "source": "rule", "rule": "DOCS_EXPIRED", "affected": 134, "share": 0.208, "app_ids_ref": "f_000000000002" },
+    { "text": "Отсечка MFO_ZAIMER_2026_V3 (порог 0.62)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_V3", "affected": 119, "share": 0.184, "app_ids_ref": "f_000000000003" },
+    { "text": "Отсечка MFO_ZAIMER_2026_MID (порог 0.62)", "source": "cutoff", "rule": "MFO_ZAIMER_2026_MID", "affected": 118, "share": 0.183, "app_ids_ref": "f_000000000004" }
   ],
-  "unexplained": null
+  "unexplained": 0,
+  "by_source": { "logic": 218, "data": 167, "both": 0 }
 }
 ```
 
-`share` — доля от строк продуктов с причиной отказа в заявках, где решение изменилось на `reject` (всего 645 строк). Это не доля от заявок. `unexplained` пока `null`: мы не считали заявки без причины, правило для этого ещё не написано.
+- `affected` — число строк продуктов для причины. `share` — доля от строк продуктов с определённой причиной отказа в заявках, где решение изменилось на `reject` (645 строк в примере), округлённая до трёх знаков.
+- `app_ids_ref` ведёт к уникальным заявкам причины через ручку 7.3.
+- `unexplained` — число заявок с переходом `approve_to_reject`, у которых не определена ни одна продуктовая причина.
+- `by_source` — число заявок каждого источника E10 среди всех заявок со сменой решения. В примере технические поля исключены из сравнения. Для старых запусков без классификации счётчики равны нулю.
 
 ---
 
@@ -537,8 +576,8 @@
   "total": 11,
   "rows": [
     {
-      "check_id": "builtin_missing_attrs",
-      "check_name": "Отсутствующие атрибуты",
+      "check_id": "builtin_attribute_new_loss",
+      "check_name": "Изменился состав атрибутов",
       "source": "AFTER",
       "argument": null,
       "numbers": "0 / 500",
@@ -553,6 +592,9 @@
 
 - `result` — `PASS` или `FAIL`.
 - `apps_ref` — список заявок (ручка 7.3). `null`, если заявок нет.
+- `check_id` — id процедуры (`builtin_…` или `p_…`), `check_name` — название проверки.
+- `numbers` — `"CNT / TOTAL"`; `metric` — число или `null`.
+- Проверка, которая упала с ошибкой или не уложилась в таймаут, **не валит запуск**: в таблице она строкой `FAIL` с текстом ошибки в `argument`, `faint: true`; подробности — в журнале этапа `checks` (`level: "error"`).
 - `faint` — `true`, если срабатываний мало и уверенности нет. Фронт показывает такую строку бледной, как в ТЗ.
 
 ### 10.2. Запуск проверок с новым кодом
@@ -585,7 +627,7 @@
 
 `GET /api/runs/{id}/export.csv?decision_change=approve_to_reject`
 
-Отдаёт CSV по списку заявок (ручка 7.4) с теми же фильтрами.
+Отдаёт все подходящие заявки без пагинации с теми же фильтрами и сортировкой, что в п. 7.4. Разделитель `;`, кодировка UTF-8 с BOM. Текстовые значения, похожие на формулы, начинаются с апострофа для безопасного открытия в Excel. Заголовки ответа: `Content-Type: text/csv; charset=utf-8` и `Content-Disposition: attachment; filename="apps-<run_id>.csv"`.
 
 ---
 

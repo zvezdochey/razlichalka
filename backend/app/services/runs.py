@@ -11,7 +11,7 @@ from pathlib import Path
 
 from app import pipeline_stub, settings, store
 from app.errors import ApiError
-from app.services import datasets, stages
+from app.services import datasets, stages, warmup
 from pipeline.errors import Cancelled as PipelineCancelled
 
 log = logging.getLogger("razlichalka")
@@ -98,6 +98,12 @@ def recover() -> None:
             _done[rid].set()
 
 
+def dataset_path(run: dict) -> Path:
+    """Папка исходного датасета из метаданных запуска."""
+    # Старые запуски хранят только id. Родительская папка может переехать.
+    return Path(settings.DATASETS_DIR) / run.get("dataset_folder", run["dataset"])
+
+
 class Ctx:
     """Что видит этап: лог, прогресс, флаг «Стоп» и пути к файлам запуска."""
 
@@ -105,10 +111,9 @@ class Ctx:
         self._run, self._stage, self._index = run, stage, index
         self.run_dir: Path = _dirs[run["id"]]
         self.config: dict = run["config"]
+        self.owner: str = run["owner"]  # чьи пользовательские процедуры подключать в этапе checks
         self.dataset: str = run["dataset"]
-        # Папка с manifest.json и срезами. Храним только имя: DATASETS_DIR может переехать.
-        # В старых run.json поля нет — берём id датасета (обычно он совпадает с именем папки).
-        self.dataset_dir: Path = Path(settings.DATASETS_DIR) / run.get("dataset_folder", run["dataset"])
+        self.dataset_dir = dataset_path(run)
 
     def log(self, level: str, message: str) -> None:
         with _lock:
@@ -182,6 +187,13 @@ def execute(run: dict) -> None:
             with _lock:
                 stage["status"], stage["finished_at"] = "ready", _now()
                 _save(run)
+        # E11: до статуса ready, чтобы первое открытие сводной не читало витрину с диска (~0,5 с).
+        # Прогрев ошибок не бросает; «Стоп» во время прогрева уважаем — проверяем флаг до и после.
+        if _cancel[rid].is_set():
+            raise Cancelled()
+        warmup.warm(_dirs[rid])
+        if _cancel[rid].is_set():
+            raise Cancelled()
         with _lock:
             run["status"], run["current_stage"], run["finished_at"] = "ready", None, _now()
             run["progress"]["done"] = run["progress"]["total"]

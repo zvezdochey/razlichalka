@@ -2,6 +2,9 @@
 
 Читает оба среза прямо из JSON (не из normalized-CSV).
 
+Пути полей (откуда решение, продукты, выдача, модель PD, …) — не здесь, а в карте полей встроенной процедуры
+`backend/procedures/builtin_segments.py` (FIELD_MAP). Ниже имена полей в объяснениях — по этой карте.
+
 Правило «того же продукта» (от него берутся модель, порог, причина отказа, тип партнёра, способ маршрутизации):
     берём продукт на первой позиции выдачи (оффер с минимальным `rank` в `available_offers`);
     если выдачи нет — продукт с наименьшим `product_id` из `product_trials`.
@@ -14,8 +17,17 @@
 
 Нет поля -> пустая ячейка (не `None` и не ошибка).
 
+`CHANGE_SOURCE` (E10, сценарий 4 ТЗ: «из-за логики или из-за входных данных?») — по витрине сравнения:
+    data  — есть различие (DIFF_FLAG=1) во входе: путь начинается с префикса из INPUT_PREFIXES
+            (`builtin_segments.py`: данные заявки и ответы внешних источников);
+    logic — различия есть, но только в том, что посчитала СПР;
+    none  — различий нет совсем.
+`both` («вход поменялся, но решение поменялось сильнее, чем объясняет вход») пока не считаем: честного
+критерия нет, а на этом датасете у всех заявок с другим входом смена решения ровно им и объясняется.
+Технические поля (`ignore_paths`) в витрину не попадают, поэтому и здесь не считаются.
+
 CLI для себя (из папки backend/):
-    python -m pipeline.segments <папка_датасета> <out.csv>
+    python -m pipeline.segments <папка_датасета> <out.csv> [comparison.csv]
 """
 
 import json
@@ -23,18 +35,27 @@ import sys
 import time
 from pathlib import Path
 
-from .csvio import write_csv
+from .csvio import read_csv, write_csv
 from .dataset import list_source_files
 from .errors import BadFile, Cancelled
+from .procedures import load_builtin, load_builtin_value
 
 COLUMNS = [
     "APP_ID", "DECISION_BEFORE", "DECISION_AFTER", "DECISION_CHANGED", "PRODUCTS",
     "TOP_OFFER_BEFORE", "TOP_OFFER_AFTER", "PARTNER_TYPE", "ROUTING_METHOD",
     "PD_MODEL_BEFORE", "PD_MODEL_AFTER", "CUTOFF_BEFORE", "CUTOFF_AFTER",
     "REJECT_REASON_BEFORE", "REJECT_REASON_AFTER", "SCORE_OKB_BEFORE", "SCORE_OKB_AFTER",
+    "CHANGE_SOURCE",
 ]
+# Словарь CHANGE_SOURCE (docs/api.md, «Общие словари»). `both` зарезервирован, сейчас не выдаём.
+CHANGE_SOURCES = ("logic", "data", "both", "none")
 
 PROGRESS_EVERY = 50
+
+# Встроенная процедура с картой полей (backend/procedures/builtin_segments.py)
+BUILTIN = "builtin_segments"
+# Поля «того же продукта» — читаются у выбранного продукта, а не из ответа целиком
+PRODUCT_FIELDS = ("PARTNER_TYPE", "ROUTING_METHOD", "PD_MODEL", "CUTOFF", "REJECT_REASON")
 
 
 def _text(value) -> str:
@@ -46,15 +67,6 @@ def _text(value) -> str:
     if isinstance(value, (dict, list)):
         return ""  # в разрезах нужны только скаляры
     return str(value)
-
-
-def _get(obj, *path):
-    """Достаёт вложенное поле; на любом шаге нет словаря или ключа -> None."""
-    for key in path:
-        if not isinstance(obj, dict):
-            return None
-        obj = obj.get(key)
-    return obj
 
 
 def _dicts(value) -> list[dict]:
@@ -79,36 +91,145 @@ def _min_key(value):
     return (0, n, "") if n is not None else (1, 0, _text(value))
 
 
-def _extract(doc: dict) -> dict:
-    """Что нужно из одного ответа одного среза."""
-    result = doc.get("decisionResult") if isinstance(doc.get("decisionResult"), dict) else {}
-    trials = _dicts(result.get("product_trials"))
-    offers = [o for o in _dicts(result.get("available_offers")) if o.get("product_id") is not None]
+def _walk(obj, path: str) -> list:
+    """Все значения по пути `a.b[].c`: шаг с `[]` раскрывает массив. Нет поля или не тот тип — пропускаем."""
+    values = [obj]
+    for step in path.split("."):
+        is_array = step.endswith("[]")
+        key = step[:-2] if is_array else step
+        nxt = []
+        for v in values:
+            v = v.get(key) if isinstance(v, dict) else None
+            if is_array:
+                nxt.extend(v if isinstance(v, list) else [])
+            elif v is not None:
+                nxt.append(v)
+        values = nxt
+    return [v for v in values if v is not None]
 
-    top_offer = min(offers, key=lambda o: (_min_key(o.get("rank")), _min_key(o.get("product_id")))) if offers else None
-    top_id = top_offer.get("product_id") if top_offer else None
 
-    # «тот же продукт»: первый в выдаче, иначе наименьший product_id из прогонов
+def segment_field_map(overrides: dict | None = None, procedures_dir=None) -> dict:
+    """Карта полей встроенной процедуры `builtin_segments`, перекрытая `overrides` (то, что задано, — заменяет)."""
+    return {**load_builtin(BUILTIN, procedures_dir), **(overrides or {})}
+
+
+def read_field(doc: dict, name: str, fmap: dict | None = None):
+    """Значение поля `name` из ответа СПР по карте полей (без карты — встроенная).
+
+    Путь без `[]` — одно значение или None; путь с `[]` — список значений по всем элементам массива.
+    Поля нет в карте или путь пустой — None.
+    Нужна и карточке заявки (I3): те же пути, что у разрезов.
+    """
+    path = (fmap if fmap is not None else segment_field_map()).get(name) or ""
+    if not path:
+        return None
+    values = _walk(doc, path)
+    if "[]" in path:
+        return values
+    return values[0] if values else None
+
+
+def input_prefixes(procedures_dir=None) -> list[str]:
+    """Префиксы путей входа (INPUT_PREFIXES из `builtin_segments.py`), без `[]` на конце сегментов."""
+    prefixes = load_builtin_value(BUILTIN, "INPUT_PREFIXES", procedures_dir)
+    if not isinstance(prefixes, (list, tuple)) or not all(isinstance(x, str) and x for x in prefixes):
+        raise BadFile(f"процедура {BUILTIN}: INPUT_PREFIXES должен быть списком непустых строк")
+    return [x.replace("[]", "") for x in prefixes]
+
+
+def is_input_path(path: str, prefixes: list[str]) -> bool:
+    """Путь витрины — вход? `ext_data[].body.x` подходит к префиксу `ext_data`, `ext_database.x` — нет."""
+    plain = path.replace("[]", "")
+    return any(plain == p or plain.startswith(p + ".") for p in prefixes)
+
+
+def change_sources(comparison_csv: Path, prefixes: list[str]) -> dict[str, str]:
+    """{APP_ID: "data" | "logic"} по витрине сравнения. Заявок без различий в ответе нет — у них `none`."""
+    cmp_ = read_csv(Path(comparison_csv))
+    missing = [c for c in ("APP_ID", "PATH", "DIFF_FLAG") if c not in cmp_.columns]
+    if missing:
+        raise BadFile(f"В файле {Path(comparison_csv).name} нет колонок: {', '.join(missing)}")
+    diff = cmp_[cmp_["DIFF_FLAG"] == "1"]
+    # для каждого разного PATH один раз решаем, вход это или нет
+    inputs = {path for path in diff["PATH"].unique() if is_input_path(path, prefixes)}
+    with_input = set(diff.loc[diff["PATH"].isin(inputs), "APP_ID"])
+    return {app: ("data" if app in with_input else "logic") for app in diff["APP_ID"].unique()}
+
+
+def _split_array(fmap: dict, name: str) -> tuple[str, str]:
+    """`a.items[].id` -> ("a.items[]", "id"): массив и поле внутри элемента. Нет `[]` — понятная ошибка."""
+    path = fmap.get(name) or ""
+    head, sep, tail = path.partition("[].")
+    if not sep or not tail:
+        raise BadFile(f"карта полей разрезов: {name} должен указывать на поле элемента массива "
+                      f"(вида «a.items[].id»), а сейчас {path!r}")
+    return head + "[]", tail
+
+
+def _check_map(fmap: dict) -> dict:
+    """Разбирает карту один раз на весь срез: где массив продуктов, где выдача, какие поля у продукта."""
+    products, product_id = _split_array(fmap, "PRODUCTS")
+    offers, offer_id = _split_array(fmap, "TOP_OFFER")
+    rank_arr, rank = _split_array(fmap, "OFFER_RANK")
+    if rank_arr != offers:
+        raise BadFile(f"карта полей разрезов: OFFER_RANK и TOP_OFFER должны быть в одном массиве "
+                      f"({rank_arr} ≠ {offers})")
+    product_fields = {}
+    for name in PRODUCT_FIELDS:
+        path = fmap.get(name) or ""
+        # поле продукта — относительно элемента массива продуктов; иначе читаем из ответа целиком
+        if path.startswith(products + "."):
+            product_fields[name] = ("product", path[len(products) + 1:])
+        elif "[]" in path:
+            # массив, но не массив продуктов: «первый элемент» был бы чужим продуктом — молча врать нельзя
+            raise BadFile(f"карта полей разрезов: {name} = {path!r} — поле продукта должно лежать "
+                          f"в массиве продуктов {products} (как PRODUCTS) или вне массивов")
+        else:
+            product_fields[name] = ("doc", path)
+    return {"products": products, "product_id": product_id, "offers": offers, "offer_id": offer_id,
+            "rank": rank, "product_fields": product_fields, "fmap": fmap}
+
+
+def _first(obj, path: str):
+    values = _walk(obj, path) if path else []
+    return values[0] if values else None
+
+
+def _extract(doc: dict, plan: dict) -> dict:
+    """Что нужно из одного ответа одного среза. Пути — из карты полей (`plan` = `_check_map`)."""
+    pid, oid = plan["product_id"], plan["offer_id"]
+    trials = _dicts(_walk(doc, plan["products"]))
+    offers = [o for o in _dicts(_walk(doc, plan["offers"])) if _first(o, oid) is not None]
+
+    rank = plan["rank"]
+    top_offer = min(offers, key=lambda o: (_min_key(_first(o, rank)), _min_key(_first(o, oid)))) if offers else None
+    top_id = _first(top_offer, oid) if top_offer else None
+
+    # «тот же продукт»: первый в выдаче, иначе наименьший id из прогонов продуктов
     by_id = {}
     for t in trials:
-        by_id.setdefault(_text(t.get("product_id")), t)
+        by_id.setdefault(_text(_first(t, pid)), t)
     if top_id is not None:
         product = by_id.get(_text(top_id))
     else:
-        with_id = [t for t in trials if t.get("product_id") is not None]
-        product = min(with_id, key=lambda t: _min_key(t["product_id"])) if with_id else None
+        with_id = [t for t in trials if _first(t, pid) is not None]
+        product = min(with_id, key=lambda t: _min_key(_first(t, pid))) if with_id else None
 
-    ids = sorted({t["product_id"] for t in trials if t.get("product_id") is not None}, key=_min_key)
+    def product_field(name: str) -> str:
+        where, path = plan["product_fields"][name]
+        return _text(_first(product, path) if where == "product" else _first(doc, path))
+
+    ids = sorted({_first(t, pid) for t in trials if _first(t, pid) is not None}, key=_min_key)
     return {
-        "decision": _text(result.get("decision")),
+        "decision": _text(read_field(doc, "DECISION", plan["fmap"])),
         "products": [_text(i) for i in ids],
         "top_offer": _text(top_id),
-        "partner_type": _text(_get(product, "partner_type")),
-        "routing_method": _text(_get(product, "routing_method")),
-        "pd_model": _text(_get(product, "scoring", "pd", "modelName")),
-        "cutoff": _text(_get(product, "cutOff", "name")),
-        "reject_reason": _text(_get(product, "rejectReason")),
-        "score_okb": _text(_get(doc, "characteristics", "score_okb")),
+        "partner_type": product_field("PARTNER_TYPE"),
+        "routing_method": product_field("ROUTING_METHOD"),
+        "pd_model": product_field("PD_MODEL"),
+        "cutoff": product_field("CUTOFF"),
+        "reject_reason": product_field("REJECT_REASON"),
+        "score_okb": _text(read_field(doc, "SCORE_OKB", plan["fmap"])),
     }
 
 
@@ -122,7 +243,7 @@ def _read(file: Path) -> dict:
     return doc
 
 
-def _row(app_id: str, before: dict, after: dict) -> dict:
+def _row(app_id: str, before: dict, after: dict, change_source: str) -> dict:
     changed = before["decision"] != after["decision"]
     # партнёр и маршрутизация — из среза, где есть выдача (в BEFORE приоритет)
     partner_src = after if (not before["top_offer"] and after["top_offer"]) else before
@@ -145,11 +266,23 @@ def _row(app_id: str, before: dict, after: dict) -> dict:
         "REJECT_REASON_AFTER": after["reject_reason"],
         "SCORE_OKB_BEFORE": before["score_okb"],
         "SCORE_OKB_AFTER": after["score_okb"],
+        "CHANGE_SOURCE": change_source,
     }
 
 
-def build_segments(dataset_dir: Path, out_csv: Path, on_progress=None, log=None, is_cancelled=None) -> int:
-    """Пишет segments.csv, по строке на заявку (заявки — файлы среза BEFORE). Возвращает число строк."""
+def build_segments(dataset_dir: Path, out_csv: Path, *, field_map: dict | None = None, procedures_dir=None,
+                   comparison_csv: Path | None = None,
+                   on_progress=None, log=None, is_cancelled=None) -> int:
+    """Пишет segments.csv, по строке на заявку (заявки — файлы среза BEFORE). Возвращает число строк.
+
+    Всё после `out_csv` — только по имени (`field_map=...`), чтобы новый параметр не сдвинул чужие вызовы.
+    `field_map` — пути, которые заменяют пути встроенной карты полей (`builtin_segments`);
+    без неё — встроенная карта целиком. `procedures_dir` — папка встроенных процедур (из app/settings.py).
+    `comparison_csv` — витрина сравнения для колонки CHANGE_SOURCE; без неё колонка пустая.
+    """
+    plan = _check_map(segment_field_map(field_map, procedures_dir))
+    sources = (change_sources(comparison_csv, input_prefixes(procedures_dir))
+               if comparison_csv is not None else None)
     before_files = list_source_files(dataset_dir, "BEFORE")
     after_by_id = {f.stem: f for f in list_source_files(dataset_dir, "AFTER")}
     total = len(before_files)
@@ -166,28 +299,43 @@ def build_segments(dataset_dir: Path, out_csv: Path, on_progress=None, log=None,
     if extra:
         say("warn", f"В AFTER лишних заявок, которых нет в BEFORE: {extra} — в разрезы не попали")
 
+    # заявки, где решение изменилось, а различий в витрине нет; заполняет rows(), в журнал — одним сообщением
+    no_diffs: list[str] = []
+
     def rows():
         for done, file in enumerate(before_files, start=1):
             if is_cancelled and is_cancelled():
                 raise Cancelled()
-            before = _extract(_read(file))
-            after = _extract(_read(after_by_id[file.stem]))
-            yield _row(file.stem, before, after)
+            before = _extract(_read(file), plan)
+            after = _extract(_read(after_by_id[file.stem]), plan)
+            # заявки нет среди различий витрины (или нет в витрине совсем) — значит различий нет: none
+            source = "" if sources is None else sources.get(file.stem, "none")
+            row = _row(file.stem, before, after, source)
+            if source == "none" and row["DECISION_CHANGED"] == "1":
+                no_diffs.append(file.stem)  # так быть не должно: решение само есть в витрине
+            yield row
             if done % PROGRESS_EVERY == 0 or done == total:
                 if on_progress:
                     on_progress(done)
                 say("info", f"Разрезы: обработано {done} из {total}")
 
     say("info", f"Разрезы: {total} заявок")
-    return write_csv(Path(out_csv), COLUMNS, rows())
+    n = write_csv(Path(out_csv), COLUMNS, rows())
+    if no_diffs:
+        # одно сообщение на весь этап, а не по строке на заявку
+        say("warn", f"У {len(no_diffs)} заявок решение изменилось, а различий в витрине нет "
+                    f"(путь решения в ignore_paths?): {', '.join(no_diffs[:5])}"
+                    + (f" и ещё {len(no_diffs) - 5}" if len(no_diffs) > 5 else ""))
+    return n
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
-        print("Использование: python -m pipeline.segments <папка_датасета> <out.csv>")
+    if len(argv) not in (2, 3):
+        print("Использование: python -m pipeline.segments <папка_датасета> <out.csv> [comparison.csv]")
         return 1
     start = time.time()
-    n = build_segments(Path(argv[0]), Path(argv[1]), log=lambda lvl, msg: print(f"[{lvl}] {msg}"))
+    n = build_segments(Path(argv[0]), Path(argv[1]), comparison_csv=Path(argv[2]) if len(argv) == 3 else None,
+                       log=lambda lvl, msg: print(f"[{lvl}] {msg}"))
     print(f"Готово: {n} строк за {time.time() - start:.1f} с")
     return 0
 

@@ -12,6 +12,16 @@ DATASETS_DIR = Path(os.environ.get("DATASETS_DIR", REPO_DIR / "ПАКЕТ" / "З
 # Папка, куда пишет бэк: конфигурации, запуски, результаты
 DATA_DIR = Path(os.environ.get("DATA_DIR", BACKEND_DIR / "var"))
 
+# Встроенные процедуры — файлы с правилами разбора; этапы передают эту папку в pipeline (services/stages.py)
+PROCEDURES_DIR = Path(os.environ.get("PROCEDURES_DIR", BACKEND_DIR / "procedures"))
+
+# Проверки организаторов (check_*.py): своя папка backend/checks/, если она есть, иначе пакет организаторов
+# (в git его нет)
+_CHECKS_DEFAULT = BACKEND_DIR / "checks"
+if not _CHECKS_DEFAULT.is_dir():
+    _CHECKS_DEFAULT = REPO_DIR / "ПАКЕТ" / "ЗАДАНИЕ" / "checks"
+CHECKS_DIR = Path(os.environ.get("CHECKS_DIR", _CHECKS_DEFAULT))
+
 # Адреса dev-серверов фронта
 CORS_ORIGINS = ["http://localhost:5173", "http://localhost:3000"]
 

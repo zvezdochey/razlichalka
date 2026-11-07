@@ -1,0 +1,62 @@
+/* Статус запуска и этапа. Плоско, без скругления панелей: это подпись, а не чип вердикта. */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: var(--fs-table);
+}
+
+.status__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-strong);
+  font-size: 10px;
+  line-height: 1;
+}
+
+.status--running {
+  color: var(--text);
+}
+
+.status--running .status__icon {
+  color: var(--accent);
+  border-color: var(--accent);
+  animation: status-pulse 1.4s ease-in-out infinite;
+}
+
+.status--done {
+  color: var(--text);
+}
+
+.status--done .status__icon {
+  border-color: var(--border-strong);
+}
+
+/* Единственный красный статус — настоящее падение запуска или этапа. */
+.status--danger {
+  color: var(--danger);
+}
+
+.status--danger .status__icon {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  color: var(--danger);
+  font-weight: 600;
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}

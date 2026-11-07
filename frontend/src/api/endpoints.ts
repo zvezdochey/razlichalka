@@ -6,10 +6,15 @@ import type {
   AppsResponse,
   AttributesParams,
   AttributesResponse,
+  ChecksParams,
+  ChecksResponse,
   Config,
   ConfigInput,
   Dataset,
   DatasetsResponse,
+  FactAppsResponse,
+  FactsParams,
+  FactsResponse,
   HealthResponse,
   RunCancelled,
   RunCreated,
@@ -123,6 +128,7 @@ export function getApps(
 ): Promise<AppsResponse> {
   const query = toQuery({
     decision_change: params.decision_change,
+    change_source: params.change_source,
     has_attr_change: params.has_attr_change,
     search: params.search,
     sort: params.sort,
@@ -156,4 +162,51 @@ export function reportUrl(runId: string): string {
 /** То же, но с заголовком на скачивание. */
 export function reportDownloadUrl(runId: string): string {
   return `/api/runs/${encodeURIComponent(runId)}/report.html`
+}
+
+// ─── 7.2–7.3. Факты и заявки группы ──────────────────────────────────────────
+
+/** Пустой массив отключает условие, а один пустой элемент выбирает пустые ячейки. */
+export function formatFactsFilter(filters: Record<string, string[]>): string {
+  return Object.entries(filters)
+    .filter(([, values]) => values.length > 0)
+    .map(([field, values]) => `${field}:${values.join(',')}`)
+    .join(';')
+}
+
+export function getFacts(
+  runId: string,
+  params: FactsParams,
+  options?: Options,
+): Promise<FactsResponse> {
+  const query = toQuery({
+    dims: params.dims,
+    filter: params.filter && formatFactsFilter(params.filter),
+    measure: params.measure,
+    limit: params.limit,
+  })
+  return request<FactsResponse>(`/runs/${encodeURIComponent(runId)}/facts${query}`, options)
+}
+
+export function getFactApps(
+  runId: string,
+  ref: string,
+  page: number,
+  size: number,
+  options?: Options,
+): Promise<FactAppsResponse> {
+  const query = toQuery({ page, size })
+  const path = `/runs/${encodeURIComponent(runId)}/facts/${encodeURIComponent(ref)}/apps`
+  return request<FactAppsResponse>(`${path}${query}`, options)
+}
+
+// ─── 10.1. Проверки ──────────────────────────────────────────────────────────
+
+export function getChecks(
+  runId: string,
+  params: ChecksParams = {},
+  options?: Options,
+): Promise<ChecksResponse> {
+  const query = toQuery({ result: params.result, page: params.page, size: params.size })
+  return request<ChecksResponse>(`/runs/${encodeURIComponent(runId)}/checks${query}`, options)
 }

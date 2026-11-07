@@ -55,12 +55,9 @@ function paginate<T>(rows: T[], page: number, size: number): T[] {
 
 // ─── Список заявок: фильтры, поиск, сортировка (п. 7.4) ──────────────────────
 
-/** По каким полям разрешаем сортировать. Остальное игнорируем. */
-const SORTABLE = ['app_id', 'attributes_changed'] as const
-type SortableField = (typeof SORTABLE)[number]
-
-function isSortable(field: string): field is SortableField {
-  return (SORTABLE as readonly string[]).includes(field)
+/** По договору сортировать можно по любому полю строки ответа. */
+function isSortable(field: string): field is keyof AppRow {
+  return APPS[0] !== undefined && Object.hasOwn(APPS[0], field)
 }
 
 function matchesSearch(app: AppRow, search: string): boolean {
@@ -96,9 +93,11 @@ function filterApps(params: URLSearchParams): AppRow[] {
   const rawChanges = params.get('decision_change')
   const changes = rawChanges === null ? null : (rawChanges.split(',') as DecisionChange[])
   const onlyAttrChange = params.get('has_attr_change') === '1'
+  const sources = params.get('change_source')?.split(',')
   const search = params.get('search')?.trim().toLowerCase() ?? ''
 
   const filtered = APPS.filter((app) => {
+    if (sources && !sources.includes(app.change_source)) return false
     if (changes !== null && !changes.includes(app.decision_change)) return false
     if (onlyAttrChange && app.attributes_changed === 0) return false
     if (search !== '' && !matchesSearch(app, search)) return false
@@ -224,6 +223,8 @@ export const handlers = [
     if (!isReady(run)) return notReady()
 
     const url = new URL(request.url)
+    const sort = url.searchParams.get('sort') ?? ''
+    if (sort && !isSortable(sort.replace(/^-/, ''))) return error(400, 'bad_file', `Неизвестное поле сортировки: ${sort}`)
     const page = readInt(url.searchParams, 'page', DEFAULT_PAGE)
     const size = readInt(url.searchParams, 'size', DEFAULT_APPS_SIZE, MAX_SIZE)
     const rows = filterApps(url.searchParams)

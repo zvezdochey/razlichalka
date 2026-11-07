@@ -5,6 +5,8 @@
 Заявка «с различием» — есть хотя бы одна строка витрины с DIFF_FLAG=1.
 Список заявок берём из segments.csv (одна строка на заявку), поэтому заявки без строк
 в витрине тоже попадают в apps.csv — с attributes_changed=0.
+`change_source` (logic / data / none) переносим из segments.csv как есть; `change_sources` в summary.json —
+только по заявкам, где решение изменилось (их сумма = decision_changed).
 """
 
 import json
@@ -13,12 +15,13 @@ from pathlib import Path
 
 from pipeline.csvio import read_csv, write_csv
 from pipeline.errors import BadFile
+from pipeline.segments import CHANGE_SOURCES  # словарь «Откуда смена» — один на весь pipeline
 
 # Порядок колонок — CONTRACTS §2.4
 APPS_COLUMNS = [
     "app_id", "decision_before", "decision_after", "decision_change", "attributes_changed",
     "pd_model_before", "pd_model_after", "cutoff_before", "cutoff_after",
-    "reject_reason_before", "reject_reason_after",
+    "reject_reason_before", "reject_reason_after", "change_source",
 ]
 CHANGE_TYPES = ["VALUE_CHANGED", "ATTRIBUTE_NEW", "ATTRIBUTE_LOST"]
 DECISION_CHANGES = ["same", "approve_to_reject", "reject_to_approve", "decision_other"]
@@ -27,6 +30,7 @@ _COPY = {
     "pd_model_before": "PD_MODEL_BEFORE", "pd_model_after": "PD_MODEL_AFTER",
     "cutoff_before": "CUTOFF_BEFORE", "cutoff_after": "CUTOFF_AFTER",
     "reject_reason_before": "REJECT_REASON_BEFORE", "reject_reason_after": "REJECT_REASON_AFTER",
+    "change_source": "CHANGE_SOURCE",
 }
 
 
@@ -71,6 +75,7 @@ def build_summary(comparison_csv: Path, segments_csv: Path, out_summary_json: Pa
     by_type = diff["CHANGE_TYPE"].value_counts().to_dict()
 
     changes = dict.fromkeys(DECISION_CHANGES, 0)
+    sources = dict.fromkeys(CHANGE_SOURCES, 0)  # только по заявкам со сменой решения
 
     def rows():
         for rec in segments.to_dict("records"):
@@ -78,6 +83,13 @@ def build_summary(comparison_csv: Path, segments_csv: Path, out_summary_json: Pa
             after = normalize_decision(rec["DECISION_AFTER"])
             change = decision_change(before, after)
             changes[change] += 1
+            if change != "same":
+                source = rec["CHANGE_SOURCE"]
+                if source not in sources:
+                    raise BadFile(f"segments.csv: у заявки {rec['APP_ID']} CHANGE_SOURCE={source!r}, "
+                                  f"ждали одно из {', '.join(CHANGE_SOURCES)}. Разрезы построены без витрины "
+                                  f"или старой версией — перезапусти этап aggregate целиком")
+                sources[source] += 1
             row = {
                 "app_id": rec["APP_ID"], "decision_before": before, "decision_after": after,
                 "decision_change": change,
@@ -97,6 +109,7 @@ def build_summary(comparison_csv: Path, segments_csv: Path, out_summary_json: Pa
         "decision_changed": total - changes["same"],
         "decision_changes": changes,
         "attributes": {t: int(by_type.get(t, 0)) for t in CHANGE_TYPES},
+        "change_sources": sources,
     }
     # как и CSV: сначала во временный файл, потом подмена — обрыв не оставит половину JSON
     out_summary_json = Path(out_summary_json)
@@ -105,5 +118,6 @@ def build_summary(comparison_csv: Path, segments_csv: Path, out_summary_json: Pa
     os.replace(tmp, out_summary_json)
     if log:
         log("info", f"Итоги: заявок {total}, с различиями {changed}, "
-                    f"решение изменилось у {summary['decision_changed']}")
+                    f"решение изменилось у {summary['decision_changed']} "
+                    f"(из-за логики {sources['logic']}, из-за входных данных {sources['data']})")
     return summary

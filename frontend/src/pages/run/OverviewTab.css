@@ -1,0 +1,208 @@
+/* Обзор результата. Цвета и размеры — только токены (PLAN п. 1). */
+
+.overview {
+  display: grid;
+  gap: var(--s-6);
+}
+
+.overview__head {
+  margin: 0 0 var(--s-3);
+  font-size: var(--fs-panel);
+  font-weight: 600;
+}
+
+/* --- Фраза-ответ --- */
+
+.verdict__text {
+  margin: 0;
+  max-inline-size: 34ch;
+  font-size: var(--fs-metric);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.verdict__num {
+  font-weight: 600;
+  /* в строке текста число не выравниваем по правому краю, только табличные цифры */
+  text-align: inherit;
+}
+
+/* --- Лента чисел под фразой --- */
+
+.strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  margin: var(--s-6) 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.strip__item {
+  flex: 1 1 10rem;
+  padding: var(--s-3) var(--s-4);
+  border-inline-start: 1px solid var(--border);
+}
+
+.strip__item:first-child {
+  padding-inline-start: 0;
+  border-inline-start: 0;
+}
+
+.strip__label {
+  font-size: var(--fs-caption);
+  color: var(--muted);
+}
+
+.strip__value {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-panel);
+  /* чуть легче фразы-ответа выше: лента чисел читается второй, не спорит с ней за внимание */
+  font-weight: 500;
+}
+
+.strip__value .num {
+  text-align: start;
+}
+
+.strip__link {
+  color: var(--text);
+  text-decoration: none;
+  border-block-end: 1px solid var(--border-strong);
+}
+
+.strip__link:hover {
+  border-block-end-color: var(--text);
+}
+
+.strip__hint {
+  margin: var(--s-1) 0 0;
+  font-size: var(--fs-caption);
+  color: var(--faint);
+}
+
+/* --- Две колонки: переходы и атрибуты --- */
+
+.overview__columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: var(--s-6);
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .overview__columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* --- Переходы решений --- */
+
+.transitions__table {
+  width: 100%;
+}
+
+.transitions__table th[scope='row'] {
+  font-weight: 400;
+}
+
+.transitions__pair {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.transitions__pair:hover span:first-child,
+.transitions__pair:hover .axis {
+  text-decoration: underline;
+}
+
+/* Итог и «решение то же» отделены от переходов линией, а не цветом */
+.transitions__total th,
+.transitions__total td {
+  border-top: 1px solid var(--border-strong);
+  font-weight: 600;
+}
+
+.transitions__total th[scope='row'] {
+  font-weight: 600;
+}
+
+/* «Различия есть, решение то же» — не итог переходов выше, а отдельная величина,
+   поэтому граница над строкой заметнее обычной (но без цвета-оценки). */
+.transitions__quiet th,
+.transitions__quiet td {
+  border-top: 1px solid var(--border-strong);
+}
+
+.transitions__quiet th[scope='row'] a {
+  color: var(--text);
+  text-decoration-color: var(--border-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.transitions__note {
+  margin: var(--s-3) 0 0;
+  font-size: var(--fs-table);
+}
+
+/* --- Полосы по атрибутам --- */
+
+.attrs__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--s-3);
+}
+
+.attrs__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--s-1) var(--s-2);
+  align-items: baseline;
+}
+
+.attrs__title {
+  font-size: var(--fs-body);
+}
+
+.attrs__value {
+  font-weight: 600;
+}
+
+.attrs__track {
+  grid-column: 1 / -1;
+  /* 12, не 10: кратно шагу сетки (4) и заметнее штриховка/контур на узких полосах */
+  block-size: 12px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+}
+
+.attrs__bar {
+  display: block;
+  block-size: 100%;
+  min-inline-size: 2px;
+}
+
+/* Тип различия читается формой полосы, не только текстом */
+.attrs__bar--solid {
+  background: var(--text);
+}
+
+.attrs__bar--hatched {
+  background: repeating-linear-gradient(135deg, var(--text) 0 2px, transparent 2px 5px);
+}
+
+.attrs__bar--hollow {
+  background: var(--surface);
+  border: 1px solid var(--text);
+  box-sizing: border-box;
+}
+
+.attrs__note {
+  margin: var(--s-4) 0 0;
+  font-size: var(--fs-caption);
+}

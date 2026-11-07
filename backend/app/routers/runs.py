@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from app.deps import current_user
 from app.errors import ApiError
 from app.routers.configs import own_config
-from app.services import runs
+from app.services import runs, warmup
 
 router = APIRouter()
 
@@ -45,7 +45,11 @@ def list_runs(user: str = Depends(current_user)):
 
 @router.get("/runs/{run_id}")
 def get_run(run_id: str, user: str = Depends(current_user)):
-    return _status(runs.snapshot(runs.get_own(run_id, user)))
+    run = runs.snapshot(runs.get_own(run_id, user))
+    if run["status"] == "ready":
+        # после перезапуска сервера кэши пустые: прогреваем, пока человек смотрит на страницу запуска (E11)
+        warmup.warm_in_background(runs.ready_dir(run_id, user))
+    return _status(run)
 
 
 @router.post("/runs/{run_id}/cancel")
