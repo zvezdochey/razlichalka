@@ -12,7 +12,10 @@ type PivotFiltersProps = {
 }
 
 export function PivotFilters({ filters, field, onFieldChange, dragHandle, onChange }: PivotFiltersProps) {
-  const applied = filters[field]?.join(', ') ?? (field === 'DIFF_FLAG' ? '1' : '')
+  const values = filters[field]
+  const applied = values?.some((value) => /[;,]/.test(value))
+    ? JSON.stringify(values)
+    : values?.join(', ') ?? (field === 'DIFF_FLAG' ? '1' : '')
   const [draft, setDraft] = useState({ field, applied, value: applied })
   const [error, setError] = useState('')
 
@@ -24,17 +27,25 @@ export function PivotFilters({ filters, field, onFieldChange, dragHandle, onChan
 
   const apply = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const values = [...new Set(value.split(',').map((part) => part.trim()))]
-    if (value.includes(';')) {
-      setError('Точка с запятой разделяет фильтры и не может входить в значение.')
-      return
+    let values: string[]
+    if (/^\s*\[\s*"/.test(value)) {
+      try {
+        const parsed: unknown = JSON.parse(value)
+        if (!Array.isArray(parsed) || !parsed.length || !parsed.every((item) => typeof item === 'string')) throw new Error()
+        values = parsed
+      } catch {
+        setError('Укажите список строк в JSON, например ["a,b","c;d"].')
+        return
+      }
+    } else {
+      values = value.split(',').map((part) => part.trim())
     }
     if (field === 'DIFF_FLAG' && values.some((item) => item !== '0' && item !== '1')) {
       setError('Для этого поля введите 0 или 1.')
       return
     }
     setError('')
-    onChange({ ...filters, [field]: values })
+    onChange({ ...filters, [field]: [...new Set(values)] })
   }
 
   const remove = (field: string) => {
@@ -68,6 +79,7 @@ export function PivotFilters({ filters, field, onFieldChange, dragHandle, onChan
             value={value}
             onChange={(event) => { setDraft({ field, applied, value: event.target.value }); setError('') }}
             placeholder="Например VALUE_CHANGED"
+            title={'Для значений с запятой используйте список JSON, например ["a,b"].'}
           />
         </label>
         <button className="btn" type="submit">Применить фильтр</button>

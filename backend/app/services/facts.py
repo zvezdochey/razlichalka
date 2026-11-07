@@ -42,17 +42,32 @@ def _facts_base(run_dir: Path) -> pd.DataFrame:
 
 def _parse_filter(raw: str, columns: pd.Index) -> list:
     conditions = []
-    for condition in raw.split(";") if raw else []:
-        name, separator, values = condition.partition(":")
-        name = name.strip()
-        if not separator or name not in columns:
-            raise ApiError("bad_file", f"Некорректное условие фильтра «{condition}»")
-        choices = values.split(",")
+    if raw.lstrip().startswith("{"):
+        try:
+            filters = json.loads(raw)
+            if not isinstance(filters, dict):
+                raise ValueError
+            for name, choices in filters.items():
+                if not isinstance(choices, list) or not choices or any(not isinstance(value, str) for value in choices):
+                    raise ValueError
+                conditions.append([name, choices])
+        except ValueError:
+            raise ApiError("bad_file", "Фильтр JSON должен содержать поля с непустыми списками строк") from None
+    else:
+        for condition in raw.split(";") if raw else []:
+            name, separator, values = condition.partition(":")
+            if not separator:
+                raise ApiError("bad_file", f"Некорректное условие фильтра «{condition}»")
+            conditions.append([name.strip(), values.split(",")])
+
+    for condition in conditions:
+        name, choices = condition
+        if name not in columns:
+            raise ApiError("bad_file", f"Неизвестное поле фильтра «{name}»")
         if name == "DIFF_FLAG":
             if any(value not in ("0", "1") for value in choices):
                 raise ApiError("bad_file", "Для DIFF_FLAG допустимы только значения 0 и 1")
-            choices = [int(value) for value in choices]
-        conditions.append([name, choices])
+            condition[1] = [int(value) for value in choices]
     return conditions
 
 

@@ -1,4 +1,5 @@
 import type { FactsResponse, FactsRow, FactValue } from '../../api'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { DASH, formatNumber } from '../../lib/format'
 import { factLabel, PIVOT_FIELDS } from './pivotLayout'
 import type { PivotField, PivotLayout } from './pivotLayout'
@@ -16,6 +17,8 @@ type MatrixRow = { values: FactValue[]; cells: Map<string, FactsRow>; total: num
 type MatrixColumn = { value: FactValue; total: number }
 
 const RESPONSE_TIME = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const ROW_PAGE_SIZE = 50
+const COLUMN_PAGE_SIZE = 20
 
 function makeMatrix(groups: FactsRow[], rowFields: PivotField[], columnField: PivotField | null) {
   const rows = new Map<string, MatrixRow>()
@@ -43,6 +46,15 @@ function makeMatrix(groups: FactsRow[], rowFields: PivotField[], columnField: Pi
 
 export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTableProps) {
   const { rows, columns, total } = makeMatrix(data.rows, layout.rows, layout.column)
+  const location = useLocation()
+  const navigate = useNavigate()
+  const rowPage: number = location.state?.pivotRowPage ?? 0
+  const columnPage: number = location.state?.pivotColumnPage ?? 0
+  const setPage = (key: 'pivotRowPage' | 'pivotColumnPage', value: number) => navigate(location.pathname + location.search, {
+    replace: true, preventScrollReset: true, state: { ...location.state, [key]: value },
+  })
+  const visibleRows = [...rows].slice(rowPage * ROW_PAGE_SIZE, (rowPage + 1) * ROW_PAGE_SIZE)
+  const visibleColumns = [...columns].slice(columnPage * COLUMN_PAGE_SIZE, (columnPage + 1) * COLUMN_PAGE_SIZE)
   const additive = layout.measure === 'counts'
   const truncated = data.total_groups > data.rows.length
   const metric = additive ? 'Строк витрины' : 'Заявок'
@@ -59,13 +71,24 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
           Показаны первые {formatNumber(data.rows.length)} групп из {formatNumber(data.total_groups)}, сузьте фильтр.
         </p>
       )}
+      {(rows.size > ROW_PAGE_SIZE || columns.size > COLUMN_PAGE_SIZE) && (
+        <nav className="pivot-pagination" aria-label="Страницы сводной">
+          <span>Строки {rowPage + 1} / {Math.ceil(rows.size / ROW_PAGE_SIZE)}</span>
+          <button type="button" className="btn" disabled={rowPage === 0} onClick={() => setPage('pivotRowPage', rowPage - 1)}>Предыдущие строки</button>
+          <button type="button" className="btn" disabled={(rowPage + 1) * ROW_PAGE_SIZE >= rows.size} onClick={() => setPage('pivotRowPage', rowPage + 1)}>Следующие строки</button>
+          <span>Колонки {columnPage + 1} / {Math.ceil(columns.size / COLUMN_PAGE_SIZE)}</span>
+          <button type="button" className="btn" disabled={columnPage === 0} onClick={() => setPage('pivotColumnPage', columnPage - 1)}>Предыдущие колонки</button>
+          <button type="button" className="btn" disabled={(columnPage + 1) * COLUMN_PAGE_SIZE >= columns.size} onClick={() => setPage('pivotColumnPage', columnPage + 1)}>Следующие колонки</button>
+          <span className="muted">Итоги учитывают все загруженные группы.</span>
+        </nav>
+      )}
       <div className="table-scroll pivot-table-scroll" tabIndex={0} role="region" aria-label="Сводная таблица">
         <table className="table pivot-table">
           <caption className="visually-hidden">Сводная таблица. Показатель — {metric}</caption>
           <thead>
             <tr>
               {layout.rows.map((field) => <th key={field} scope="col">{PIVOT_FIELDS[field]}</th>)}
-              {[...columns].map(([key, column]) => (
+              {visibleColumns.map(([key, column]) => (
                 <th key={key} scope="col" className="num">
                   {layout.column === null ? metric : factLabel(layout.column, column.value)}
                 </th>
@@ -74,14 +97,14 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
             </tr>
           </thead>
           <tbody>
-            {[...rows].map(([rowKey, row]) => {
+            {visibleRows.map(([rowKey, row]) => {
               const rowLabels = layout.rows.map((field, index) => factLabel(field, row.values[index]))
               return (
                 <tr key={rowKey}>
                   {layout.rows.map((field, index) => (
                     <th key={field} scope="row" className={field === 'PATH' ? 'mono' : undefined}>{rowLabels[index]}</th>
                   ))}
-                  {[...columns].map(([key, column]) => {
+                  {visibleColumns.map(([key, column]) => {
                     const cell = row.cells.get(key)
                     const label = layout.column === null
                       ? rowLabels.join(' · ')
@@ -92,6 +115,7 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
                           <button
                             className="pivot-cell"
                             type="button"
+                            data-fact-ref={cell.app_ids_ref}
                             aria-label={`Заявки группы ${label}, ${metric.toLowerCase()}: ${formatNumber(cell.counts)}`}
                             onClick={(event) => onOpenGroup({ ref: cell.app_ids_ref, label }, event.currentTarget)}
                           >
@@ -109,7 +133,7 @@ export function PivotTable({ layout, data, elapsed, onOpenGroup }: PivotTablePro
           <tfoot>
             <tr>
               <th scope="row" colSpan={layout.rows.length}>{totalLabel}</th>
-              {[...columns].map(([key, column]) => (
+              {visibleColumns.map(([key, column]) => (
                 <td key={key} className="num">{additive ? formatNumber(column.total) : DASH}</td>
               ))}
               {layout.column !== null && <td className="num">{additive ? formatNumber(total) : DASH}</td>}

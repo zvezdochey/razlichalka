@@ -188,7 +188,8 @@ def test_concurrent_reasons_requests_read_each_slice_once(client, run, monkeypat
         assert finish_read.wait(5)
         return read_slice(path, fields)
 
-    monkeypatch.setattr(reasons, "_lock", ObservedLock())
+    observed_lock = ObservedLock()
+    monkeypatch.setattr(reasons, "_run_lock", lambda *_: observed_lock)
     monkeypatch.setattr(app_card, "read_slice", paused_read)
     with ThreadPoolExecutor(max_workers=2) as pool:
         first = pool.submit(client.get, f"{run}/reasons")
@@ -213,6 +214,40 @@ def test_not_found_for_foreign_unknown_or_missing_slice(client, run, dataset):
     (dataset / "RESULTS" / "AFTER" / "A1.json").unlink()
     response = client.get(f"{run}/apps/A1")
     assert response.status_code == 404 and response.json()["error"]["code"] == "not_found"
+
+
+def test_card_uses_saved_map_after_procedure_update(client, run, tmp_path, monkeypatch):
+    old = client.get(f"{run}/apps/A1").json()
+    procedures = tmp_path / "changed-procedures"
+    procedures.mkdir()
+    (procedures / "builtin_segments.py").write_text(
+        "FIELD_MAP = {'DECISION': 'new.decision', 'PRODUCTS': 'new.products[].id'}\n", encoding="utf-8",
+    )
+    monkeypatch.setattr(settings, "PROCEDURES_DIR", procedures)
+    assert client.get(f"{run}/apps/A1").json() == old
+    assert (settings.DATA_DIR / "runs" / run.rsplit("/", 1)[1] / app_card.CARD_FIELDS_FILE).is_file()
+
+
+def test_reason_locks_do_not_block_other_runs(tmp_path, monkeypatch):
+    entered, release = Event(), Event()
+    cold, warm = tmp_path / "cold", tmp_path / "warm"
+
+    def calculate(run_dir, _dataset):
+        if run_dir == cold:
+            entered.set()
+            assert release.wait(5)
+        return {"run": run_dir.name}
+
+    monkeypatch.setattr(reasons, "_cached_reasons", calculate)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(reasons.reasons, cold, tmp_path)
+        try:
+            assert entered.wait(5)
+            second = pool.submit(reasons.reasons, warm, tmp_path)
+            assert second.result(timeout=2) == {"run": "warm"}
+        finally:
+            release.set()
+        assert first.result(timeout=2) == {"run": "cold"}
 
 
 def test_card_and_reasons_wait_until_ready(client, monkeypatch):

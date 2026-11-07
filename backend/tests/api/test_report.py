@@ -100,6 +100,18 @@ def test_report_uses_only_top_20_apps(client, ready_id):
     assert '<dd class="value">16</dd>' in page.text
 
 
+def test_report_includes_fail_after_first_500_checks(client, ready_id):
+    columns = ["LABEL", "SOURCE", "ARGUMENT", "CNT", "TOTAL", "METRIC", "RESULT", "CONFIDENCE", "APP_IDS"]
+    row = dict(zip(columns, ["PASS", "AFTER", "", "1", "1", "", "PASS", "HIGH", ""]))
+    rows = [{**row, "LABEL": f"PASS-{i}"} for i in range(500)]
+    rows.append({**row, "LABEL": "LAST-FAIL", "RESULT": "FAIL"})
+    write_csv(settings.DATA_DIR / "runs" / ready_id / "checks.csv", columns, rows)
+    page = client.get(f"/api/runs/{ready_id}/report")
+    assert page.status_code == 200
+    assert "LAST-FAIL" in page.text and "PASS-499" in page.text
+    assert page.text.index("LAST-FAIL") < page.text.index("PASS-0")
+
+
 @pytest.mark.parametrize("suffix", ("report", "report.html"))
 def test_report_requires_owner(client, ready_id, suffix):
     for run_id in (ready_id, "r_unknown"):

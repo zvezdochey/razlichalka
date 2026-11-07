@@ -49,7 +49,9 @@ def summary(run_dir: Path) -> bytes:
 def _apps(run_dir: Path) -> pd.DataFrame:
     rows = read_csv(result_file(run_dir, "apps.csv"))
     if "change_source" not in rows:
-        rows["change_source"] = ""  # запуски, созданные до E10
+        unchanged = (rows["decision_change"] == "same") & (rows["attributes_changed"] == "0")
+        rows["change_source"] = ""  # У старых прогонов источник изменений неизвестен.
+        rows.loc[unchanged, "change_source"] = "none"
     rows = rows[APP_FIELDS]
     rows["attributes_changed"] = pd.to_numeric(rows["attributes_changed"]).astype("Int64")
     return rows.set_index("app_id", drop=False).rename_axis(None)
@@ -57,6 +59,13 @@ def _apps(run_dir: Path) -> pd.DataFrame:
 
 def app_decisions(run_dir: Path) -> pd.DataFrame:
     return _apps(run_dir)[["decision_change", "change_source"]]
+
+
+def app_row(run_dir: Path, app_id: str) -> pd.Series:
+    rows = _apps(run_dir)
+    if app_id not in rows.index:
+        raise ApiError("not_found", "Заявка не найдена")
+    return rows.loc[app_id]
 
 
 @lru_cache(maxsize=16)
@@ -189,7 +198,7 @@ def _number(text: str):
         return text
 
 
-def checks(run_dir: Path, *, result: str, page: int, size: int) -> dict:
+def checks(run_dir: Path, *, result: str, page: int, size: int | None, include_refs: bool = True) -> dict:
     """Таблица проверок (docs/api.md п. 10.1) из checks.csv."""
     if result and result not in ("PASS", "FAIL"):
         raise ApiError("bad_file", "result — PASS или FAIL")
@@ -198,9 +207,9 @@ def checks(run_dir: Path, *, result: str, page: int, size: int) -> dict:
     ids = json.loads(index_file.read_text(encoding="utf-8")) if index_file.is_file() else {}
     if result:
         rows = rows[rows["RESULT"] == result]
-    start = (page - 1) * size
+    selected = rows if size is None else rows.iloc[(page - 1) * size:page * size]
     out = []
-    for r in rows.iloc[start:start + size].to_dict("records"):
+    for r in selected.to_dict("records"):
         app_ids = [a for a in str(r["APP_IDS"]).split("|") if a]
         out.append({
             "check_id": ids.get(r["LABEL"]),
@@ -210,7 +219,7 @@ def checks(run_dir: Path, *, result: str, page: int, size: int) -> dict:
             "numbers": f"{r['CNT']} / {r['TOTAL']}" if r["CNT"] != "" else None,
             "metric": _number(r["METRIC"]) if r["METRIC"] != "" else None,
             "result": r["RESULT"],
-            "apps_ref": _apps_ref(run_dir, app_ids),
+            "apps_ref": _apps_ref(run_dir, app_ids) if include_refs else None,
             "faint": r["CONFIDENCE"] == "LOW",
         })
     return {"page": page, "size": size, "total": len(rows), "rows": out}

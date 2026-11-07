@@ -201,8 +201,11 @@ export function downloadAppsCsv(runId: string, params: Omit<AppsParams, 'page' |
 
 /** Пустой массив отключает условие, а один пустой элемент выбирает пустые ячейки. */
 export function formatFactsFilter(filters: Record<string, string[]>): string {
-  return Object.entries(filters)
-    .filter(([, values]) => values.length > 0)
+  const entries = Object.entries(filters).filter(([, values]) => values.length > 0)
+  if (entries.some(([, values]) => values.some((value) => /[;,]/.test(value)))) {
+    return JSON.stringify(Object.fromEntries(entries))
+  }
+  return entries
     .map(([field, values]) => `${field}:${values.join(',')}`)
     .join(';')
 }

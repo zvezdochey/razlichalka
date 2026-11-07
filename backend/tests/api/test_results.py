@@ -6,11 +6,23 @@ from fastapi.testclient import TestClient
 
 from app import pipeline_stub, settings
 from app.main import create_app
-from pipeline.csvio import read_csv
+from pipeline.csvio import read_csv, write_csv
 from pipeline.summary import build_summary
 
 OWNER = {"X-User": "ann"}
 RESULT_PATHS = ("summary", "apps", "apps/MINI-001/attributes")
+
+
+def test_legacy_run_classifies_only_known_unchanged_apps(client, ready_run):
+    from app.services import warmup
+    path = settings.DATA_DIR / "runs" / ready_run.rsplit("/", 1)[1] / "apps.csv"
+    rows = read_csv(path).drop(columns="change_source")
+    write_csv(path, list(rows.columns), rows.to_dict("records"))
+    warmup.reset()
+    known = rows[(rows["decision_change"] == "same") & (rows["attributes_changed"] == "0")]
+    response = client.get(ready_run + "/apps", params={"change_source": "none"}).json()
+    assert response["total"] == len(known)
+    assert {row["app_id"] for row in response["apps"]} == set(known["app_id"])
 
 
 @pytest.fixture

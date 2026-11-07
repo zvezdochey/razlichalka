@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import type { DragEvent } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getFacts } from '../../api'
@@ -9,7 +9,7 @@ import { PivotGroupPanel } from './PivotGroupPanel'
 import { isPivotField, PIVOT_FIELDS, PIVOT_PRESETS, readPivotLayout, writePivotLayout } from './pivotLayout'
 import type { PivotField, PivotLayout } from './pivotLayout'
 import { PivotTable } from './PivotTable'
-import type { PivotGroup } from './PivotTable'
+import { useFactGroup } from './useFactGroup'
 import { usePivotRequest } from './usePivotRequest'
 import { useRunContext } from './runContext'
 import './PivotTab.css'
@@ -95,8 +95,9 @@ function ReadyPivot({ runId }: { runId: string }) {
   const [params, setParams] = useSearchParams()
   const layout = useMemo(() => readPivotLayout(params), [params])
   const [filterField, setFilterField] = useState<PivotField>('DIFF_FLAG')
-  const [selection, setSelection] = useState<{ layout: PivotLayout; group: PivotGroup; trigger: HTMLButtonElement } | null>(null)
-  const group = selection?.layout === layout ? selection.group : null
+  const [filterReset, setFilterReset] = useState(0)
+  const { group, page, setGroup, setPage } = useFactGroup()
+  const trigger = useRef<HTMLButtonElement>(null)
 
   const load = useCallback((signal: AbortSignal) => getFacts(runId, {
     dims: layout.column === null ? layout.rows : [...layout.rows, layout.column],
@@ -105,15 +106,18 @@ function ReadyPivot({ runId }: { runId: string }) {
   }, { signal }), [runId, layout])
   const { result, retry } = usePivotRequest(load)
 
-  const update = (next: PivotLayout) => {
+  const update = (next: PivotLayout, resetHistory = false) => {
     const search = writePivotLayout(params, next)
-    if (params.toString() !== search.toString()) setParams(search, { preventScrollReset: true })
+    if (resetHistory || params.toString() !== search.toString()) setParams(search, { preventScrollReset: true })
   }
 
   const close = useCallback(() => {
-    setSelection(null)
-    selection?.trigger.focus()
-  }, [selection])
+    const button = trigger.current?.isConnected ? trigger.current
+      : document.querySelector<HTMLButtonElement>(`[data-fact-ref="${CSS.escape(group?.ref ?? '')}"]`)
+    const focusTarget = button ?? document.querySelector<HTMLButtonElement>('.pivot-editor button')
+    setGroup(null)
+    focusTarget?.focus()
+  }, [setGroup, group])
 
   const primaryRow = layout.rows[0]
   const secondaryRow = layout.rows[1] ?? null
@@ -163,7 +167,8 @@ function ReadyPivot({ runId }: { runId: string }) {
           </div>
           <button type="button" className="btn" onClick={() => {
             setFilterField('DIFF_FLAG')
-            update(readPivotLayout(new URLSearchParams()))
+            setFilterReset((value) => value + 1)
+            update(readPivotLayout(new URLSearchParams()), true)
           }}>Сбросить раскладку</button>
         </div>
 
@@ -201,6 +206,7 @@ function ReadyPivot({ runId }: { runId: string }) {
         <fieldset className="pivot-filter-fieldset" data-pivot-slot="filter" {...dropField(setFilterField, 'copy')}>
           <legend>Фильтры</legend>
           <PivotFilters
+            key={filterReset}
             filters={layout.filters}
             field={filterField}
             onFieldChange={setFilterField}
@@ -224,11 +230,14 @@ function ReadyPivot({ runId }: { runId: string }) {
                 )}
               />
             ) : (
-              <PivotTable layout={layout} data={result.data} elapsed={result.elapsed} onOpenGroup={(group, trigger) => setSelection({ layout, group, trigger })} />
+              <PivotTable key={JSON.stringify(layout)} layout={layout} data={result.data} elapsed={result.elapsed} onOpenGroup={(group, button) => {
+                trigger.current = button
+                setGroup(group)
+              }} />
             )
           )}
         </section>
-        {group && <PivotGroupPanel key={group.ref} group={group} runId={runId} onClose={close} />}
+        {group && <PivotGroupPanel key={group.ref} group={group} runId={runId} page={page} onPageChange={setPage} onClose={close} />}
       </div>
     </div>
   )

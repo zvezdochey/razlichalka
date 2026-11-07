@@ -161,7 +161,7 @@ function ReadyApps({ runId }: { runId: string }) {
             <td className={app.pd_model_before !== app.pd_model_after ? 'apps-different' : undefined}><Pair before={app.pd_model_before} after={app.pd_model_after} /></td>
             <td className={app.cutoff_before !== app.cutoff_after ? 'apps-different' : undefined}><Pair before={app.cutoff_before} after={app.cutoff_after} /></td>
             <td className={app.reject_reason_before !== app.reject_reason_after ? 'apps-different' : undefined}><Pair before={app.reject_reason_before} after={app.reject_reason_after} /></td>
-            <td>{SOURCES[app.change_source] ?? DASH}</td>
+            <td>{app.change_source === null ? DASH : SOURCES[app.change_source]}</td>
           </tr>)}</tbody>
         </table>
       </div>)}

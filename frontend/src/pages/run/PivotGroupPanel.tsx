@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { getFactApps } from '../../api'
 import { EmptyState, ErrorBox, Spinner } from '../../components'
@@ -14,12 +14,13 @@ type PivotGroupPanelProps = {
   group: PivotGroup
   onClose: () => void
   emptyHint?: string
+  page: number
+  onPageChange: (page: number) => void
 }
 
 export function PivotGroupPanel({
-  runId, group, onClose, emptyHint = 'Выберите другую ячейку сводной.',
+  runId, group, onClose, emptyHint = 'Выберите другую ячейку сводной.', page, onPageChange,
 }: PivotGroupPanelProps) {
-  const [{ page, knownPages }, setPagination] = useState({ page: 1, knownPages: 1 })
   const closeButton = useRef<HTMLButtonElement>(null)
   const load = useCallback(
     (signal: AbortSignal) => getFactApps(runId, group.ref, page, PAGE_SIZE, { signal }),
@@ -40,7 +41,7 @@ export function PivotGroupPanel({
   }, [onClose])
 
   const data = result.status === 'ready' ? result.data : null
-  const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : knownPages
+  const pages = data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : page
   const canGoBack = page > 1 && result.status !== 'loading'
   const canGoForward = page < pages && result.status !== 'loading'
 
@@ -71,9 +72,9 @@ export function PivotGroupPanel({
       )}
       {pages > 1 && (
         <nav className="pivot-pagination" aria-label="Страницы заявок группы">
-          <button type="button" className="btn" aria-disabled={!canGoBack} onClick={() => { if (canGoBack) setPagination({ page: page - 1, knownPages: pages }) }}>Назад</button>
+          <button type="button" className="btn" aria-disabled={!canGoBack} onClick={() => { if (canGoBack) onPageChange(page - 1) }}>Назад</button>
           <span className="muted">Страница {page} из {pages}</span>
-          <button type="button" className="btn" aria-disabled={!canGoForward} onClick={() => { if (canGoForward) setPagination({ page: page + 1, knownPages: pages }) }}>Дальше</button>
+          <button type="button" className="btn" aria-disabled={!canGoForward} onClick={() => { if (canGoForward) onPageChange(page + 1) }}>Дальше</button>
         </nav>
       )}
     </aside>
