@@ -1,0 +1,40 @@
+{
+  "code_commit": "33ad03d",
+  "samples_seconds": {
+    "open": [
+      0.14880029999999989,
+      0.16600490000000082,
+      0.14919050000000061
+    ],
+    "layout": [
+      0.09958039999999983,
+      0.09945750000000043,
+      0.0997469000000001
+    ],
+    "filter": [
+      0.09760240000000021,
+      0.10451410000000033,
+      0.1063802999999998
+    ],
+    "application": [
+      0.13971299999999973,
+      0.13567209999999977,
+      0.1336367999999993
+    ],
+    "repeat": [
+      0.09877990000000045,
+      0.11727559999999994,
+      0.11678589999999986
+    ]
+  },
+  "medians_seconds": {
+    "open": 0.14919050000000061,
+    "layout": 0.09958039999999983,
+    "filter": 0.10451410000000033,
+    "application": 0.13567209999999977,
+    "repeat": 0.11678589999999986
+  },
+  "method": "3 samples per UI action, warmed real run, action through visible table/card and 2 animation frames, production frontend, native Windows/Chromium, no Docker",
+  "date": "2026-11-08",
+  "repetitions": 3
+}
