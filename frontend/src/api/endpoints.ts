@@ -9,13 +9,21 @@ import type {
   ChecksParams,
   ChecksResponse,
   Config,
+  ConfigDetail,
   ConfigInput,
+  ConfigsResponse,
+  ConfigUpdate,
   Dataset,
   DatasetsResponse,
   FactAppsResponse,
   FactsParams,
   FactsResponse,
   HealthResponse,
+  Procedure,
+  ProcedureInput,
+  ProcedureKind,
+  ProceduresResponse,
+  ProcedureWithCode,
   RunCancelled,
   RunCreated,
   RunListItem,
@@ -24,6 +32,8 @@ import type {
   Stage,
   StagesResponse,
   Summary,
+  ValidateInput,
+  ValidateResponse,
 } from './types'
 
 /** Параметр можно отменить: при быстрой смене фильтров ответы приходят не по порядку. */
@@ -208,4 +218,82 @@ export function getChecks(
 ): Promise<ChecksResponse> {
   const query = toQuery({ result: params.result, page: params.page, size: params.size })
   return request<ChecksResponse>(`/runs/${encodeURIComponent(runId)}/checks${query}`, options)
+}
+
+// ─── 4. Конфигурации: список, чтение, изменение ──────────────────────────────
+
+export async function listConfigs(options?: Options): Promise<Config[]> {
+  const res = await request<ConfigsResponse>('/configs', options)
+  return res.configs
+}
+
+export function getConfig(configId: string, options?: Options): Promise<ConfigDetail> {
+  return request<ConfigDetail>(`/configs/${encodeURIComponent(configId)}`, options)
+}
+
+export function updateConfig(
+  configId: string,
+  input: ConfigUpdate,
+  options?: Options,
+): Promise<ConfigDetail> {
+  return request<ConfigDetail>(`/configs/${encodeURIComponent(configId)}`, {
+    ...options,
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
+}
+
+// ─── 3. Процедуры и проверки ─────────────────────────────────────────────────
+
+/** Без `kind` — все виды разом. */
+export async function listProcedures(
+  kind?: ProcedureKind,
+  options?: Options,
+): Promise<Procedure[]> {
+  const res = await request<ProceduresResponse>(`/procedures${toQuery({ kind })}`, options)
+  return res.procedures
+}
+
+/** Процедура вместе с кодом — по нему показываем и «код этапа» из журнала. */
+export function getProcedure(id: string, options?: Options): Promise<ProcedureWithCode> {
+  return request<ProcedureWithCode>(`/procedures/${encodeURIComponent(id)}`, options)
+}
+
+export function createProcedure(input: ProcedureInput, options?: Options): Promise<Procedure> {
+  return request<Procedure>('/procedures', {
+    ...options,
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateProcedure(
+  id: string,
+  input: ProcedureInput,
+  options?: Options,
+): Promise<Procedure> {
+  return request<Procedure>(`/procedures/${encodeURIComponent(id)}`, {
+    ...options,
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
+}
+
+export function deleteProcedure(id: string, options?: Options): Promise<void> {
+  return request<void>(`/procedures/${encodeURIComponent(id)}`, {
+    ...options,
+    method: 'DELETE',
+  })
+}
+
+/** Проверка контракта без запуска: ошибки приходят списком «строка — текст». */
+export function validateProcedure(
+  input: ValidateInput,
+  options?: Options,
+): Promise<ValidateResponse> {
+  return request<ValidateResponse>('/procedures/validate', {
+    ...options,
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
 }
