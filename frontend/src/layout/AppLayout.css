@@ -136,3 +136,33 @@ a.app__nav-item.active {
     padding: var(--s-4);
   }
 }
+
+/* На телефоне боковое меню съедало треть экрана. Ниже 700 px (та же граница, что у карточки
+   заявки) меню — горизонтальная полоса под шапкой, контенту остаётся вся ширина. */
+@media (max-width: 700px) {
+  .app__body {
+    flex-direction: column;
+  }
+
+  .app__nav {
+    flex: none;
+    flex-direction: row;
+    width: auto;
+    padding: 0;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .app__nav-item {
+    flex: none;
+    height: 40px;
+    padding: 0 var(--s-3);
+    font-size: var(--fs-table);
+  }
+
+  /* Маркер активного раздела — снизу, а не слева: в полосе так привычнее. */
+  a.app__nav-item.active {
+    box-shadow: inset 0 -3px 0 var(--accent);
+  }
+}
