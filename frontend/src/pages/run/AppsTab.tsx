@@ -10,7 +10,7 @@ import { usePivotRequest } from './usePivotRequest'
 import './AppsTab.css'
 
 const DECISIONS: Record<DecisionChange, string> = {
-  approve_to_reject: 'approve → reject', reject_to_approve: 'reject → approve',
+  approve_to_reject: 'Одобрено → отказ', reject_to_approve: 'Отказ → одобрено',
   same: 'Решение то же', decision_other: 'Другое',
 }
 const SOURCES: Record<ChangeSource, string> = {
@@ -136,7 +136,7 @@ function ReadyApps({ runId }: { runId: string }) {
           <thead><tr>{sortHeader('app_id', 'APP_ID')}<th scope="col">Решение · до / после</th>{sortHeader('attributes_changed', 'Изменено атр.')}
             <th scope="col">Модель · до / после</th><th scope="col">Порог · до / после</th><th scope="col">Причина отказа · до / после</th><th scope="col">Источник</th></tr></thead>
           <tbody>{data.apps.map((app) => <tr key={app.app_id} tabIndex={0} aria-label={`Открыть заявку ${app.app_id}`}
-            aria-selected={params.get('app') === app.app_id} onClick={() => update('app', app.app_id, false)}
+            aria-current={params.get('app') === app.app_id ? 'true' : undefined} onClick={() => update('app', app.app_id, false)}
             onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); update('app', app.app_id, false) } }}>
             <td className="mono">{app.app_id}</td><td><Pair before={app.decision_before} after={app.decision_after} badge /></td>
             <td className="num">{formatNumber(app.attributes_changed)}</td>

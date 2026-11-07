@@ -5,30 +5,29 @@
 .apps-filter legend { float: left; width: 76px; color: var(--muted); }
 .apps-filter label, .apps-search-row > label { display: inline-flex; align-items: center; gap: var(--s-1); }
 .apps input[type='checkbox'] { accent-color: var(--text); }
-.apps-search { display: flex; flex-direction: column; gap: var(--s-1); flex: 1; max-width: 480px; min-width: 240px; font-size: var(--fs-caption); color: var(--muted); }
+.apps-search { display: flex; flex-direction: column; gap: var(--s-1); flex: 1; max-width: 480px; min-width: 240px; align-items: stretch; font-size: var(--fs-caption); color: var(--muted); }
 .apps-search .input { font-size: var(--fs-body); }
 .apps-chips { display: flex; flex-wrap: wrap; gap: var(--s-2); }
 .apps-chips .btn { padding: 2px var(--s-2); font-size: var(--fs-caption); }
 .apps-table-scroll { max-height: max(192px, calc(100dvh - 530px)); }
 .apps-table { white-space: nowrap; min-width: 1100px; table-layout: fixed; }
 .apps-table tbody tr { cursor: pointer; }
-.apps-table tbody tr[aria-selected='true'] { outline: 2px solid var(--focus); outline-offset: -2px; }
+.apps-table tbody tr[aria-current='true'] { outline: 2px solid var(--focus); outline-offset: -2px; }
 .apps-table td, .apps-table th { padding-right: var(--s-2); padding-left: var(--s-2); }
+/* На ноутбуке сохраняем все семь колонок; длинные значения доступны в title. */
+.apps-table th:nth-child(1) { width: 100px; }
+.apps-table th:nth-child(2) { width: 170px; }
+.apps-table th:nth-child(3) { width: 120px; }
+.apps-table th:nth-child(7) { width: 110px; }
 .apps-pair { display: flex; align-items: center; gap: var(--s-2); }
 .apps-pair > span, .apps-pair .axis > span { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .apps-pair .axis { overflow: hidden; }
+.apps-pair > span { flex: 1; }
+.apps-pair .axis::before { flex-shrink: 0; }
+.apps-table td:nth-child(2) .apps-pair > span { flex: 0 0 auto; }
 .apps-different { background: var(--surface-sunken); font-weight: 500; }
 .apps-sort { border: 0; background: transparent; color: inherit; font: inherit; padding: 6px 0; cursor: pointer; }
 .apps-page-buttons { display: flex; align-items: center; gap: var(--s-3); }
 .apps-pagination { font-size: var(--fs-table); font-variant-numeric: tabular-nums; }
 .apps-skeleton div { height: 20px; background: var(--surface-sunken); border-bottom: 1px solid var(--border); margin: var(--s-3) 0; }
 @media (max-width: 960px) { .apps-search { max-width: none; } }
-/* На ноутбуке сохраняем все семь колонок; длинные значения доступны в title. */
-.apps-search-row > .apps-search { align-items: stretch; }
-.apps-table th:nth-child(1) { width: 100px; }
-.apps-table th:nth-child(2) { width: 170px; }
-.apps-table th:nth-child(3) { width: 120px; }
-.apps-table th:nth-child(7) { width: 110px; }
-.apps-pair > span { flex: 1; }
-.apps-pair .axis::before { flex-shrink: 0; }
-.apps-table td:nth-child(2) .apps-pair > span { flex: 0 0 auto; }
