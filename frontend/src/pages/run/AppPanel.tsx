@@ -154,7 +154,7 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
               Почему изменилось
             </button>
             <button type="button" className="btn" aria-pressed={section === 'attributes'} onClick={() => setSection('attributes')}>
-              Все изменённые поля
+              Все поля ответа
             </button>
           </div>
 
@@ -186,7 +186,7 @@ export function AppPanel({ runId, appId, app, onClose }: Props) {
           {result.status === 'ready' && visible.length === 0 && <p role="status">{emptyMessage(total, onlyDiff, search, type)}</p>}
 
           {visible.length > 0 && (
-            <div className="table-scroll app-panel-table-scroll" tabIndex={0} aria-label="Таблица атрибутов, прокручиваемая область">
+            <div className="table-scroll app-panel-table-scroll" tabIndex={0} aria-label="Таблица полей ответа, прокручиваемая область">
               <table className="table app-panel-table">
                 <thead>
                   <tr><th title="Поле в ответе СПР (атрибут)">Поле ответа</th><th>Элемент массива (продукт / оффер)</th><th title="Старая версия СПР">До</th><th title="Новая версия СПР">После</th><th>Что произошло</th></tr>
