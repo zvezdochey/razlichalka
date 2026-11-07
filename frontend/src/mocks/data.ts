@@ -144,6 +144,7 @@ function buildApp(appId: string, change: DecisionChange, hasAttrChange: boolean)
   const sameIsReject = change === 'same' && random() < 0.4
 
   const base = {
+    change_source: (hasAttrChange ? (Number(appId.slice(-1)) % 3 === 0 ? 'data' : 'logic') : 'none') as AppRow['change_source'],
     app_id: appId,
     pd_model_before: pdModel,
     // Модель меняется редко: чаще меняют порог, а не сам скоринг.
