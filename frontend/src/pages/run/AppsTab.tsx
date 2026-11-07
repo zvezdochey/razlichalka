@@ -3,6 +3,7 @@ import { useLocation, useSearchParams } from 'react-router-dom'
 import { downloadAppsCsv, getApps } from '../../api'
 import type { ChangeSource, DecisionChange } from '../../api'
 import { EmptyState, ErrorBox } from '../../components'
+import { DECISION_CHANGE_LABELS, decisionLabel } from '../../lib/decisions'
 import { DASH, formatNumber } from '../../lib/format'
 import { NotReadyNotice } from './NotReadyNotice'
 import { useRunContext } from './runContext'
@@ -10,10 +11,7 @@ import { usePivotRequest } from './usePivotRequest'
 import { AppPanel } from './AppPanel'
 import './AppsTab.css'
 
-const DECISIONS: Record<DecisionChange, string> = {
-  approve_to_reject: 'Одобрено → отказ', reject_to_approve: 'Отказ → одобрено',
-  same: 'Решение то же', decision_other: 'Другое',
-}
+const DECISIONS = DECISION_CHANGE_LABELS
 const SOURCES: Record<ChangeSource, string> = {
   logic: 'Логика', data: 'Данные', both: 'Логика и данные', none: 'Без различий',
 }
@@ -24,15 +22,18 @@ const FILTER_KEYS = ['decision_change', 'change_source', 'has_attr_change', 'sea
  * с обоими значениями через разделитель): так подпись «до»/«после» в шапке стоит
  * ровно над своим значением, а не читается общей строкой через слеш.
  * Цвет (apps-different) отмечает только факт различия, а не его оценку.
+ * `label` — человеческая подпись значения (для решений); исходный код остаётся в `title`.
  */
-function PairCells({ before, after, badge = false }: { before: string | null; after: string | null; badge?: boolean }) {
+function PairCells({ before, after, badge = false, label = (value) => value }: {
+  before: string | null; after: string | null; badge?: boolean; label?: (value: string | null) => string | null
+}) {
   const different = before !== after
   return <>
     <td className={different ? 'apps-different' : undefined}>
-      <span className={badge ? 'chip' : undefined} title={before ?? DASH}>{before ?? DASH}</span>
+      <span className={badge ? 'chip' : undefined} title={before ?? DASH}>{label(before) ?? DASH}</span>
     </td>
     <td className={different ? 'apps-different' : undefined}>
-      <span className={badge ? 'chip' : undefined} title={after ?? DASH}>{after ?? DASH}</span>
+      <span className={badge ? 'chip' : undefined} title={after ?? DASH}>{label(after) ?? DASH}</span>
     </td>
   </>
 }
@@ -187,7 +188,7 @@ function ReadyApps({ runId }: { runId: string }) {
             aria-current={params.get('app') === app.app_id ? 'true' : undefined} onClick={() => update('app', app.app_id, false)}
             onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); update('app', app.app_id, false) } }}>
             <td className="mono">{app.app_id}</td>
-            <PairCells before={app.decision_before} after={app.decision_after} badge />
+            <PairCells before={app.decision_before} after={app.decision_after} badge label={decisionLabel} />
             <td className="num">{formatNumber(app.attributes_changed)}</td>
             <PairCells before={app.pd_model_before} after={app.pd_model_after} />
             <PairCells before={app.cutoff_before} after={app.cutoff_after} />

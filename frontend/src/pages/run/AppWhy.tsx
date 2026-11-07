@@ -2,15 +2,13 @@ import { useCallback } from 'react'
 import { getAppCard } from '../../api'
 import type { AppCard, AppProduct, Decision, Reason } from '../../api'
 import { ErrorBox, Spinner } from '../../components'
+import { DECISION_LABELS } from '../../lib/decisions'
 import { DASH } from '../../lib/format'
 import { usePivotRequest } from './usePivotRequest'
 import './AppWhy.css'
 
-const DECISION: Record<Decision, string> = {
-  approve: 'Одобрено',
-  reject: 'Отказано',
-  other: 'Другое решение',
-}
+/** Общий словарь решений — тот же, что в «Заявках» и шапке карточки. */
+const DECISION: Record<Decision, string> = DECISION_LABELS
 
 const SOURCE: Record<Reason['source'], string> = {
   rule: 'Стоп-фактор',
