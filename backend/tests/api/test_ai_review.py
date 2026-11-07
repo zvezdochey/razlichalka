@@ -214,6 +214,29 @@ def test_check_percents_drops_only_bad_sentence_in_line():
     assert ai_review.check_percents(text, SHARES) == "Решение сменили 385 заявок (19,2%)."
 
 
+def test_check_percents_cleans_raw_names_fractions_and_codes():
+    text = ("Итог: Решение изменилось у 385 заявок (decision_changed_share 0.192).\n"
+            "Подозрительно: логика объясняет 0.566 смен. Переход approve_to_reject у 273 заявок. "
+            "Атрибутов ATTRIBUTE_NEW много (4108).\n"
+            "Доля заявок со сменой решения — 19,2 %.")
+    cleaned = ai_review.check_percents(text, SHARES)
+    assert "decision_changed_share" not in cleaned and "0.192" not in cleaned and "0.566" not in cleaned
+    assert "Переход Одобрение → отказ у 273 заявок." in cleaned
+    assert "Атрибутов Атрибут появился много (4108)." in cleaned
+    assert "19,2 %" in cleaned
+
+
+def test_model_gets_percent_strings_and_russian_labels():
+    shown = ai_review.for_model({
+        "decision_changed_share": 0.192, "decision_changes": {"approve_to_reject": 273, "same": 5},
+        "reasons": {"top": [{"share_of_product_rows": 0.425}], "by_source_share_of_decision_changed": {"logic": 0.566}},
+    })
+    text = json.dumps(shown, ensure_ascii=False)
+    assert "19,2 %" in text and "42,5 %" in text and "56,6 %" in text
+    assert "approve_to_reject" not in text and "Одобрение → отказ" in text and "_share" not in text
+    assert "0.192" not in text
+
+
 def test_input_has_ready_shares(client, ready_id):
     run_dir = settings.DATA_DIR / "runs" / ready_id
     data, _ = ai_review.build_input(run_dir, settings.DATASETS_DIR / "missing")

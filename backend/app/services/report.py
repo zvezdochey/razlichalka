@@ -15,18 +15,7 @@ templates = Environment(
 
 # Словарь перевода кодов для людей: в отчёте руководителя нет approve_to_reject и VALUE_CHANGED.
 # Один на весь отчёт; в шаблоне используется как фильтр `ru`. Неизвестный код выводим как есть.
-LABELS = {
-    "approve_to_reject": "Одобрение → отказ",
-    "reject_to_approve": "Отказ → одобрение",
-    "VALUE_CHANGED": "Значение изменилось",
-    "ATTRIBUTE_NEW": "Атрибут появился",
-    "ATTRIBUTE_LOST": "Атрибут пропал",
-    "same": "Без изменений",
-    "decision_other": "Другое изменение",
-    "approve": "Одобрение",
-    "reject": "Отказ",
-    "other": "Другое",
-}
+from app.services.labels import LABELS  # noqa: E402
 templates.filters["ru"] = lambda code: LABELS.get(code, code)
 
 
