@@ -68,16 +68,22 @@
   max-width: 520px;
 }
 
+/* Ссылки этапа — действия, а не подписи: шрифт таблицы, а не мелкий caption, чтобы легко попасть.
+   Вертикальный padding даёт зону нажатия ~24 px (WCAG 2.5.8); отступ снаружи уменьшен на столько же. */
 .stage__code {
-  margin-top: var(--s-1);
-  font-size: var(--fs-caption);
+  font-size: var(--fs-table);
+}
+
+.stage__code a {
+  display: inline-block;
+  padding-block: var(--s-1);
 }
 
 .stage__toggle {
   font: inherit;
-  font-size: var(--fs-caption);
-  margin-top: var(--s-2);
-  padding: 0;
+  font-size: var(--fs-table);
+  margin-top: var(--s-1);
+  padding: var(--s-1) 0;
   border: none;
   background: none;
   color: var(--info);
