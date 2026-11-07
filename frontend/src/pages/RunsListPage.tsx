@@ -174,7 +174,7 @@ export function RunsListPage() {
                     {interrupted && <div className="muted runs-table__reason">{row.reason}</div>}
                   </td>
                   <td>{run.name}</td>
-                  <td className="mono">{run.dataset}</td>
+                  <td className="mono runs-table__dataset" title={run.dataset}>{run.dataset}</td>
                   <td className="runs-table__date">{formatDateTime(run.created_at)}</td>
                   <td className="num">{loaded ? row.changed.toLocaleString('ru-RU') : placeholder}</td>
                   <td className="num">{loaded ? row.fail === null ? '—' : row.fail.toLocaleString('ru-RU') : placeholder}</td>
