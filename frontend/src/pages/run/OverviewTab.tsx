@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { DecisionChange, ReasonsResponse, Summary } from '../../api'
-import { getConfig, getReasons, getSummary, isAbortError } from '../../api'
+import { getChecks, getReasons, getSummary, isAbortError } from '../../api'
 import { ErrorBox, Spinner } from '../../components'
 import { DASH, formatNumber } from '../../lib/format'
 import { NotReadyNotice } from './NotReadyNotice'
@@ -20,12 +20,12 @@ export function OverviewTab() {
   const { runId, run } = useRunContext()
   if (run === null || run.status !== 'ready') return <NotReadyNotice run={run} />
 
-  return <OverviewBody runId={runId} configId={run.config_id} />
+  return <OverviewBody runId={runId} />
 }
 
 // ─── Загрузка ────────────────────────────────────────────────────────────────
 
-function OverviewBody({ runId, configId }: { runId: string; configId: string }) {
+function OverviewBody({ runId }: { runId: string }) {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reloadToken, setReloadToken] = useState(0)
@@ -69,7 +69,7 @@ function OverviewBody({ runId, configId }: { runId: string; configId: string }) 
 
   return (
     <div className="overview">
-      <Verdict key={runId} runId={runId} configId={configId} summary={summary} />
+      <Verdict key={`verdict-${runId}`} runId={runId} summary={summary} />
       <div className="overview__columns">
         <DecisionTransitions summary={summary} />
         <AttributeBars summary={summary} />
@@ -77,7 +77,7 @@ function OverviewBody({ runId, configId }: { runId: string; configId: string }) 
       <p className="overview__unit-note muted">
         Топ причин считается по строкам продуктов, не по заявкам.
       </p>
-      <ReasonsBlock key={runId} runId={runId} />
+      <ReasonsBlock key={`reasons-${runId}`} runId={runId} />
       <AiReviewBlock key={`ai-${runId}`} runId={runId} />
     </div>
   )
@@ -119,32 +119,36 @@ function appsLink(search: string) {
 type Extras = {
   /** Смены решения по источнику: логика / данные / оба. `null` — нет данных. */
   sources: ReasonsResponse['by_source'] | null
-  /** Сколько проверок в конфигурации прогона. `null` — не получили. */
+  /** Сколько разных проверок реально выполнено в прогоне (уникальные `check_id`). `null` — не получили. */
   checksCount: number | null
 }
 
-/** Источник смен берём из ручки причин, число проверок — из конфигурации прогона. Ошибка не ломает обзор: просто прочерк. */
-function useExtras(runId: string, configId: string): Extras {
+/** Источник смен берём из ручки причин, число проверок — из фактических результатов прогона (не из текущей конфигурации: её могли изменить после запуска). Ошибка не ломает обзор: просто прочерк. */
+function useExtras(runId: string): Extras {
   const [extras, setExtras] = useState<Extras>({ sources: null, checksCount: null })
 
   useEffect(() => {
     const controller = new AbortController()
     const options = { signal: controller.signal }
     const load = async () => {
-      const [reasons, config] = await Promise.allSettled([
+      const [reasons, checks] = await Promise.allSettled([
         getReasons(runId, options),
-        getConfig(configId, options),
+        getChecks(runId, { size: 500 }, options),
       ])
       if (controller.signal.aborted) return
       setExtras({
         sources: reasons.status === 'fulfilled' ? (reasons.value.by_source ?? null) : null,
-        checksCount: config.status === 'fulfilled' ? config.value.checks.length : null,
+        checksCount:
+          // Если строки не уместились на одной странице, точно не посчитать — лучше без числа, чем с заниженным.
+          checks.status === 'fulfilled' && checks.value.total <= checks.value.rows.length
+            ? new Set(checks.value.rows.map((row) => row.check_id ?? row.check_name)).size
+            : null,
       })
     }
     // eslint-disable-next-line react/set-state-in-effect -- загрузка данных эффектом и есть синхронизация с внешней системой
     void load()
     return () => controller.abort()
-  }, [runId, configId])
+  }, [runId])
 
   return extras
 }
@@ -204,17 +208,9 @@ function verdictText(summary: Summary): ReactNode {
   )
 }
 
-function Verdict({
-  runId,
-  configId,
-  summary,
-}: {
-  runId: string
-  configId: string
-  summary: Summary
-}) {
+function Verdict({ runId, summary }: { runId: string; summary: Summary }) {
   const { applications, applications_changed, applications_changed_share } = summary
-  const extras = useExtras(runId, configId)
+  const extras = useExtras(runId)
   // Старые прогоны отдают нули: тогда карточка только путает.
   const { sources } = extras
   const showSources =
@@ -272,7 +268,7 @@ function Verdict({
             hint={
               extras.checksCount === null
                 ? 'строки результатов проверок'
-                : `строки результатов ${formatNumber(extras.checksCount)} ${plural(extras.checksCount, 'проверки', 'проверок', 'проверок')}`
+                : `строки результатов ${formatNumber(extras.checksCount)} ${plural(extras.checksCount, 'проверка', 'проверки', 'проверок')}`
             }
           >
             <Link className="strip__link num" to={{ pathname: '../checks', search: '?result=FAIL' }}>
