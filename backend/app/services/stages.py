@@ -5,6 +5,7 @@
 `{code, message}` менеджер этапов в `services/runs.py`.
 """
 import json
+import os
 from pathlib import Path
 
 from pipeline.checks_runner import load_check, run_checks, write_checks_csv
@@ -102,7 +103,7 @@ def stage_aggregate(ctx) -> None:
 def stage_checks(ctx) -> None:
     """Подключённые проверки -> checks.csv. Сломанная проверка пользователя не валит запуск:
     в журнале ошибка, в таблице строка FAIL с текстом (так делает run_checks)."""
-    for name in (COMPARISON, SEGMENTS):
+    for name in (COMPARISON, SEGMENTS, SUMMARY):
         _need_file(ctx.run_dir / name, "Проверки", "Факты counts")
     loaded, rows = [], []
     if not ctx.config.get("checks"):
@@ -139,4 +140,7 @@ def _add_checks_fail(summary_path: Path, fails: int) -> None:
     """`checks_fail` — карточка «Проверки с FAIL» на обзоре (docs/api.md п. 7.1)."""
     summary = json.loads(summary_path.read_text(encoding="utf-8"))
     summary["checks_fail"] = fails
-    summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    # как в summary.py: временный файл + подмена — обрыв посреди записи не оставит половину JSON
+    tmp = summary_path.with_name(summary_path.name + ".tmp")
+    tmp.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    os.replace(tmp, summary_path)

@@ -224,6 +224,19 @@ def test_hanging_check_is_killed_and_next_runs(mart):
     assert rows[1]["LABEL"] == "t"
 
 
+def test_worker_that_cannot_load_mart_fails_fast(tmp_path):
+    """Дочерний процесс упал при загрузке витрины: не ждём 120 с, каждая проверка — строка FAIL."""
+    class BrokenMart:
+        comparison_csv = tmp_path / "нет.csv"  # файла нет — Mart в дочернем процессе упадёт
+        segments_csv = tmp_path / "нет_segments.csv"
+
+    started = time.time()
+    rows = run_checks(BrokenMart(), [load_check(GOOD, "code"), load_check(GOOD, "code")], timeout=3)
+    assert time.time() - started < 60
+    assert [r["RESULT"] for r in rows] == ["FAIL", "FAIL"]
+    assert "не запустился" in rows[0]["ARGUMENT"]
+
+
 def test_user_code_does_not_see_env_secrets(mart, monkeypatch):
     monkeypatch.setenv("MY_SECRET_TOKEN", "abc")
     spy = load_check('import os\ndef run(m, p):\n'

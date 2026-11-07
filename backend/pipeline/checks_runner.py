@@ -222,7 +222,20 @@ def run_checks(mart, checks: list[dict], params_override: dict | None = None, lo
         tasks, results = ctx.Queue(), ctx.Queue()
         proc = ctx.Process(target=_worker, args=(mart.comparison_csv, mart.segments_csv, tasks, results), daemon=True)
         proc.start()
-        if results.get(timeout=max(timeout, 120))[0] != "ready":
+        # Ждём, пока дочерний процесс загрузит витрину. Если он упал (нет файла, битый CSV) —
+        # не ждём весь срок впустую. Не дождались — процесс убиваем: иначе его запоздалое «ready»
+        # следующая проверка приняла бы за свой результат.
+        deadline = time.time() + max(timeout, 120)
+        while True:
+            try:
+                status = results.get(timeout=1)[0]
+                break
+            except queue.Empty:
+                if not proc.is_alive() or time.time() > deadline:
+                    stop_worker()
+                    raise RuntimeError("процесс проверок не запустился (не удалось загрузить витрину)") from None
+        if status != "ready":
+            stop_worker()
             raise RuntimeError("процесс проверок не запустился")
 
     try:

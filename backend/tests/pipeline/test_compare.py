@@ -220,3 +220,10 @@ def test_performance_big(tmp_path):
     t = time.time()
     assert compare_csv(b, a, tmp_path / "c.csv") == n
     assert time.time() - t < 30
+
+
+def test_read_unpaired_not_a_dict(tmp_path):
+    """unpaired.json не словарь (переписали руками) — нули, а не AttributeError."""
+    f = tmp_path / "unpaired.json"
+    f.write_text("[1, 2]", encoding="utf-8")
+    assert read_unpaired(f) == {"only_before": 0, "only_after": 0}

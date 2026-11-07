@@ -74,6 +74,8 @@ def read_unpaired(path: Path | None) -> dict:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (TypeError, FileNotFoundError, ValueError):
         data = {}
+    if not isinstance(data, dict):  # файл переписали руками — считаем, что счётчиков нет
+        data = {}
     return {"only_before": len(data.get("only_before") or []), "only_after": len(data.get("only_after") or [])}
 
 
